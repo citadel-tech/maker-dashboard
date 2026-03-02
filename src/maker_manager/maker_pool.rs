@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::sync::atomic::Ordering::Relaxed;
 use std::sync::{Arc, RwLock};
 use std::thread::{self, JoinHandle};
 
 use anyhow::{anyhow, Result};
 use coinswap::bitcoin::{Address, Amount};
+use coinswap::maker::{start_maker_server, start_maker_server_taproot};
 use coinswap::maker::{Maker, TaprootMaker};
 use coinswap::utill::UTXO;
 use coinswap::wallet::{AddressType, Destination, Wallet};
@@ -211,7 +213,6 @@ fn handle_request(
         MessageRequest::GetDataDir => {
             MessageResponse::GetDataDirResp(maker.data_dir().to_path_buf())
         }
-        MessageRequest::Stop => MessageResponse::Shutdown,
         MessageRequest::ListFidelity => match maker.wallet().read() {
             Ok(wallet) => match wallet.display_fidelity_bonds() {
                 Ok(bonds) => MessageResponse::ListBonds(bonds),
@@ -242,23 +243,55 @@ impl MakerHandle {
             MakerHandle::Taproot(m) => m.as_ref(),
         }
     }
+
+    /// Sets the shutdown flag to false, allowing the server to run
+    fn reset_shutdown(&self) {
+        match self {
+            MakerHandle::Legacy(m) => m.shutdown.store(false, Relaxed),
+            MakerHandle::Taproot(m) => m.shutdown.store(false, Relaxed),
+        }
+    }
+
+    /// Sets the shutdown flag to true, signaling the server to stop
+    fn signal_shutdown(&self) {
+        match self {
+            MakerHandle::Legacy(m) => m.shutdown.store(true, Relaxed),
+            MakerHandle::Taproot(m) => m.shutdown.store(true, Relaxed),
+        }
+    }
+
+    /// Returns true if the shutdown flag is set
+    fn is_shutdown(&self) -> bool {
+        match self {
+            MakerHandle::Legacy(m) => m.shutdown.load(Relaxed),
+            MakerHandle::Taproot(m) => m.shutdown.load(Relaxed),
+        }
+    }
+
+    /// Clones the inner Arc for spawning the server thread
+    fn clone_inner(&self) -> MakerHandle {
+        match self {
+            MakerHandle::Legacy(m) => MakerHandle::Legacy(m.clone()),
+            MakerHandle::Taproot(m) => MakerHandle::Taproot(m.clone()),
+        }
+    }
 }
 
 /// Entry representing a single maker running in its own thread
-pub struct MakerEntry {
+struct MakerEntry {
     inner: MakerHandle,
     responder: Responder<MessageRequest, MessageResponse>,
 }
 
 impl MakerEntry {
     /// Creates a new MakerEntry and returns the requester handle for communication
-    pub fn new(inner: MakerHandle) -> (Self, Requester<MessageRequest, MessageResponse>) {
+    fn new(inner: MakerHandle) -> (Self, Requester<MessageRequest, MessageResponse>) {
         let (requester, responder) = channel::<MessageRequest, MessageResponse>(100);
         (Self { inner, responder }, requester)
     }
 
     /// Starts handling incoming requests in a loop
-    pub async fn run(mut self) {
+    async fn run(mut self) {
         while let Some(req) = self.responder.recv().await {
             let resp = handle_request(self.inner.as_wallet_access(), req)
                 .unwrap_or_else(|e| MessageResponse::ServerError(e.to_string()));
@@ -269,10 +302,16 @@ impl MakerEntry {
     }
 }
 
-/// Internal handle for a running maker thread
+/// Internal handle for a registered maker
 struct MakerPoolEntry {
+    /// The maker handle (Arc<Maker> or Arc<TaprootMaker>) — persists across start/stop
+    maker_handle: MakerHandle,
+    /// Requester for sending wallet queries via the message loop
     requester: Mutex<Requester<MessageRequest, MessageResponse>>,
-    thread_handle: JoinHandle<()>,
+    /// Thread running the message loop (always alive while maker is registered)
+    message_thread: Option<JoinHandle<()>>,
+    /// Thread running start_maker_server (only when "started")
+    server_thread: Option<JoinHandle<()>>,
 }
 
 /// Pool managing multiple makers, each running in its own thread
@@ -288,15 +327,17 @@ impl MakerPool {
         }
     }
 
-    /// Spawns a new maker in its own thread and registers it in the pool
+    /// Registers a new maker in the pool and spawns its message loop thread.
+    /// The maker is NOT started (no coinswap server). Call `start_server` separately.
     pub fn spawn_maker(&mut self, id: MakerId, maker: MakerHandle) -> Result<()> {
         if self.makers.contains_key(&id) {
             return Err(anyhow!("Maker with id '{}' already exists", id));
         }
 
-        let (entry, requester) = MakerEntry::new(maker);
+        let message_maker = maker.clone_inner();
+        let (entry, requester) = MakerEntry::new(message_maker);
 
-        let thread_handle = thread::spawn(move || {
+        let message_thread = thread::spawn(move || {
             let rt = Runtime::new().expect("Failed to create tokio runtime");
             rt.block_on(entry.run());
         });
@@ -304,12 +345,90 @@ impl MakerPool {
         self.makers.insert(
             id,
             MakerPoolEntry {
+                maker_handle: maker,
                 requester: Mutex::new(requester),
-                thread_handle,
+                message_thread: Some(message_thread),
+                server_thread: None,
             },
         );
 
         Ok(())
+    }
+
+    /// Starts the coinswap server for a registered maker.
+    /// Spawns `start_maker_server` / `start_maker_server_taproot` in a new thread.
+    pub fn start_server(&mut self, id: &MakerId) -> Result<()> {
+        let entry = self
+            .makers
+            .get_mut(id)
+            .ok_or_else(|| anyhow!("Maker with id '{}' not found", id))?;
+
+        if entry.server_thread.is_some() {
+            return Err(anyhow!("Maker '{}' server is already running", id));
+        }
+
+        entry.maker_handle.reset_shutdown();
+
+        let server_handle = match &entry.maker_handle {
+            MakerHandle::Legacy(maker) => {
+                let maker = maker.clone();
+                let span = tracing::info_span!("maker_server", maker_id = %id, kind = "legacy");
+                thread::Builder::new()
+                    .name(format!("legacy-{}", id))
+                    .spawn(move || {
+                        let _guard = span.enter();
+                        if let Err(e) = start_maker_server(maker) {
+                            tracing::error!("Maker server error: {:?}", e);
+                        }
+                    })?
+            }
+            MakerHandle::Taproot(maker) => {
+                let maker = maker.clone();
+                let span = tracing::info_span!("maker_server", maker_id = %id, kind = "taproot");
+                thread::Builder::new()
+                    .name(format!("taproot-{}", id))
+                    .spawn(move || {
+                        let _guard = span.enter();
+                        if let Err(e) = start_maker_server_taproot(maker) {
+                            tracing::error!("Taproot maker server error: {:?}", e);
+                        }
+                    })?
+            }
+        };
+
+        entry.server_thread = Some(server_handle);
+        Ok(())
+    }
+
+    /// Stops the coinswap server for a registered maker.
+    /// Sets the shutdown flag and joins the server thread.
+    /// The maker remains registered — wallet queries still work.
+    pub fn stop_server(&mut self, id: &MakerId) -> Result<()> {
+        let entry = self
+            .makers
+            .get_mut(id)
+            .ok_or_else(|| anyhow!("Maker with id '{}' not found", id))?;
+
+        let server_thread = entry
+            .server_thread
+            .take()
+            .ok_or_else(|| anyhow!("Maker '{}' server is not running", id))?;
+
+        entry.maker_handle.signal_shutdown();
+
+        server_thread
+            .join()
+            .map_err(|_| anyhow!("Failed to join server thread for maker '{}'", id))?;
+
+        Ok(())
+    }
+
+    /// Returns true if the maker's coinswap server is currently running
+    pub fn is_server_running(&self, id: &MakerId) -> bool {
+        self.makers
+            .get(id)
+            .map(|e| e.server_thread.is_some())
+            .unwrap_or(false)
     }
 
     /// Sends a request to a specific maker and returns the response
@@ -322,29 +441,47 @@ impl MakerPool {
         handle.requester.lock().await.request(req).await
     }
 
-    /// Checks if a maker with the given ID exists in the pool
+    /// Checks if a maker with the given ID exists in the pool (registered, regardless of server state)
     pub fn contains(&self, id: &MakerId) -> bool {
         self.makers.contains_key(id)
     }
 
+    #[allow(dead_code)]
     /// Returns the number of makers in the pool
     pub fn len(&self) -> usize {
         self.makers.len()
     }
 
+    #[allow(dead_code)]
     /// Returns true if the pool is empty
     pub fn is_empty(&self) -> bool {
         self.makers.is_empty()
     }
 
+    #[allow(dead_code)]
     /// Returns a list of all maker IDs in the pool
     pub fn list_makers(&self) -> Vec<&MakerId> {
         self.makers.keys().collect()
     }
 
-    /// Removes a maker from the pool (the thread will stop when the channel closes)
-    pub fn remove_maker(&mut self, id: &MakerId) -> Option<JoinHandle<()>> {
-        self.makers.remove(id).map(|handle| handle.thread_handle)
+    /// Removes a maker entirely from the pool.
+    /// Stops the server first if running, then drops the message channel (stopping the message loop).
+    pub fn remove_maker(&mut self, id: &MakerId) {
+        if let Some(mut entry) = self.makers.remove(id) {
+            if entry.server_thread.is_some() {
+                entry.maker_handle.signal_shutdown();
+                if let Some(handle) = entry.server_thread.take() {
+                    let _ = handle.join();
+                }
+            }
+            // Dropping the entry closes the channel, which will cause the message loop to exit.
+            // We can optionally join the message thread.
+            if let Some(handle) = entry.message_thread.take() {
+                // Drop the requester first to close the channel
+                drop(entry.requester);
+                let _ = handle.join();
+            }
+        }
     }
 }
 

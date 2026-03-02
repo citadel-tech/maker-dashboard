@@ -41,6 +41,7 @@ impl<Req, Resp> Responder<Req, Resp> {
         self.response_send.send(resp).await
     }
 
+    #[allow(dead_code)]
     pub async fn handle<F, Fut>(&mut self, mut handler: F)
     where
         F: FnMut(Req) -> Fut,

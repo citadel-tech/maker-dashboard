@@ -9,8 +9,16 @@ axum = "0.8"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 tower-http = { version = "0.6", features = ["fs", "trace"] }
 tracing = "0.1"
-tracing-subscriber = "0.3"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 coinswap = { git = "https://github.com/citadel-tech/coinswap", rev = "4e185e6" }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 anyhow = "1.0.101"
+utoipa-axum = "0.2.0"
+utoipa = "5.4.0"
+utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
+thiserror = "2.0.18"
+futures = "0.3.32"
+clap = { version = "4.5.60", features = ["derive", "env"] }
+dirs = "6.0.0"
+tracing-appender = "0.2.4"
