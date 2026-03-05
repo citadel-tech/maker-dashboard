@@ -33,8 +33,6 @@ pub enum MessageRequest {
     GetTorAddress,
     /// Request to retrieve the data directory path.
     GetDataDir,
-    /// Request to stop the Maker server. (not implemented)
-    Stop,
     /// Request to list all active and past fidelity bonds.
     ListFidelity,
     /// Request to sync the internal wallet with blockchain.
