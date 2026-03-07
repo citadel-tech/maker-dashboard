@@ -1,23 +1,26 @@
-import Nav from "../components/Nav";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import Nav from "../components/Nav";
+import { makers, type CreateMakerRequest, ApiError } from "../api";
 
 export default function AddMaker() {
+  const navigate = useNavigate();
+
   const [formData, setFormData] = useState({
-    name: "",
-    rpcPort: "",
+    id: "",
+    rpcHost: "127.0.0.1",
+    rpcPort: "38332",
     bitcoinRpc: "127.0.0.1:18443",
     bitcoinUser: "",
     bitcoinPassword: "",
-    zmq: "tcp://127.0.0.1:29332",
+    zmq: "tcp://127.0.0.1:28332",
     dataDir: "",
     taproot: true,
+    password: "",
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // TODO: Handle form submission - start maker process
-    console.log("Form submitted:", formData);
-  };
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -25,6 +28,36 @@ export default function AddMaker() {
       ...prev,
       [name]: type === "checkbox" ? checked : value,
     }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+
+    const body: CreateMakerRequest = {
+      id: formData.id,
+      rpc: formData.bitcoinRpc,
+      zmq: formData.zmq,
+      rpc_user: formData.bitcoinUser,
+      rpc_password: formData.bitcoinPassword,
+      taproot: formData.taproot,
+      data_directory: formData.dataDir || undefined,
+      password: formData.password || undefined,
+    };
+
+    try {
+      await makers.create(body);
+      navigate(`/makers/${formData.id}/setup`);
+    } catch (err: unknown) {
+      if (err instanceof ApiError && err.status === 409) {
+        setError(`A maker with the ID "${formData.id}" already exists.`);
+      } else {
+        setError(err instanceof Error ? err.message : "Failed to create maker");
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -60,88 +93,77 @@ export default function AddMaker() {
           </p>
         </div>
 
-        {/* Form */}
+        {/* Error banner */}
+        {error && (
+          <div className="mb-6 px-4 py-3 bg-red-900/40 border border-red-700 rounded-lg text-sm text-red-300 flex justify-between items-center">
+            <span>{error}</span>
+            <button
+              onClick={() => setError(null)}
+              className="ml-4 text-red-400 hover:text-red-200 font-bold"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Basic Info */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
             <h3 className="text-lg font-semibold mb-4">Basic Information</h3>
-
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-400 mb-2">
-                  Maker Name *
+                  Maker ID *
                 </label>
                 <input
                   type="text"
-                  name="name"
-                  value={formData.name}
+                  name="id"
+                  value={formData.id}
                   onChange={handleChange}
-                  placeholder="e.g., Maker 1"
+                  placeholder="e.g., maker-1"
                   required
-                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none text-gray-100 placeholder-gray-500"
+                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none text-gray-100 placeholder-gray-500 font-mono text-sm"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  A friendly name to identify this maker
+                  Unique identifier for this maker. Used in all API calls —
+                  cannot be changed later.
                 </p>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-400 mb-2">
-                  RPC Port *
+                  Data Directory
                 </label>
                 <input
-                  type="number"
-                  name="rpcPort"
-                  value={formData.rpcPort}
+                  type="text"
+                  name="dataDir"
+                  value={formData.dataDir}
                   onChange={handleChange}
-                  placeholder="e.g., 6103"
-                  required
-                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none text-gray-100 placeholder-gray-500"
+                  placeholder="e.g., ~/.coinswap/maker1 (leave blank for default)"
+                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none text-gray-100 placeholder-gray-500 font-mono text-sm"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  Port for the maker RPC server (each maker needs a unique port)
+                  Directory where maker data will be stored. Defaults to{" "}
+                  <code className="bg-gray-800 px-1 rounded">
+                    ~/.coinswap/{"<id>"}
+                  </code>
                 </p>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-400 mb-2">
-                  Data Directory *
+                  Maker Password
                 </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    name="dataDir"
-                    value={formData.dataDir}
-                    onChange={handleChange}
-                    placeholder="e.g., ~/.coinswap/maker1"
-                    required
-                    className="flex-1 px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none text-gray-100 placeholder-gray-500 font-mono text-sm"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      // TODO: Open file browser dialog
-                      console.log("Open directory picker");
-                    }}
-                    className="px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 transition-all"
-                  >
-                    <svg
-                      className="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-                      />
-                    </svg>
-                  </button>
-                </div>
+                <input
+                  type="password"
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  placeholder="Optional"
+                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none text-gray-100 placeholder-gray-500"
+                />
                 <p className="text-xs text-gray-500 mt-1">
-                  Directory where maker data will be stored
+                  Password to protect the maker's wallet
                 </p>
               </div>
             </div>
@@ -150,18 +172,17 @@ export default function AddMaker() {
           {/* Bitcoin Connection */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
             <h3 className="text-lg font-semibold mb-4">Bitcoin Connection</h3>
-
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-400 mb-2">
-                  Bitcoin RPC *
+                  Bitcoin RPC Endpoint *
                 </label>
                 <input
                   type="text"
                   name="bitcoinRpc"
                   value={formData.bitcoinRpc}
                   onChange={handleChange}
-                  placeholder="e.g., 127.0.0.1:18443"
+                  placeholder="127.0.0.1:18443"
                   required
                   className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none text-gray-100 placeholder-gray-500 font-mono text-sm"
                 />
@@ -173,7 +194,7 @@ export default function AddMaker() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-400 mb-2">
-                    Bitcoin RPC Username *
+                    RPC Username *
                   </label>
                   <input
                     type="text"
@@ -187,7 +208,7 @@ export default function AddMaker() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-400 mb-2">
-                    Bitcoin RPC Password *
+                    RPC Password *
                   </label>
                   <input
                     type="password"
@@ -200,9 +221,6 @@ export default function AddMaker() {
                   />
                 </div>
               </div>
-              <p className="text-xs text-gray-500 -mt-3">
-                Bitcoin RPC credentials for authentication
-              </p>
 
               <div>
                 <label className="block text-sm font-medium text-gray-400 mb-2">
@@ -213,7 +231,7 @@ export default function AddMaker() {
                   name="zmq"
                   value={formData.zmq}
                   onChange={handleChange}
-                  placeholder="e.g., tcp://127.0.0.1:29332"
+                  placeholder="tcp://127.0.0.1:28332"
                   required
                   className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none text-gray-100 placeholder-gray-500 font-mono text-sm"
                 />
@@ -227,41 +245,21 @@ export default function AddMaker() {
           {/* Advanced Options */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
             <h3 className="text-lg font-semibold mb-4">Advanced Options</h3>
-
-            <div className="space-y-4">
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  name="taproot"
-                  checked={formData.taproot}
-                  onChange={handleChange}
-                  className="mt-1 w-4 h-4 bg-gray-800 border-gray-700 rounded focus:ring-orange-500 focus:ring-2"
-                />
-                <div>
-                  <div className="font-medium text-gray-100">
-                    Enable Taproot
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    Use Taproot addresses for improved privacy and lower fees
-                  </div>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                name="taproot"
+                checked={formData.taproot}
+                onChange={handleChange}
+                className="mt-1 w-4 h-4 bg-gray-800 border-gray-700 rounded focus:ring-orange-500 focus:ring-2"
+              />
+              <div>
+                <div className="font-medium text-gray-100">Enable Taproot</div>
+                <div className="text-sm text-gray-500">
+                  Use Taproot addresses for improved privacy and lower fees
                 </div>
-              </label>
-            </div>
-          </div>
-
-          {/* Command Preview */}
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
-            <h3 className="text-lg font-semibold mb-3">Command Preview</h3>
-            <div className="bg-black rounded-lg p-4 overflow-x-auto">
-              <code className="text-xs sm:text-sm text-green-400 font-mono break-all">
-                ./makerd -a {formData.bitcoinUser || "user"}:
-                {formData.bitcoinPassword || "password"} -r{" "}
-                {formData.bitcoinRpc} -z {formData.zmq} -d{" "}
-                {formData.dataDir || "~/.coinswap/maker1"} --rpc-port 127.0.0.1:
-                {formData.rpcPort || "6103"}
-                {formData.taproot ? " --taproot" : ""}
-              </code>
-            </div>
+              </div>
+            </label>
           </div>
 
           {/* Actions */}
@@ -275,9 +273,10 @@ export default function AddMaker() {
             </button>
             <button
               type="submit"
-              className="flex-1 px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-all font-semibold"
+              disabled={submitting}
+              className="flex-1 px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-all font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Add Maker
+              {submitting ? "Adding…" : "Add Maker"}
             </button>
           </div>
         </form>
@@ -286,7 +285,7 @@ export default function AddMaker() {
         <div className="mt-6 bg-blue-900/20 border border-blue-800/30 rounded-lg p-4">
           <div className="flex gap-3">
             <svg
-              className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5"
+              className="w-5 h-5 text-blue-400 shrink-0 mt-0.5"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -302,8 +301,8 @@ export default function AddMaker() {
               <p className="font-semibold mb-1">Before adding a maker:</p>
               <ul className="list-disc list-inside space-y-1 text-blue-300">
                 <li>Ensure Bitcoin Core is running and synced</li>
-                <li>Make sure the RPC port is not already in use</li>
-                <li>Each maker needs a unique data directory</li>
+                <li>The Maker ID must be unique and cannot be changed later</li>
+                <li>Both RPC username and password are required</li>
                 <li>
                   ZMQ endpoint should match your Bitcoin Core configuration
                 </li>
