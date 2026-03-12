@@ -13,7 +13,7 @@ export default function Dashboard({ core }: Props) {
         balances.regular +
           balances.swap +
           balances.contract +
-          balances.fidelity
+          balances.fidelity,
       )
     : null;
 
@@ -86,7 +86,9 @@ export default function Dashboard({ core }: Props) {
                 </div>
                 <div
                   className={`text-xl font-bold mb-1 ${
-                    type === "spendable" ? "text-emerald-500" : "text-orange-500"
+                    type === "spendable"
+                      ? "text-emerald-500"
+                      : "text-orange-500"
                   }`}
                 >
                   {satsToBtc(balances[type])} BTC

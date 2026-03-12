@@ -209,9 +209,11 @@ export default function MakerDetails() {
               </div>
             </div>
             <div>
-              <div className="text-sm text-orange-100 mb-1">Another Section</div>
+              <div className="text-sm text-orange-100 mb-1">
+                Another Section
+              </div>
               <div className="text-xl sm:text-2xl font-bold text-white">
-              Have to think
+                Have to think
               </div>
             </div>
             <div className="sm:max-w-xs">
@@ -250,7 +252,6 @@ export default function MakerDetails() {
         {activeTab === "swaps" && <Swaps />}
         {activeTab === "logs" && <Logs id={id} />}
         {activeTab === "settings" && <Settings id={id} />}
-        
       </main>
     </div>
   );

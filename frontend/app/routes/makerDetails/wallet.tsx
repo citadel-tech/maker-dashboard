@@ -32,7 +32,7 @@ export default function Wallet({ id, onBalanceRefresh }: Props) {
     ])
       .then((results) => {
         const merged = results.flatMap((r) =>
-          r.status === "fulfilled" ? r.value : []
+          r.status === "fulfilled" ? r.value : [],
         );
         setUtxos(merged);
       })
