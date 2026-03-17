@@ -25,7 +25,10 @@ thiserror = "2.0.18"
 futures = "0.3.32"
 clap = { version = "4.5.60", features = ["derive", "env"] }
 dirs = "6.0.0"
-tracing-appender = "0.2.4"
+
+[[test]]
+name = "api"
+path = "tests/api/mod.rs"
 
 [dev-dependencies]
 ureq = { version = "2", features = ["json"] }
@@ -35,3 +38,5 @@ log = "0.4"
 flate2 = "1.1.9"
 tar = "0.4.44"
 nostr-rs-relay = "0.8.12"
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
