@@ -18,25 +18,19 @@ use coinswap::{
     wallet::{AddressType, RPCConfig},
 };
 use maker_dashboard::server::{Server, ServerConfig};
-use nostr_rs_relay::{config, server::start_server};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use std::{
-    fs::{self, File},
-    io::{BufReader, Read},
+    fs,
     net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener},
     path::{Path, PathBuf},
     sync::atomic::{AtomicBool, Ordering},
-    sync::{mpsc, Arc},
+    sync::Arc,
     thread,
     time::Duration,
 };
 use tokio::runtime::Runtime;
 use tracing_subscriber::{fmt::format::FmtSpan, prelude::*, EnvFilter};
-
-// - Bitcoin binary constants
-
-const BITCOIN_VERSION: &str = "28.1";
 
 // - Maker / port constants
 
@@ -70,107 +64,12 @@ fn send_to_address(bitcoind: &BitcoinD, addr: &bitcoin::Address, amount: Amount)
         .unwrap()
 }
 
-fn get_bitcoind_filename(os: &str, arch: &str) -> String {
-    match (os, arch) {
-        ("macos", "aarch64") => format!("bitcoin-{BITCOIN_VERSION}-arm64-apple-darwin.tar.gz"),
-        ("macos", "x86_64") => format!("bitcoin-{BITCOIN_VERSION}-x86_64-apple-darwin.tar.gz"),
-        ("linux", "x86_64") => format!("bitcoin-{BITCOIN_VERSION}-x86_64-linux-gnu.tar.gz"),
-        ("linux", "aarch64") => format!("bitcoin-{BITCOIN_VERSION}-aarch64-linux-gnu.tar.gz"),
-        _ => format!("bitcoin-{BITCOIN_VERSION}-x86_64-apple-darwin-unsigned.zip"),
-    }
-}
-
-fn unpack_tarball(bytes: &[u8], dest: &Path) {
-    use flate2::read::GzDecoder;
-    use tar::Archive;
-    let mut archive = Archive::new(GzDecoder::new(bytes));
-    for mut entry in archive.entries().unwrap().flatten() {
-        if let Ok(path) = entry.path() {
-            if path.ends_with("bitcoind") {
-                entry.unpack_in(dest).unwrap();
-            }
-        }
-    }
-}
-
-fn ensure_bitcoind_binary(bin_dir: &Path) {
-    let exe_home = bin_dir
-        .join(format!("bitcoin-{BITCOIN_VERSION}"))
-        .join("bin");
-
-    if exe_home.exists() {
-        return;
-    }
-
-    let filename = get_bitcoind_filename(std::env::consts::OS, std::env::consts::ARCH);
-    let bytes = match std::env::var("BITCOIND_TARBALL_FILE") {
-        Ok(path) => {
-            let f = File::open(&path)
-                .unwrap_or_else(|_| panic!("Cannot open BITCOIND_TARBALL_FILE: {path}"));
-            let mut buf = Vec::new();
-            BufReader::new(f).read_to_end(&mut buf).unwrap();
-            buf
-        }
-        Err(_) => {
-            let endpoint = std::env::var("BITCOIND_DOWNLOAD_ENDPOINT")
-                .unwrap_or_else(|_| "http://170.75.166.88/bitcoin-binaries".to_owned());
-            let url = format!("{endpoint}/{filename}");
-            println!("[INFO] Downloading bitcoind from {url}");
-            let agent = ureq::AgentBuilder::new()
-                .timeout(Duration::from_secs(300))
-                .build();
-            let mut last_err = String::new();
-            let mut downloaded: Option<Vec<u8>> = None;
-            for attempt in 1..=5u32 {
-                match agent.get(&url).call() {
-                    Ok(resp) => {
-                        let mut buf = Vec::new();
-                        resp.into_reader().read_to_end(&mut buf).unwrap();
-                        downloaded = Some(buf);
-                        break;
-                    }
-                    Err(ureq::Error::Status(503, _)) => {
-                        let delay = 1u64 << (attempt - 1);
-                        log::warn!("Attempt {attempt}: 503, retrying in {delay}s");
-                        thread::sleep(Duration::from_secs(delay));
-                    }
-                    Err(ureq::Error::Status(code, _)) => {
-                        panic!("Unexpected status {code} fetching {url}")
-                    }
-                    Err(e) => {
-                        last_err = e.to_string();
-                        let delay = 1u64 << (attempt - 1);
-                        log::warn!("Attempt {attempt}: {e}, retrying in {delay}s");
-                        thread::sleep(Duration::from_secs(delay));
-                    }
-                }
-            }
-            downloaded.unwrap_or_else(|| panic!("Failed to download bitcoind: {last_err}"))
-        }
-    };
-
-    fs::create_dir_all(&exe_home).unwrap();
-    unpack_tarball(&bytes, bin_dir);
-
-    if std::env::consts::OS == "macos" {
-        std::process::Command::new("codesign")
-            .args(["--sign", "-"])
-            .arg(exe_home.join("bitcoind"))
-            .output()
-            .expect("codesign bitcoind");
-    }
-}
-
 /// Start a regtest bitcoind node.
-/// Returns `(BitcoinD, rpc_url, zmq_addr, RpcCreds)`.
+///
+/// Requires `BITCOIND_EXE` to be set in the environment (pointing to the
+/// `bitcoind` binary).  In Docker this is set by the image; in CI it is set
+/// by the install step.
 fn init_bitcoind(base_dir: &Path) -> (BitcoinD, String, String, RpcCreds) {
-    let bin_dir = std::env::current_dir().unwrap().join("bin");
-    ensure_bitcoind_binary(&bin_dir);
-    let exe_home = bin_dir
-        .join(format!("bitcoin-{BITCOIN_VERSION}"))
-        .join("bin");
-    std::env::set_var("BITCOIND_EXE", exe_home.join("bitcoind"));
-
     let zmq_addr = format!("tcp://127.0.0.1:{}", free_port());
     let zmq_rawtx = format!("-zmqpubrawtx={zmq_addr}");
     let zmq_block = format!("-zmqpubrawblock={zmq_addr}");
@@ -535,43 +434,21 @@ fn wait_for_coinswap_server_ready(bitcoind: &BitcoinD, port: u16, timeout: Durat
 
 // - Nostr relay helper
 
-/// Starts an in-process Nostr relay on port 8000 (the port coinswap hard-codes
-/// for integration-test mode).  Returns the shutdown sender so the relay can be
-/// stopped when the test ends.
-fn spawn_nostr_relay(tmp: &Path) -> mpsc::Sender<()> {
-    let data_dir = tmp.join("nostr-relay");
-    fs::create_dir_all(&data_dir).unwrap();
-
-    let mut settings = config::Settings::default();
-    settings.network.address = "127.0.0.1".to_string();
-    settings.network.port = 8000;
-    settings.database.min_conn = 4;
-    settings.database.max_conn = 8;
-    settings.database.in_memory = true;
-    settings.diagnostics.tracing = false;
-
-    let (shutdown_tx, shutdown_rx) = mpsc::channel::<()>();
-    thread::Builder::new()
-        .name("nostr-relay".into())
-        .spawn(move || {
-            start_server(&settings, shutdown_rx).expect("nostr relay crashed");
-        })
-        .expect("spawn nostr relay");
-
-    // Wait up to 5 s for the relay to accept connections.
+/// Asserts that a Nostr relay is already running on 127.0.0.1:8000.
+fn assert_nostr_relay_ready() {
     let deadline = std::time::Instant::now() + Duration::from_secs(5);
     loop {
         if std::net::TcpStream::connect("127.0.0.1:8000").is_ok() {
-            break;
+            return;
         }
         assert!(
             std::time::Instant::now() < deadline,
-            "Nostr relay did not start within 5 s"
+            "Nostr relay is not running on 127.0.0.1:8000. \
+             Start it before running the integration test \
+             (CI: hulxv/nostr-relay-action, local: make test-integration-docker)."
         );
-        thread::sleep(Duration::from_millis(50));
+        thread::sleep(Duration::from_millis(100));
     }
-
-    shutdown_tx
 }
 
 // - THE INTEGRATION TEST
@@ -610,8 +487,8 @@ fn test_maker_manager_integration() {
         fs::create_dir_all(d).unwrap();
     }
 
-    println!("[INFO] Starting Nostr relay");
-    let _nostr_shutdown = spawn_nostr_relay(&tmp);
+    println!("[INFO] Checking Nostr relay");
+    assert_nostr_relay_ready();
 
     println!("[INFO] Starting bitcoind");
     let (bitcoind, rpc_url, zmq_addr, rpc_creds) = init_bitcoind(&tmp);

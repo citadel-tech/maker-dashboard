@@ -1,0 +1,85 @@
+FROM rust:1.90-slim
+
+# System dependencies required by nostr-rs-relay and the integration test
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    protobuf-compiler \
+    pkg-config \
+    libssl-dev \
+    curl \
+    netcat-openbsd \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+
+# nostr-rs-relay binary
+
+ARG NOSTR_VERSION=0.9.0
+
+RUN set -eux; \
+    ARCH="$(uname -m)"; \
+    case "$ARCH" in \
+    x86_64)  ARTIFACT="nostr-rs-relay-linux-x86_64"  ;; \
+    aarch64) ARTIFACT="nostr-rs-relay-linux-aarch64" ;; \
+    *)        echo "Unsupported arch: $ARCH" && exit 1 ;; \
+    esac; \
+    mkdir -p /root/.nostr-relay-bin; \
+    curl -fsSL \
+    "https://github.com/hulxv/nostr-relay-action/releases/download/relay-${NOSTR_VERSION}/${ARTIFACT}" \
+    -o /root/.nostr-relay-bin/nostr-rs-relay; \
+    chmod +x /root/.nostr-relay-bin/nostr-rs-relay
+
+# nostr relay config  (in-memory SQLite, localhost only)
+RUN mkdir -p /etc/nostr-relay /tmp/nostr-relay-data && \
+    printf '[info]\nname = "nostr-rs-relay (integration-test)"\n\n\
+    [network]\nport = 8000\naddress = "127.0.0.1"\n\n\
+    [database]\ndata_directory = "/tmp/nostr-relay-data"\nengine = "sqlite"\nin_memory = true\nmin_conn = 4\nmax_conn = 8\n\n\
+    [limits]\nmax_event_bytes = 262144\nmax_ws_message_bytes = 262144\nmax_ws_frame_bytes = 262144\nlimit_scrapers = false\n\n\
+    [authorization]\nnip42_auth = false\nnip42_dms = false\n' \
+    > /etc/nostr-relay/config.toml
+
+
+# Bitcoin Core binary — installed to /usr/local/bin and pointed to by BITCOIND_EXE
+
+ARG BITCOIN_VERSION=28.1
+ARG BITCOIN_ENDPOINT=http://170.75.166.88/bitcoin-binaries
+
+RUN set -eux; \
+    ARCH="$(uname -m)"; \
+    case "$ARCH" in \
+    x86_64)  TARBALL="bitcoin-${BITCOIN_VERSION}-x86_64-linux-gnu.tar.gz"  ;; \
+    aarch64) TARBALL="bitcoin-${BITCOIN_VERSION}-aarch64-linux-gnu.tar.gz" ;; \
+    *)        echo "Unsupported arch: $ARCH" && exit 1 ;; \
+    esac; \
+    mkdir /tmp/bitcoin-extract; \
+    curl -fsSL "${BITCOIN_ENDPOINT}/${TARBALL}" | tar -xz -C /tmp/bitcoin-extract; \
+    mv /tmp/bitcoin-extract/bitcoin-${BITCOIN_VERSION}/bin/bitcoind /usr/local/bin/bitcoind; \
+    rm -rf /tmp/bitcoin-extract; \
+    bitcoind --version
+
+ENV BITCOIND_EXE=/usr/local/bin/bitcoind
+
+
+# Rust dependency cache
+
+WORKDIR /workspace
+
+COPY Cargo.toml Cargo.lock ./
+RUN mkdir src && echo "fn main() {}" > src/main.rs \
+    && cargo build --release \
+    && rm -rf src
+
+
+# Copy source and pre-compile the integration test binary
+
+COPY . .
+RUN cargo test --test integration_test --features integration-test --no-run
+
+
+# Entrypoint: start relay, then run the test
+
+COPY docker/entrypoint-integration-test.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]

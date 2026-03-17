@@ -35,8 +35,5 @@ ureq = { version = "2", features = ["json"] }
 bitcoind = { version = "0.36", features = [] }
 bitcoin = { version = "0.32" }
 log = "0.4"
-flate2 = "1.1.9"
-tar = "0.4.44"
-nostr-rs-relay = "0.8.12"
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"

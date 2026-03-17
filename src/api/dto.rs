@@ -59,10 +59,6 @@ impl UpdateMakerConfigRequest {
             rpc_port: self.rpc_port.or(base.rpc_port),
         }
     }
-
-    pub fn into_config(self) -> MakerConfig {
-        self.apply_to(MakerConfig::default())
-    }
 }
 
 /// Request body for `POST /api/makers/{id}/send`
