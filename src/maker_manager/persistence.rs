@@ -20,8 +20,15 @@ struct StoredMakerConfig {
     wallet_name: Option<String>,
     taproot: bool,
     password: Option<String>,
-    network_port: Option<u16>,
-    rpc_port: Option<u16>,
+    network_port: u16,
+    rpc_port: u16,
+    socks_port: u16,
+    control_port: u16,
+    min_swap_amount: u64,
+    fidelity_amount: u64,
+    fidelity_timelock: u32,
+    base_fee: u64,
+    amount_relative_fee_pct: f64,
 }
 
 impl From<&MakerConfig> for StoredMakerConfig {
@@ -42,6 +49,13 @@ impl From<&MakerConfig> for StoredMakerConfig {
             password: c.password.clone(),
             network_port: c.network_port,
             rpc_port: c.rpc_port,
+            socks_port: c.socks_port,
+            control_port: c.control_port,
+            min_swap_amount: c.min_swap_amount,
+            fidelity_amount: c.fidelity_amount,
+            fidelity_timelock: c.fidelity_timelock,
+            base_fee: c.base_fee,
+            amount_relative_fee_pct: c.amount_relative_fee_pct,
         }
     }
 }
@@ -62,10 +76,16 @@ impl From<StoredMakerConfig> for MakerConfig {
             password: s.password,
             network_port: s.network_port,
             rpc_port: s.rpc_port,
+            socks_port: s.socks_port,
+            control_port: s.control_port,
+            min_swap_amount: s.min_swap_amount,
+            fidelity_amount: s.fidelity_amount,
+            fidelity_timelock: s.fidelity_timelock,
+            base_fee: s.base_fee,
+            amount_relative_fee_pct: s.amount_relative_fee_pct,
         }
     }
 }
-
 /// On-disk representation of all maker registrations
 #[derive(Debug, Serialize, Deserialize)]
 struct StoredState {

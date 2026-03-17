@@ -24,6 +24,15 @@ export interface MakerInfoDetailed {
   wallet_name?: string;
   taproot: boolean;
   data_directory?: string;
+  network_port: number;
+  rpc_port: number;
+  socks_port: number;
+  control_port: number;
+  min_swap_amount: number;
+  fidelity_amount: number;
+  fidelity_timelock: number;
+  base_fee: number;
+  amount_relative_fee_pct: number;
 }
 
 export interface BalanceInfo {
@@ -67,6 +76,15 @@ export interface CreateMakerRequest {
   taproot?: boolean;
   password?: string;
   data_directory?: string;
+  network_port?: number;
+  rpc_port?: number;
+  socks_port?: number;
+  control_port?: number;
+  min_swap_amount?: number;
+  fidelity_amount?: number;
+  fidelity_timelock?: number;
+  base_fee?: number;
+  amount_relative_fee_pct?: number;
 }
 
 export interface UpdateMakerConfigRequest {
@@ -79,8 +97,16 @@ export interface UpdateMakerConfigRequest {
   taproot?: boolean;
   password?: string;
   data_directory?: string;
+  network_port?: number;
+  rpc_port?: number;
+  socks_port?: number;
+  control_port?: number;
+  min_swap_amount?: number;
+  fidelity_amount?: number;
+  fidelity_timelock?: number;
+  base_fee?: number;
+  amount_relative_fee_pct?: number;
 }
-
 export interface SendToAddressRequest {
   address: string;
   /** satoshis */

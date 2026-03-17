@@ -33,11 +33,15 @@ pub struct MakerConfig {
     pub taproot: bool,
     /// Optional password for wallet encryption
     pub password: Option<String>,
-    /// TCP port the maker's coinswap server listens on.
-    /// When `None` the coinswap library picks its own default (6102).
-    /// **Must be unique per maker when running multiple makers on the same host.**
-    pub network_port: Option<u16>,
-    pub rpc_port: Option<u16>,
+    pub network_port: u16,
+    pub rpc_port: u16,
+    pub socks_port: u16,
+    pub control_port: u16,
+    pub min_swap_amount: u64,
+    pub fidelity_amount: u64,
+    pub fidelity_timelock: u32,
+    pub base_fee: u64,
+    pub amount_relative_fee_pct: f64,
 }
 
 impl Default for MakerConfig {
@@ -51,8 +55,15 @@ impl Default for MakerConfig {
             wallet_name: None,
             taproot: false,
             password: None,
-            network_port: None,
-            rpc_port: None,
+            network_port: 6102,
+            rpc_port: 6103,
+            socks_port: 9050,
+            control_port: 9051,
+            min_swap_amount: 10000,
+            fidelity_amount: 50000,
+            fidelity_timelock: 13104,
+            base_fee: 100,
+            amount_relative_fee_pct: 0.1,
         }
     }
 }
@@ -153,11 +164,11 @@ impl MakerManager {
                     config.data_directory.clone(),
                     config.wallet_name.clone(),
                     Some(rpc_config),
-                    config.network_port,
-                    config.rpc_port,
-                    None,
+                    Some(config.network_port),
+                    Some(config.rpc_port),
+                    Some(config.control_port),
                     config.tor_auth.clone(),
-                    None,
+                    Some(config.socks_port),
                     config.zmq.clone(),
                     config.password.clone(),
                     #[cfg(feature = "integration-test")]
@@ -173,11 +184,11 @@ impl MakerManager {
                     config.data_directory.clone(),
                     config.wallet_name.clone(),
                     Some(rpc_config),
-                    config.network_port,
-                    config.rpc_port,
-                    None,
+                    Some(config.network_port),
+                    Some(config.rpc_port),
+                    Some(config.control_port),
                     config.tor_auth.clone(),
-                    None,
+                    Some(config.socks_port),
                     MakerBehavior::Normal,
                     config.zmq.clone(),
                     config.password.clone(),
@@ -193,6 +204,10 @@ impl MakerManager {
             self.persist();
         }
         Ok(())
+    }
+
+    pub fn get_maker_config(&self, id: &str) -> Option<&MakerConfig> {
+        self.configs.get(id)
     }
 
     /// Creates and registers a new maker (init + message loop only, NOT started).

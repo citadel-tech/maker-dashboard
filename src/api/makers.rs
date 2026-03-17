@@ -93,8 +93,15 @@ async fn create_maker(
         wallet_name: body.wallet_name,
         taproot: body.taproot.unwrap_or(false),
         password: body.password,
-        network_port: body.network_port,
-        rpc_port: body.rpc_port,
+        network_port: body.network_port.unwrap_or(6102),
+        rpc_port: body.rpc_port.unwrap_or(6103),
+        socks_port: body.socks_port.unwrap_or(9050),
+        control_port: body.control_port.unwrap_or(9051),
+        min_swap_amount: body.min_swap_amount.unwrap_or(10000),
+        fidelity_amount: body.fidelity_amount.unwrap_or(50000),
+        fidelity_timelock: body.fidelity_timelock.unwrap_or(13104),
+        base_fee: body.base_fee.unwrap_or(100),
+        amount_relative_fee_pct: body.amount_relative_fee_pct.unwrap_or(0.1),
     };
 
     match mgr.create_maker(body.id.clone(), config) {
@@ -180,17 +187,18 @@ async fn update_config(
     Json(body): Json<UpdateMakerConfigRequest>,
 ) -> (StatusCode, Json<ApiResponse<String>>) {
     let mut mgr = state.lock().await;
-    let current_config = match mgr.get_maker_info(&id) {
-        Some(info) => info.config,
+
+    let base = match mgr.get_maker_config(&id).cloned() {
+        Some(c) => c,
         None => {
             return (
                 StatusCode::NOT_FOUND,
-                Json(ApiResponse::err(format!("Maker '{}' not found", id))),
-            );
+                Json(ApiResponse::err(format!("Maker '{}' config not found", id))),
+            )
         }
     };
 
-    let config = body.apply_to(current_config);
+    let config = body.apply_to(base);
 
     match mgr.update_config(&id, config) {
         Ok(()) => (

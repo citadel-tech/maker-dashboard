@@ -252,7 +252,7 @@ export default function MakerDetails() {
         )}
         {activeTab === "swaps" && <Swaps />}
         {activeTab === "logs" && <Logs id={id} />}
-        {activeTab === "settings" && <Settings id={id} />}
+        {activeTab === "settings" && <Settings id={id} onSaved={() => setActiveTab("dashboard")} />}
       </main>
     </div>
   );

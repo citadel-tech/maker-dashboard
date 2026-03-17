@@ -19,10 +19,17 @@ pub struct CreateMakerRequest {
     pub data_directory: Option<String>,
     pub network_port: Option<u16>,
     pub rpc_port: Option<u16>,
+    pub socks_port: Option<u16>,
+    pub control_port: Option<u16>,
+    pub min_swap_amount: Option<u64>,
+    pub fidelity_amount: Option<u64>,
+    pub fidelity_timelock: Option<u32>,
+    pub base_fee: Option<u64>,
+    pub amount_relative_fee_pct: Option<f64>,
 }
 
-/// Request body for `PUT /api/makers/{id}/config`
 #[derive(Deserialize, ToSchema)]
+/// Request body for `PUT /api/makers/{id}/config`
 pub struct UpdateMakerConfigRequest {
     pub rpc: Option<String>,
     pub zmq: Option<String>,
@@ -35,6 +42,13 @@ pub struct UpdateMakerConfigRequest {
     pub data_directory: Option<String>,
     pub network_port: Option<u16>,
     pub rpc_port: Option<u16>,
+    pub socks_port: Option<u16>,
+    pub control_port: Option<u16>,
+    pub min_swap_amount: Option<u64>,
+    pub fidelity_amount: Option<u64>,
+    pub fidelity_timelock: Option<u32>,
+    pub base_fee: Option<u64>,
+    pub amount_relative_fee_pct: Option<f64>,
 }
 
 impl UpdateMakerConfigRequest {
@@ -55,8 +69,17 @@ impl UpdateMakerConfigRequest {
             wallet_name: self.wallet_name.or(base.wallet_name),
             taproot: self.taproot.unwrap_or(base.taproot),
             password: self.password.or(base.password),
-            network_port: self.network_port.or(base.network_port),
-            rpc_port: self.rpc_port.or(base.rpc_port),
+            network_port: self.network_port.unwrap_or(base.network_port),
+            rpc_port: self.rpc_port.unwrap_or(base.rpc_port),
+            socks_port: self.socks_port.unwrap_or(base.socks_port),
+            control_port: self.control_port.unwrap_or(base.control_port),
+            min_swap_amount: self.min_swap_amount.unwrap_or(base.min_swap_amount),
+            fidelity_amount: self.fidelity_amount.unwrap_or(base.fidelity_amount),
+            fidelity_timelock: self.fidelity_timelock.unwrap_or(base.fidelity_timelock),
+            base_fee: self.base_fee.unwrap_or(base.base_fee),
+            amount_relative_fee_pct: self
+                .amount_relative_fee_pct
+                .unwrap_or(base.amount_relative_fee_pct),
         }
     }
 }
@@ -128,7 +151,15 @@ pub struct MakerInfoDetailed {
     pub wallet_name: Option<String>,
     pub taproot: bool,
     pub data_directory: Option<String>,
-    pub network_port: Option<u16>,
+    pub network_port: u16,
+    pub rpc_port: u16,
+    pub socks_port: u16,
+    pub control_port: u16,
+    pub min_swap_amount: u64,
+    pub fidelity_amount: u64,
+    pub fidelity_timelock: u32,
+    pub base_fee: u64,
+    pub amount_relative_fee_pct: f64,
 }
 
 impl From<ManagerMakerInfo> for MakerInfoDetailed {
@@ -140,13 +171,21 @@ impl From<ManagerMakerInfo> for MakerInfoDetailed {
             zmq: info.config.zmq,
             wallet_name: info.config.wallet_name,
             taproot: info.config.taproot,
-            network_port: info.config.network_port,
             data_directory: info.config.data_directory.and_then(|d| {
                 if let Ok(path) = d.canonicalize() {
                     return path.to_str().map(str::to_string);
                 }
                 d.to_str().map(str::to_string)
             }),
+            network_port: info.config.network_port,
+            rpc_port: info.config.rpc_port,
+            socks_port: info.config.socks_port,
+            control_port: info.config.control_port,
+            min_swap_amount: info.config.min_swap_amount,
+            fidelity_amount: info.config.fidelity_amount,
+            fidelity_timelock: info.config.fidelity_timelock,
+            base_fee: info.config.base_fee,
+            amount_relative_fee_pct: info.config.amount_relative_fee_pct,
         }
     }
 }
