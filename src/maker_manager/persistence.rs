@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use super::maker_pool::MakerId;
 use super::MakerConfig;
 
-/// On-disk representation of a single maker's config
+/// On-disk representation of a single maker's config.
 #[derive(Debug, Serialize, Deserialize)]
 struct StoredMakerConfig {
     data_directory: Option<String>,
@@ -20,6 +20,8 @@ struct StoredMakerConfig {
     wallet_name: Option<String>,
     taproot: bool,
     password: Option<String>,
+    network_port: Option<u16>,
+    rpc_port: Option<u16>,
 }
 
 impl From<&MakerConfig> for StoredMakerConfig {
@@ -38,6 +40,8 @@ impl From<&MakerConfig> for StoredMakerConfig {
             wallet_name: c.wallet_name.clone(),
             taproot: c.taproot,
             password: c.password.clone(),
+            network_port: c.network_port,
+            rpc_port: c.rpc_port,
         }
     }
 }
@@ -56,6 +60,8 @@ impl From<StoredMakerConfig> for MakerConfig {
             wallet_name: s.wallet_name,
             taproot: s.taproot,
             password: s.password,
+            network_port: s.network_port,
+            rpc_port: s.rpc_port,
         }
     }
 }

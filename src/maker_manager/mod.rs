@@ -14,17 +14,16 @@ use maker_pool::{MakerHandle as MakerInner, MakerId, MakerPool};
 use message::{MessageRequest, MessageResponse};
 use persistence::PersistenceManager;
 
-/// Configuration for creating a new maker
+/// Configuration for creating a new maker.
 #[derive(Debug, Clone)]
 pub struct MakerConfig {
-    /// Optional data directory. Default: "~/.coinswap/maker"
+    /// Optional data directory. Default: `~/.coinswap/<id>`
     pub data_directory: Option<PathBuf>,
     /// Bitcoin Core RPC network address (e.g. "127.0.0.1:38332")
     pub rpc: String,
     /// Bitcoin Core ZMQ address (e.g. "tcp://127.0.0.1:28332")
     pub zmq: String,
     /// Bitcoin Core RPC authentication (username, password).
-    /// Must be explicitly provided — no default credentials are assumed.
     pub auth: Option<(String, String)>,
     /// Optional Tor authentication string
     pub tor_auth: Option<String>,
@@ -34,6 +33,11 @@ pub struct MakerConfig {
     pub taproot: bool,
     /// Optional password for wallet encryption
     pub password: Option<String>,
+    /// TCP port the maker's coinswap server listens on.
+    /// When `None` the coinswap library picks its own default (6102).
+    /// **Must be unique per maker when running multiple makers on the same host.**
+    pub network_port: Option<u16>,
+    pub rpc_port: Option<u16>,
 }
 
 impl Default for MakerConfig {
@@ -47,6 +51,8 @@ impl Default for MakerConfig {
             wallet_name: None,
             taproot: false,
             password: None,
+            network_port: None,
+            rpc_port: None,
         }
     }
 }
@@ -113,7 +119,7 @@ impl MakerManager {
         home.join(".coinswap").join(id)
     }
 
-    /// Internal create_maker that initializes the maker and registers it in the pool.
+    /// Internal: initialise the maker and register it in the pool.
     /// Does NOT start the coinswap server.
     fn create_maker_internal(
         &mut self,
@@ -147,13 +153,15 @@ impl MakerManager {
                     config.data_directory.clone(),
                     config.wallet_name.clone(),
                     Some(rpc_config),
-                    None,
-                    None,
+                    config.network_port,
+                    config.rpc_port,
                     None,
                     config.tor_auth.clone(),
                     None,
                     config.zmq.clone(),
                     config.password.clone(),
+                    #[cfg(feature = "integration-test")]
+                    None,
                 )
                 .map_err(|e| anyhow!("Failed to initialize taproot maker: {:?}", e))?,
             );
@@ -165,8 +173,8 @@ impl MakerManager {
                     config.data_directory.clone(),
                     config.wallet_name.clone(),
                     Some(rpc_config),
-                    None,
-                    None,
+                    config.network_port,
+                    config.rpc_port,
                     None,
                     config.tor_auth.clone(),
                     None,
@@ -327,8 +335,7 @@ impl MakerManager {
         self.pool.request(id, req).await
     }
 
-    /// Updates a maker's configuration.
-    /// If the server is running, stops it first, removes the maker, re-creates it, and optionally restarts.
+    /// Updates a maker's configuration, re-initialising the maker with the new settings.
     pub fn update_config(&mut self, id: &MakerId, config: MakerConfig) -> Result<()> {
         let previous = self
             .configs

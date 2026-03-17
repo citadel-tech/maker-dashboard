@@ -13,7 +13,7 @@ use utoipa_swagger_ui::SwaggerUi;
 use crate::api::{api_router, ApiDoc, AppState};
 use crate::maker_manager::MakerManager;
 use crate::middlewares;
-use maker_dashboard::default_config_dir;
+use crate::utils::default_config_dir;
 
 /// Configuration for the HTTP server
 pub struct ServerConfig {
@@ -65,7 +65,7 @@ impl Server {
     }
 
     /// Builds the Axum application router
-    fn build_router(&self) -> Router {
+    pub fn build_router(&self) -> Router {
         let serve_dir = ServeDir::new(&self.config.frontend_path)
             .not_found_service(ServeFile::new(&self.config.spa_index));
 

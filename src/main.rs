@@ -18,7 +18,7 @@ async fn main() {
 
     let config_dir = args
         .config_dir
-        .unwrap_or_else(maker_dashboard::default_config_dir);
+        .unwrap_or_else(maker_dashboard::utils::default_config_dir);
 
     let log_dir = config_dir.join("logs");
 

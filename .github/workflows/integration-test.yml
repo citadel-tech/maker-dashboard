@@ -1,0 +1,33 @@
+name: Integration Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  integration-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Cache Bitcoin binary
+        uses: actions/cache@v4
+        with:
+          path: bin
+          key: bitcoin-28.1-linux-x86_64
+
+      - name: Run integration test
+        run: cargo test --test integration_test --features integration-test -- --nocapture
+        env:
+          BITCOIND_DOWNLOAD_ENDPOINT: http://170.75.166.88/bitcoin-binaries
+          RUST_LOG: error

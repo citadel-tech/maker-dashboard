@@ -17,6 +17,8 @@ pub struct CreateMakerRequest {
     pub taproot: Option<bool>,
     pub password: Option<String>,
     pub data_directory: Option<String>,
+    pub network_port: Option<u16>,
+    pub rpc_port: Option<u16>,
 }
 
 /// Request body for `PUT /api/makers/{id}/config`
@@ -31,6 +33,8 @@ pub struct UpdateMakerConfigRequest {
     pub taproot: Option<bool>,
     pub password: Option<String>,
     pub data_directory: Option<String>,
+    pub network_port: Option<u16>,
+    pub rpc_port: Option<u16>,
 }
 
 impl UpdateMakerConfigRequest {
@@ -51,10 +55,11 @@ impl UpdateMakerConfigRequest {
             wallet_name: self.wallet_name.or(base.wallet_name),
             taproot: self.taproot.unwrap_or(base.taproot),
             password: self.password.or(base.password),
+            network_port: self.network_port.or(base.network_port),
+            rpc_port: self.rpc_port.or(base.rpc_port),
         }
     }
 
-    /// Converts into a full `MakerConfig` using defaults for missing fields.
     pub fn into_config(self) -> MakerConfig {
         self.apply_to(MakerConfig::default())
     }
@@ -96,13 +101,11 @@ impl<T: Serialize> ApiResponse<T> {
     }
 }
 
-/// Maker summary returned in list / detail endpoints
 #[derive(Debug, Serialize, ToSchema)]
 pub struct MakerInfo {
     pub id: String,
 }
 
-/// Maker operational state for API responses
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum MakerStateDto {
@@ -129,6 +132,7 @@ pub struct MakerInfoDetailed {
     pub wallet_name: Option<String>,
     pub taproot: bool,
     pub data_directory: Option<String>,
+    pub network_port: Option<u16>,
 }
 
 impl From<ManagerMakerInfo> for MakerInfoDetailed {
@@ -140,23 +144,17 @@ impl From<ManagerMakerInfo> for MakerInfoDetailed {
             zmq: info.config.zmq,
             wallet_name: info.config.wallet_name,
             taproot: info.config.taproot,
+            network_port: info.config.network_port,
             data_directory: info.config.data_directory.and_then(|d| {
                 if let Ok(path) = d.canonicalize() {
-                    if let Some(path) = path.to_str() {
-                        return Some(path.to_string());
-                    }
-                    return None;
+                    return path.to_str().map(str::to_string);
                 }
-                if let Some(path) = d.to_str() {
-                    return Some(path.to_string());
-                }
-                None
+                d.to_str().map(str::to_string)
             }),
         }
     }
 }
 
-/// Balance information
 #[derive(Debug, Serialize, ToSchema)]
 pub struct BalanceInfo {
     pub regular: u64,
@@ -166,34 +164,14 @@ pub struct BalanceInfo {
     pub spendable: u64,
 }
 
-// TODO: make an interface for coinswap::utill::UTXO after making members public;
-/// UTXO information
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct UtxoInfo {
-    /// Bitcoin address
     pub addr: String,
-    /// Amount in satoshis
-    #[serde(deserialize_with = "deserialize_amount")]
     pub amount: u64,
-    /// Number of confirmations
     pub confirmations: u32,
-    /// UTXO type (e.g., "Swap", "Fidelity", "Contract")
     pub utxo_type: String,
 }
 
-fn deserialize_amount<'de, D>(deserializer: D) -> Result<u64, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    use serde::Deserialize;
-    #[derive(Deserialize)]
-    struct AmountWrapper {
-        amount: u64,
-    }
-    AmountWrapper::deserialize(deserializer).map(|w| w.amount)
-}
-
-/// Status information for monitoring
 #[derive(Debug, Serialize, ToSchema)]
 pub struct MakerStatus {
     pub id: String,
@@ -201,7 +179,6 @@ pub struct MakerStatus {
     pub is_server_running: bool,
 }
 
-/// Overall API health response
 #[derive(Debug, Serialize, ToSchema)]
 pub struct HealthResponse {
     pub status: &'static str,

@@ -31,12 +31,8 @@ pub fn routes() -> Router<AppState> {
 
 /// List all makers
 #[utoipa::path(
-    get,
-    path = "/api/makers",
-    tag = "makers",
-    responses(
-        (status = 200, description = "List of all makers", body = ApiResponse<Vec<MakerInfo>>)
-    )
+    get, path = "/api/makers", tag = "makers",
+    responses((status = 200, description = "List of all makers", body = ApiResponse<Vec<MakerInfo>>))
 )]
 async fn list_makers(State(state): State<AppState>) -> Json<ApiResponse<Vec<MakerInfo>>> {
     let mgr = state.lock().await;
@@ -50,13 +46,13 @@ async fn list_makers(State(state): State<AppState>) -> Json<ApiResponse<Vec<Make
 
 /// Create a new maker
 #[utoipa::path(
-    post,
-    path = "/api/makers",
-    tag = "makers",
+    post, path = "/api/makers", tag = "makers",
     request_body = CreateMakerRequest,
     responses(
-        (status = 201, description = "Maker created", body = ApiResponse<MakerInfo>),
-        (status = 500, description = "Internal error", body = ApiResponse<MakerInfo>)
+        (status = 201, description = "Maker created",    body = ApiResponse<MakerInfo>),
+        (status = 400, description = "Bad request",      body = ApiResponse<MakerInfo>),
+        (status = 409, description = "Already exists",   body = ApiResponse<MakerInfo>),
+        (status = 500, description = "Internal error",   body = ApiResponse<MakerInfo>)
     )
 )]
 async fn create_maker(
@@ -97,6 +93,8 @@ async fn create_maker(
         wallet_name: body.wallet_name,
         taproot: body.taproot.unwrap_or(false),
         password: body.password,
+        network_port: body.network_port,
+        rpc_port: body.rpc_port,
     };
 
     match mgr.create_maker(body.id.clone(), config) {
@@ -113,12 +111,10 @@ async fn create_maker(
 
 /// Get a specific maker by ID
 #[utoipa::path(
-    get,
-    path = "/api/makers/{id}",
-    tag = "makers",
+    get, path = "/api/makers/{id}", tag = "makers",
     params(("id" = String, Path, description = "Maker ID")),
     responses(
-        (status = 200, description = "Maker found", body = ApiResponse<MakerInfoDetailed>),
+        (status = 200, description = "Maker found",     body = ApiResponse<MakerInfoDetailed>),
         (status = 404, description = "Maker not found", body = ApiResponse<MakerInfoDetailed>)
     )
 )]
@@ -142,12 +138,10 @@ async fn get_maker(
 
 /// Delete a maker by ID
 #[utoipa::path(
-    delete,
-    path = "/api/makers/{id}",
-    tag = "makers",
+    delete, path = "/api/makers/{id}", tag = "makers",
     params(("id" = String, Path, description = "Maker ID")),
     responses(
-        (status = 200, description = "Maker removed", body = ApiResponse<String>),
+        (status = 200, description = "Maker removed",   body = ApiResponse<String>),
         (status = 404, description = "Maker not found", body = ApiResponse<String>)
     )
 )]
@@ -171,15 +165,13 @@ async fn delete_maker(
 
 /// Update a maker's configuration
 #[utoipa::path(
-    put,
-    path = "/api/makers/{id}/config",
-    tag = "makers",
+    put, path = "/api/makers/{id}/config", tag = "makers",
     params(("id" = String, Path, description = "Maker ID")),
     request_body = UpdateMakerConfigRequest,
     responses(
-        (status = 200, description = "Config updated and maker restarted", body = ApiResponse<String>),
+        (status = 200, description = "Config updated",  body = ApiResponse<String>),
         (status = 404, description = "Maker not found", body = ApiResponse<String>),
-        (status = 500, description = "Internal error", body = ApiResponse<String>)
+        (status = 500, description = "Internal error",  body = ApiResponse<String>)
     )
 )]
 async fn update_config(
@@ -188,14 +180,17 @@ async fn update_config(
     Json(body): Json<UpdateMakerConfigRequest>,
 ) -> (StatusCode, Json<ApiResponse<String>>) {
     let mut mgr = state.lock().await;
-    if !mgr.has_maker(&id) {
-        return (
-            StatusCode::NOT_FOUND,
-            Json(ApiResponse::err(format!("Maker '{}' not found", id))),
-        );
-    }
+    let current_config = match mgr.get_maker_info(&id) {
+        Some(info) => info.config,
+        None => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(ApiResponse::err(format!("Maker '{}' not found", id))),
+            );
+        }
+    };
 
-    let config = body.into_config();
+    let config = body.apply_to(current_config);
 
     match mgr.update_config(&id, config) {
         Ok(()) => (
@@ -217,12 +212,10 @@ async fn update_config(
 
 /// Get detailed information about a specific maker
 #[utoipa::path(
-    get,
-    path = "/api/makers/{id}/info",
-    tag = "makers",
+    get, path = "/api/makers/{id}/info", tag = "makers",
     params(("id" = String, Path, description = "Maker ID")),
     responses(
-        (status = 200, description = "Maker details", body = ApiResponse<MakerInfoDetailed>),
+        (status = 200, description = "Maker details",   body = ApiResponse<MakerInfoDetailed>),
         (status = 404, description = "Maker not found", body = ApiResponse<MakerInfoDetailed>)
     )
 )]
@@ -242,12 +235,8 @@ async fn get_maker_info(
 
 /// Get total number of registered makers
 #[utoipa::path(
-    get,
-    path = "/api/makers/count",
-    tag = "makers",
-    responses(
-        (status = 200, description = "Total maker count", body = ApiResponse<usize>)
-    )
+    get, path = "/api/makers/count", tag = "makers",
+    responses((status = 200, description = "Total maker count", body = ApiResponse<usize>))
 )]
 async fn get_maker_count(State(state): State<AppState>) -> Json<ApiResponse<usize>> {
     let mgr = state.lock().await;
@@ -256,15 +245,13 @@ async fn get_maker_count(State(state): State<AppState>) -> Json<ApiResponse<usiz
 
 /// Start a stopped maker
 #[utoipa::path(
-    post,
-    path = "/api/makers/{id}/start",
-    tag = "makers",
+    post, path = "/api/makers/{id}/start", tag = "makers",
     params(("id" = String, Path, description = "Maker ID")),
     responses(
-        (status = 200, description = "Maker started", body = ApiResponse<String>),
-        (status = 404, description = "Maker not found", body = ApiResponse<String>),
-        (status = 409, description = "Maker already running", body = ApiResponse<String>),
-        (status = 500, description = "Internal error", body = ApiResponse<String>)
+        (status = 200, description = "Maker started",          body = ApiResponse<String>),
+        (status = 404, description = "Maker not found",        body = ApiResponse<String>),
+        (status = 409, description = "Maker already running",  body = ApiResponse<String>),
+        (status = 500, description = "Internal error",         body = ApiResponse<String>)
     )
 )]
 async fn start_maker(
@@ -297,15 +284,13 @@ async fn start_maker(
 
 /// Stop a running maker (retains config for restart)
 #[utoipa::path(
-    post,
-    path = "/api/makers/{id}/stop",
-    tag = "makers",
+    post, path = "/api/makers/{id}/stop", tag = "makers",
     params(("id" = String, Path, description = "Maker ID")),
     responses(
-        (status = 200, description = "Maker stopped", body = ApiResponse<String>),
-        (status = 404, description = "Maker not found", body = ApiResponse<String>),
-        (status = 409, description = "Maker already stopped", body = ApiResponse<String>),
-        (status = 500, description = "Couldn't stop the maker due to internal server error", body = ApiResponse<String>)
+        (status = 200, description = "Maker stopped",          body = ApiResponse<String>),
+        (status = 404, description = "Maker not found",        body = ApiResponse<String>),
+        (status = 409, description = "Maker already stopped",  body = ApiResponse<String>),
+        (status = 500, description = "Internal error",         body = ApiResponse<String>)
     )
 )]
 async fn stop_maker(
@@ -338,14 +323,12 @@ async fn stop_maker(
 
 /// Restart a maker (stop + start)
 #[utoipa::path(
-    post,
-    path = "/api/makers/{id}/restart",
-    tag = "makers",
+    post, path = "/api/makers/{id}/restart", tag = "makers",
     params(("id" = String, Path, description = "Maker ID")),
     responses(
-        (status = 200, description = "Maker restarted", body = ApiResponse<String>),
-        (status = 404, description = "Maker not found", body = ApiResponse<String>),
-        (status = 500, description = "Internal error", body = ApiResponse<String>)
+        (status = 200, description = "Maker restarted",  body = ApiResponse<String>),
+        (status = 404, description = "Maker not found",  body = ApiResponse<String>),
+        (status = 500, description = "Internal error",   body = ApiResponse<String>)
     )
 )]
 async fn restart_maker(
