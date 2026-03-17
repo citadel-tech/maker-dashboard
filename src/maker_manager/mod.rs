@@ -420,6 +420,11 @@ impl MakerManager {
         self.configs.contains_key(id)
     }
 
+    /// Returns a clone of the config for a maker, if it exists
+    pub fn get_config(&self, id: &MakerId) -> Option<MakerConfig> {
+        self.configs.get(id).cloned()
+    }
+
     /// Returns the number of registered makers (running + stopped)
     pub fn maker_count(&self) -> usize {
         self.configs.len()

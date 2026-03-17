@@ -219,3 +219,12 @@ pub struct HealthResponse {
     pub status: &'static str,
     pub makers: Vec<MakerStatus>,
 }
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct RpcStatusInfo {
+    pub connected: bool,
+    pub version: Option<u32>,
+    pub network: Option<String>,
+    pub block_height: Option<u64>,
+    pub sync_progress: Option<f64>,
+}

@@ -15,7 +15,7 @@ use crate::maker_manager::message::MessageResponse;
 use crate::utils::log_writer::read_last_n_lines;
 
 use super::{
-    dto::{ApiResponse, MakerStatus},
+    dto::{ApiResponse, MakerStatus, RpcStatusInfo},
     AppState,
 };
 
@@ -27,6 +27,7 @@ pub fn routes() -> Router<AppState> {
         .route("/makers/{id}/logs/stream", get(get_logs_stream))
         .route("/makers/{id}/tor-address", get(get_tor_address))
         .route("/makers/{id}/data-dir", get(get_data_dir))
+        .route("/makers/{id}/rpc-status", get(get_rpc_status))
 }
 
 /// Get operational status of a maker
@@ -192,6 +193,84 @@ async fn get_logs_stream(
     .flatten();
 
     Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
+}
+
+/// Test connectivity to the Bitcoin Core RPC endpoint configured for a maker.
+/// Returns node info on success, or `connected: false` if the RPC is unreachable.
+/// Works whether the maker is running or stopped.
+#[utoipa::path(
+    get,
+    path = "/api/makers/{id}/rpc-status",
+    tag = "monitoring",
+    params(("id" = String, Path, description = "Maker ID")),
+    responses(
+        (status = 200, description = "RPC connection status", body = ApiResponse<RpcStatusInfo>),
+        (status = 404, description = "Maker not found", body = ApiResponse<RpcStatusInfo>)
+    )
+)]
+async fn get_rpc_status(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> (StatusCode, Json<ApiResponse<RpcStatusInfo>>) {
+    let manager = state.lock().await;
+    if !manager.has_maker(&id) {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(ApiResponse::err(format!("Maker '{}' not found", id))),
+        );
+    }
+    let config = match manager.get_config(&id) {
+        Some(c) => c,
+        None => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(ApiResponse::err(format!(
+                    "Config for maker '{}' not found",
+                    id
+                ))),
+            )
+        }
+    };
+    drop(manager);
+
+    let result = tokio::task::spawn_blocking(move || {
+        use coinswap::bitcoind::bitcoincore_rpc::{Auth, Client, RpcApi};
+
+        let auth = match config.auth {
+            Some((user, pass)) => Auth::UserPass(user, pass),
+            None => Auth::None,
+        };
+        let url = format!("http://{}", config.rpc);
+        let client = Client::new(&url, auth).map_err(|e| e.to_string())?;
+        let chain_info = client.get_blockchain_info().map_err(|e| e.to_string())?;
+        let net_info = client.get_network_info().map_err(|e| e.to_string())?;
+        Ok::<RpcStatusInfo, String>(RpcStatusInfo {
+            connected: true,
+            version: Some(net_info.version as u32),
+            network: Some(chain_info.chain.to_string()),
+            block_height: Some(chain_info.blocks),
+            sync_progress: Some(chain_info.verification_progress),
+        })
+    })
+    .await;
+
+    match result {
+        Ok(Ok(info)) => (StatusCode::OK, Json(ApiResponse::ok(info))),
+        Ok(Err(_)) => (
+            StatusCode::OK,
+            Json(ApiResponse::ok(RpcStatusInfo {
+                connected: false,
+                version: None,
+                network: None,
+                block_height: None,
+                sync_progress: None,
+            })),
+        ),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::err(e.to_string())),
+        ),
+    }
 }
 
 #[derive(Deserialize)]

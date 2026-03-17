@@ -45,6 +45,7 @@ pub type AppState = Arc<Mutex<MakerManager>>;
         monitoring::get_logs_stream,
         monitoring::get_tor_address,
         monitoring::get_data_dir,
+        monitoring::get_rpc_status,
         health_check,
     ),
     components(schemas(
@@ -58,6 +59,7 @@ pub type AppState = Arc<Mutex<MakerManager>>;
         dto::UtxoInfo,
         dto::MakerStatus,
         dto::HealthResponse,
+        dto::RpcStatusInfo,
     )),
     tags(
         (name = "makers", description = "Maker management"),

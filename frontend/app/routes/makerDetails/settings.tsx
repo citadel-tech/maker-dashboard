@@ -1,6 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { makers, type MakerInfoDetailed } from "../../api";
+import {
+  makers,
+  monitoring,
+  type MakerInfoDetailed,
+  type RpcStatusInfo,
+} from "../../api";
 
 interface Props {
   id: string;
@@ -85,6 +90,9 @@ export default function Settings({ id, onSaved }: Props) {
   const [copied, setCopied] = useState(false);
   const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [removing, setRemoving] = useState(false);
+  const [rpcStatus, setRpcStatus] = useState<RpcStatusInfo | null>(null);
+  const [rpcTesting, setRpcTesting] = useState(false);
+  const [rpcTestError, setRpcTestError] = useState<string | null>(null);
 
   // ── Load ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -170,6 +178,20 @@ export default function Settings({ id, onSaved }: Props) {
       });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleTestConnection() {
+    setRpcTesting(true);
+    setRpcTestError(null);
+    setRpcStatus(null);
+    try {
+      const status = await monitoring.rpcStatus(id);
+      setRpcStatus(status);
+    } catch (e: unknown) {
+      setRpcTestError(e instanceof Error ? e.message : "Unknown error");
+    } finally {
+      setRpcTesting(false);
     }
   }
 
@@ -296,31 +318,69 @@ export default function Settings({ id, onSaved }: Props) {
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
         <div className="flex items-center gap-3 mb-6">
           <h3 className="text-lg font-semibold">Test Connection</h3>
-          <span className="text-xs bg-gray-700 text-gray-400 px-2 py-0.5 rounded">
-            Coming soon
-          </span>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
             <div className="flex justify-between items-center mb-4">
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-gray-600" />
+                <div
+                  className={`w-3 h-3 rounded-full ${
+                    rpcStatus === null
+                      ? "bg-gray-600"
+                      : rpcStatus.connected
+                        ? "bg-green-500"
+                        : "bg-red-500"
+                  }`}
+                />
                 <span className="text-sm text-gray-400">Connection Status</span>
               </div>
-              <span className="text-sm font-semibold text-gray-500">
-                Unknown
+              <span
+                className={`text-sm font-semibold ${
+                  rpcStatus === null
+                    ? "text-gray-500"
+                    : rpcStatus.connected
+                      ? "text-green-400"
+                      : "text-red-400"
+                }`}
+              >
+                {rpcStatus === null
+                  ? "Unknown"
+                  : rpcStatus.connected
+                    ? "Connected"
+                    : "Disconnected"}
               </span>
             </div>
             <div className="space-y-2 text-xs">
-              {[
-                ["Bitcoin Version", "--"],
-                ["Network", "--"],
-                ["Block Height", "--"],
-                ["Sync Progress", "--"],
-              ].map(([label, val]) => (
+              {(
+                [
+                  [
+                    "Bitcoin Version",
+                    rpcStatus?.version !== undefined
+                      ? String(rpcStatus.version)
+                      : "--",
+                  ],
+                  ["Network", rpcStatus?.network ?? "--"],
+                  [
+                    "Block Height",
+                    rpcStatus?.block_height !== undefined
+                      ? rpcStatus.block_height.toLocaleString()
+                      : "--",
+                  ],
+                  [
+                    "Sync Progress",
+                    rpcStatus?.sync_progress !== undefined
+                      ? `${(rpcStatus.sync_progress * 100).toFixed(2)}%`
+                      : "--",
+                  ],
+                ] as [string, string][]
+              ).map(([label, val]) => (
                 <div key={label} className="flex justify-between">
                   <span className="text-gray-500">{label}</span>
-                  <span className="text-gray-600">{val}</span>
+                  <span
+                    className={val === "--" ? "text-gray-600" : "text-gray-300"}
+                  >
+                    {val}
+                  </span>
                 </div>
               ))}
             </div>
@@ -330,15 +390,17 @@ export default function Settings({ id, onSaved }: Props) {
               Tests connectivity to the configured Bitcoin Core RPC endpoint and
               returns node info.
             </p>
-            <div title="Requires GET /makers/{id}/rpc-status — not yet implemented in the backend">
-              <button
-                type="button"
-                disabled
-                className="w-full py-3 bg-gray-800 border border-dashed border-gray-600 text-gray-500 font-semibold rounded-lg cursor-not-allowed"
-              >
-                Test Connection — not yet available
-              </button>
-            </div>
+            {rpcTestError && (
+              <p className="text-xs text-red-400">{rpcTestError}</p>
+            )}
+            <button
+              type="button"
+              onClick={handleTestConnection}
+              disabled={rpcTesting}
+              className="w-full py-3 bg-orange-600 hover:bg-orange-500 disabled:bg-gray-800 disabled:border disabled:border-dashed disabled:border-gray-600 disabled:text-gray-500 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
+            >
+              {rpcTesting ? "Testing…" : "Test Connection"}
+            </button>
           </div>
         </div>
       </div>

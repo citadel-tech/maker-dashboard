@@ -63,6 +63,14 @@ export interface HealthResponse {
   makers: MakerStatus[];
 }
 
+export interface RpcStatusInfo {
+  connected: boolean;
+  version?: number;
+  network?: string;
+  block_height?: number;
+  sync_progress?: number;
+}
+
 // ─── Request bodies ───────────────────────────────────────────────────────────
 
 export interface CreateMakerRequest {
@@ -242,6 +250,9 @@ export const monitoring = {
   /** Fetches the last N log lines for a maker (default: 100) */
   logs: (id: string, lines?: number): Promise<string[]> =>
     get(`/makers/${id}/logs${lines !== undefined ? `?lines=${lines}` : ""}`),
+  /** Tests connectivity to the maker's configured Bitcoin Core RPC endpoint */
+  rpcStatus: (id: string): Promise<RpcStatusInfo> =>
+    get(`/makers/${id}/rpc-status`),
 };
 
 // ─── Health ───────────────────────────────────────────────────────────────────
