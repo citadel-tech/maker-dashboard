@@ -114,7 +114,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100">
       <Nav />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 animate-slide-in-up">
         {error && (
           <div className="mb-6 px-4 py-3 bg-red-900/40 border border-red-700 rounded-lg text-sm text-red-300 flex justify-between items-center">
             <span>{error}</span>
@@ -129,7 +129,7 @@ export default function Home() {
 
         {/* Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 mb-6 sm:mb-8">
-          <div className="bg-gray-900 p-4 sm:p-5 rounded-xl border border-gray-800">
+          <div className="bg-gray-900 p-4 sm:p-5 rounded-xl border border-gray-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-orange-500/5">
             <div className="text-sm text-gray-400 mb-2">Total Spendable</div>
             <div className="text-2xl sm:text-3xl font-bold text-orange-500">
               {satsToBtc(totalSpendableSats)} BTC
@@ -138,14 +138,14 @@ export default function Home() {
               Across {makerRows.length} maker{makerRows.length !== 1 ? "s" : ""}
             </div>
           </div>
-          <div className="bg-gray-900 p-4 sm:p-5 rounded-xl border border-gray-800">
+          <div className="bg-gray-900 p-4 sm:p-5 rounded-xl border border-gray-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-orange-500/5">
             <div className="text-sm text-gray-400 mb-2">System Health</div>
             <div className="text-2xl sm:text-3xl font-bold text-purple-500">
               {onlineCount}/{makerRows.length}
             </div>
             <div className="text-xs text-gray-500 mt-1">Makers online</div>
           </div>
-          <div className="bg-gray-900 p-4 sm:p-5 rounded-xl border border-gray-800">
+          <div className="bg-gray-900 p-4 sm:p-5 rounded-xl border border-gray-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-orange-500/5">
             <div className="text-sm text-gray-400 mb-2">Running</div>
             <div className="text-2xl sm:text-3xl font-bold text-emerald-500">
               {makerRows.filter((m) => m.state === "running").length}
@@ -162,7 +162,7 @@ export default function Home() {
             <h2 className="text-lg sm:text-xl font-semibold">Your Makers</h2>
             <Link
               to="/addMaker"
-              className="px-4 sm:px-5 py-2 sm:py-2.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-all font-semibold text-sm w-full sm:w-auto text-center"
+              className="px-4 sm:px-5 py-2 sm:py-2.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 active:scale-[0.97] transition-all duration-150 font-semibold text-sm w-full sm:w-auto text-center"
             >
               + Add New Maker
             </Link>
@@ -175,14 +175,14 @@ export default function Home() {
               return (
                 <div
                   key={maker.id}
-                  className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-5 hover:border-orange-500 transition-colors"
+                  className="group bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-5 hover:border-orange-500 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-orange-500/10 transition-all duration-200"
                 >
                   <div className="flex items-center justify-between mb-3 sm:mb-4">
                     <div className="flex items-center gap-2">
                       <span
                         className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
                           maker.alive
-                            ? "bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]"
+                            ? "bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)] animate-pulse"
                             : "bg-gray-600"
                         }`}
                       />
@@ -254,14 +254,14 @@ export default function Home() {
                   <div className="flex gap-2">
                     <Link
                       to={`/makerDetails/${maker.id}`}
-                      className="flex-1 text-center py-2 px-3 sm:px-4 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-all text-sm font-semibold"
+                      className="flex-1 text-center py-2 px-3 sm:px-4 bg-orange-600 text-white rounded-lg hover:bg-orange-700 active:scale-[0.97] transition-all duration-150 text-sm font-semibold"
                     >
                       Manage
                     </Link>
                     <button
                       disabled={isPending}
                       onClick={() => toggleMaker(maker.id, maker.state)}
-                      className={`py-2 px-3 sm:px-4 rounded-lg border transition-all text-sm ${
+                      className={`py-2 px-3 sm:px-4 rounded-lg border transition-all duration-150 text-sm active:scale-[0.97] ${
                         isPending
                           ? "border-gray-700 text-gray-600 cursor-not-allowed"
                           : isRunning

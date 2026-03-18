@@ -68,13 +68,13 @@ export default function AddMaker() {
     <div className="min-h-screen bg-gray-950 text-gray-100">
       <Nav />
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 animate-slide-in-up">
         {/* Header */}
         <div className="mb-6 sm:mb-8">
           <div className="flex items-center gap-3 mb-2">
             <button
               onClick={() => window.history.back()}
-              className="p-2 hover:bg-gray-800 rounded-lg transition-all"
+              className="p-2 hover:bg-gray-800 rounded-lg transition-all duration-150 hover:-translate-x-0.5"
             >
               <svg
                 className="w-5 h-5"
@@ -126,7 +126,7 @@ export default function AddMaker() {
                   onChange={handleChange}
                   placeholder="e.g., maker-1"
                   required
-                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none text-gray-100 placeholder-gray-500 font-mono text-sm"
+                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 placeholder-gray-500 font-mono text-sm"
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   Unique identifier for this maker. Used in all API calls —
@@ -144,7 +144,7 @@ export default function AddMaker() {
                   value={formData.dataDir}
                   onChange={handleChange}
                   placeholder="e.g., ~/.coinswap/maker1 (leave blank for default)"
-                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none text-gray-100 placeholder-gray-500 font-mono text-sm"
+                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 placeholder-gray-500 font-mono text-sm"
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   Directory where maker data will be stored. Defaults to{" "}
@@ -165,7 +165,7 @@ export default function AddMaker() {
                     value={formData.password}
                     onChange={handleChange}
                     placeholder="Optional"
-                    className="w-full px-4 py-2.5 pr-10 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none text-gray-100 placeholder-gray-500"
+                    className="w-full px-4 py-2.5 pr-10 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 placeholder-gray-500"
                   />
                   <button
                     type="button"
@@ -234,7 +234,7 @@ export default function AddMaker() {
                   onChange={handleChange}
                   placeholder="127.0.0.1:18443"
                   required
-                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none text-gray-100 placeholder-gray-500 font-mono text-sm"
+                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 placeholder-gray-500 font-mono text-sm"
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   Bitcoin Core RPC endpoint (host:port)
@@ -253,7 +253,7 @@ export default function AddMaker() {
                     onChange={handleChange}
                     placeholder="e.g., user"
                     required
-                    className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none text-gray-100 placeholder-gray-500 font-mono text-sm"
+                    className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 placeholder-gray-500 font-mono text-sm"
                   />
                 </div>
                 <div>
@@ -268,7 +268,7 @@ export default function AddMaker() {
                       onChange={handleChange}
                       placeholder="e.g., password"
                       required
-                      className="w-full px-4 py-2.5 pr-10 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none text-gray-100 placeholder-gray-500 font-mono text-sm"
+                      className="w-full px-4 py-2.5 pr-10 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 placeholder-gray-500 font-mono text-sm"
                     />
                     <button
                       type="button"
@@ -332,7 +332,7 @@ export default function AddMaker() {
                   onChange={handleChange}
                   placeholder="tcp://127.0.0.1:28332"
                   required
-                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none text-gray-100 placeholder-gray-500 font-mono text-sm"
+                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 placeholder-gray-500 font-mono text-sm"
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   ZeroMQ endpoint for blockchain notifications
@@ -366,14 +366,14 @@ export default function AddMaker() {
             <button
               type="button"
               onClick={() => window.history.back()}
-              className="flex-1 px-6 py-3 border border-gray-700 rounded-lg hover:bg-gray-800 hover:border-orange-500 transition-all font-semibold"
+              className="flex-1 px-6 py-3 border border-gray-700 rounded-lg hover:bg-gray-800 hover:border-orange-500 active:scale-[0.97] transition-all duration-150 font-semibold"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="flex-1 px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-all font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 active:scale-[0.98] transition-all duration-150 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? "Adding…" : "Add Maker"}
             </button>

@@ -216,7 +216,7 @@ async fn get_rpc_status(
     if !manager.has_maker(&id) {
         return (
             StatusCode::NOT_FOUND,
-            Json(ApiResponse::err(format!("Maker '{}' not found", id))),
+            Json(ApiResponse::err(format!("Maker '{id}' not found"))),
         );
     }
     let config = match manager.get_config(&id) {
@@ -225,8 +225,7 @@ async fn get_rpc_status(
             return (
                 StatusCode::NOT_FOUND,
                 Json(ApiResponse::err(format!(
-                    "Config for maker '{}' not found",
-                    id
+                    "Config for maker '{id}' not found"
                 ))),
             )
         }

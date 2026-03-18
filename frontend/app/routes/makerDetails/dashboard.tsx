@@ -31,7 +31,7 @@ export default function Dashboard({ core }: Props) {
     <div className="space-y-6">
       {/* Quick Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div className="bg-gray-900 p-4 sm:p-5 rounded-xl border border-gray-800">
+        <div className="bg-gray-900 p-4 sm:p-5 rounded-xl border border-gray-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-orange-500/5">
           <div className="text-sm text-gray-400 mb-2">Spendable Balance</div>
           <div className="text-2xl font-bold text-orange-500">
             {balances ? satsToBtc(balances.spendable) : "—"} BTC
@@ -43,7 +43,7 @@ export default function Dashboard({ core }: Props) {
           )}
         </div>
 
-        <div className="bg-gray-900 p-4 sm:p-5 rounded-xl border border-gray-800">
+        <div className="bg-gray-900 p-4 sm:p-5 rounded-xl border border-gray-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-orange-500/5">
           <div className="text-sm text-gray-400 mb-2">Total Balance</div>
           <div className="text-2xl font-bold text-blue-500">
             {totalBtc ?? "—"} BTC
@@ -53,7 +53,7 @@ export default function Dashboard({ core }: Props) {
           )}
         </div>
 
-        <div className="bg-gray-900 p-4 sm:p-5 rounded-xl border border-gray-800">
+        <div className="bg-gray-900 p-4 sm:p-5 rounded-xl border border-gray-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-orange-500/5">
           <div className="text-sm text-gray-400 mb-2">Taproot</div>
           <div className="text-2xl font-bold text-purple-500">
             {info ? (info.taproot ? "Enabled" : "Disabled") : "—"}
@@ -72,7 +72,7 @@ export default function Dashboard({ core }: Props) {
             ).map((type) => (
               <div
                 key={type}
-                className="bg-gray-800 p-4 rounded-lg border border-gray-700"
+                className="bg-gray-800 p-4 rounded-lg border border-gray-700 transition-all duration-200 hover:border-gray-600 hover:shadow-sm hover:shadow-orange-500/5"
               >
                 <div className="flex items-start justify-between mb-2">
                   <div className="font-medium capitalize text-gray-100">

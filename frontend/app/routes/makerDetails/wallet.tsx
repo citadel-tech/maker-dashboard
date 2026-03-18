@@ -88,7 +88,7 @@ export default function Wallet({ id, onBalanceRefresh }: Props) {
           <button
             onClick={handleGenerateAddress}
             disabled={addrLoading}
-            className="w-full py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-all font-semibold disabled:opacity-50"
+            className="w-full py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 active:scale-[0.98] transition-all duration-150 font-semibold disabled:opacity-50"
           >
             {addrLoading ? "Generating…" : "Generate New Address"}
           </button>
@@ -115,7 +115,7 @@ export default function Wallet({ id, onBalanceRefresh }: Props) {
                 value={sendAddr}
                 onChange={(e) => setSendAddr(e.target.value)}
                 placeholder="bc1q..."
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none"
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200"
               />
             </div>
             <div>
@@ -129,7 +129,7 @@ export default function Wallet({ id, onBalanceRefresh }: Props) {
                 placeholder="0.00"
                 min="0"
                 step="0.00000001"
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none"
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200"
               />
             </div>
             <div>
@@ -142,13 +142,13 @@ export default function Wallet({ id, onBalanceRefresh }: Props) {
                 onChange={(e) => setSendFeerate(e.target.value)}
                 placeholder="1"
                 min="1"
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none"
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200"
               />
             </div>
             <button
               onClick={handleSend}
               disabled={sendLoading || !sendAddr || !sendAmount}
-              className="w-full py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-all font-semibold disabled:opacity-50"
+              className="w-full py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 active:scale-[0.98] transition-all duration-150 font-semibold disabled:opacity-50"
             >
               {sendLoading ? "Sending…" : "Send"}
             </button>
@@ -199,7 +199,10 @@ export default function Wallet({ id, onBalanceRefresh }: Props) {
               </thead>
               <tbody className="divide-y divide-gray-800">
                 {utxos.map((u, i) => (
-                  <tr key={i}>
+                  <tr
+                    key={i}
+                    className="transition-colors duration-150 hover:bg-gray-800/50"
+                  >
                     <td className="py-2 pr-4 font-mono text-xs truncate max-w-[180px]">
                       {u.addr}
                     </td>

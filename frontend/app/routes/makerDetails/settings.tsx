@@ -238,7 +238,7 @@ export default function Settings({ id, onSaved }: Props) {
               value={rpc}
               onChange={(e) => setRpc(e.target.value)}
               placeholder="127.0.0.1:18443"
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none text-gray-100 font-mono text-sm"
+              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono text-sm"
             />
             <p className="text-xs text-gray-500 mt-1">
               8332 mainnet · 18332 testnet · 18443 regtest · 38332 signet
@@ -253,7 +253,7 @@ export default function Settings({ id, onSaved }: Props) {
               value={rpcUser}
               onChange={(e) => setRpcUser(e.target.value)}
               placeholder="Leave blank to keep current"
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none text-gray-100"
+              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100"
             />
           </div>
           <div>
@@ -266,7 +266,7 @@ export default function Settings({ id, onSaved }: Props) {
                 value={rpcPassword}
                 onChange={(e) => setRpcPassword(e.target.value)}
                 placeholder="Leave blank to keep current"
-                className="w-full px-4 py-2.5 pr-12 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none text-gray-100"
+                className="w-full px-4 py-2.5 pr-12 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100"
               />
               <button
                 type="button"
@@ -289,7 +289,7 @@ export default function Settings({ id, onSaved }: Props) {
               value={dataDir}
               onChange={(e) => setDataDir(e.target.value)}
               placeholder="~/.coinswap/maker"
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none text-gray-100 font-mono text-sm"
+              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono text-sm"
             />
           </div>
           <div className="flex items-end">
@@ -303,7 +303,7 @@ export default function Settings({ id, onSaved }: Props) {
               <button
                 type="button"
                 onClick={() => setTaproot(!taproot)}
-                className={`relative w-11 h-6 rounded-full transition-colors ml-4 shrink-0 ${taproot ? "bg-orange-500" : "bg-gray-600"}`}
+                className={`relative w-11 h-6 rounded-full transition-colors duration-200 ml-4 shrink-0 ${taproot ? "bg-orange-500" : "bg-gray-600"}`}
               >
                 <span
                   className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${taproot ? "translate-x-5" : "translate-x-0"}`}
@@ -397,7 +397,7 @@ export default function Settings({ id, onSaved }: Props) {
               type="button"
               onClick={handleTestConnection}
               disabled={rpcTesting}
-              className="w-full py-3 bg-orange-600 hover:bg-orange-500 disabled:bg-gray-800 disabled:border disabled:border-dashed disabled:border-gray-600 disabled:text-gray-500 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
+              className="w-full py-3 bg-orange-600 hover:bg-orange-500 active:scale-[0.98] disabled:bg-gray-800 disabled:border disabled:border-dashed disabled:border-gray-600 disabled:text-gray-500 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-all duration-150"
             >
               {rpcTesting ? "Testing…" : "Test Connection"}
             </button>
@@ -419,7 +419,7 @@ export default function Settings({ id, onSaved }: Props) {
                 value={zmq}
                 onChange={(e) => setZmq(e.target.value)}
                 placeholder="tcp://127.0.0.1:28332"
-                className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none text-gray-100 font-mono text-sm"
+                className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono text-sm"
               />
               <p className="text-xs text-gray-500 mt-1">
                 Used for both zmqpubrawblock and zmqpubrawtx
@@ -473,7 +473,7 @@ export default function Settings({ id, onSaved }: Props) {
               min={1}
               max={65535}
               onChange={(e) => setNetworkPort(Number(e.target.value))}
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none text-gray-100 font-mono"
+              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
             />
             <p className="text-xs text-gray-500 mt-1">
               Port for coinswap client connections (default 6102)
@@ -492,7 +492,7 @@ export default function Settings({ id, onSaved }: Props) {
               min={1}
               max={65535}
               onChange={(e) => setRpcPort(Number(e.target.value))}
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none text-gray-100 font-mono"
+              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
             />
             <p className="text-xs text-gray-500 mt-1">
               Port for maker-cli operations (default 6103)
@@ -515,7 +515,7 @@ export default function Settings({ id, onSaved }: Props) {
                 value={torAuth}
                 onChange={(e) => setTorAuth(e.target.value)}
                 placeholder="Leave blank to keep current"
-                className="w-full px-4 py-2.5 pr-12 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none text-gray-100"
+                className="w-full px-4 py-2.5 pr-12 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100"
               />
               <button
                 type="button"
@@ -542,7 +542,7 @@ export default function Settings({ id, onSaved }: Props) {
               min={1}
               max={65535}
               onChange={(e) => setSocksPort(Number(e.target.value))}
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none text-gray-100 font-mono"
+              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
             />
             <p className="text-xs text-gray-500 mt-1">
               SOCKS5 proxy port for Tor (default 9050)
@@ -561,7 +561,7 @@ export default function Settings({ id, onSaved }: Props) {
               max={65535}
               value={controlPort}
               onChange={(e) => setControlPort(Number(e.target.value))}
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none text-gray-100 font-mono"
+              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
             />
             <p className="text-xs text-gray-500 mt-1">
               Control port for Tor interface (default 9051)
@@ -588,7 +588,7 @@ export default function Settings({ id, onSaved }: Props) {
               min={1}
               value={minSwapAmount}
               onChange={(e) => setMinSwapAmount(Number(e.target.value))}
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none text-gray-100 font-mono"
+              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
             />
           </div>
           <div>
@@ -603,7 +603,7 @@ export default function Settings({ id, onSaved }: Props) {
               min={0}
               value={baseFee}
               onChange={(e) => setBaseFee(Number(e.target.value))}
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none text-gray-100 font-mono"
+              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
             />
           </div>
           <div>
@@ -620,7 +620,7 @@ export default function Settings({ id, onSaved }: Props) {
               step="0.01"
               value={amountRelativeFeePct}
               onChange={(e) => setAmountRelativeFeePct(Number(e.target.value))}
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none text-gray-100 font-mono"
+              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
             />
           </div>
           <div>
@@ -635,7 +635,7 @@ export default function Settings({ id, onSaved }: Props) {
               min={1}
               value={fidelityAmount}
               onChange={(e) => setFidelityAmount(Number(e.target.value))}
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none text-gray-100 font-mono"
+              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
             />
           </div>
           <div>
@@ -651,7 +651,7 @@ export default function Settings({ id, onSaved }: Props) {
               max={25920}
               value={fidelityTimelock}
               onChange={(e) => setFidelityTimelock(Number(e.target.value))}
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none text-gray-100 font-mono"
+              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
             />
             <p className="text-xs text-gray-500 mt-1">
               Must be between 12960 and 25920 blocks
@@ -678,7 +678,7 @@ export default function Settings({ id, onSaved }: Props) {
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="flex-1 px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-all font-semibold disabled:opacity-50"
+          className="flex-1 px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 active:scale-[0.98] transition-all duration-150 font-semibold disabled:opacity-50"
         >
           {saving ? "Saving…" : "Save & Restart Maker"}
         </button>
@@ -704,7 +704,7 @@ export default function Settings({ id, onSaved }: Props) {
         <button
           type="button"
           onClick={() => setShowRemoveModal(true)}
-          className="px-6 py-2.5 bg-transparent border border-red-700 text-red-400 rounded-lg hover:bg-red-900/20 transition-all text-sm font-semibold"
+          className="px-6 py-2.5 bg-transparent border border-red-700 text-red-400 rounded-lg hover:bg-red-900/20 hover:shadow-md hover:shadow-red-500/20 active:scale-[0.97] transition-all duration-150 text-sm font-semibold"
         >
           Remove Maker
         </button>
@@ -777,7 +777,7 @@ export default function Settings({ id, onSaved }: Props) {
                 type="button"
                 onClick={() => setShowRemoveModal(false)}
                 disabled={removing}
-                className="flex-1 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-100 rounded-lg transition-all text-sm font-semibold disabled:opacity-50"
+                className="flex-1 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 active:scale-[0.97] text-gray-100 rounded-lg transition-all duration-150 text-sm font-semibold disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -785,7 +785,7 @@ export default function Settings({ id, onSaved }: Props) {
                 type="button"
                 onClick={handleRemove}
                 disabled={removing}
-                className="flex-1 px-4 py-2.5 bg-red-700 hover:bg-red-600 text-white rounded-lg transition-all text-sm font-semibold disabled:opacity-50"
+                className="flex-1 px-4 py-2.5 bg-red-700 hover:bg-red-600 active:scale-[0.97] text-white rounded-lg transition-all duration-150 text-sm font-semibold disabled:opacity-50"
               >
                 {removing ? "Removing…" : "Yes, Remove Maker"}
               </button>
