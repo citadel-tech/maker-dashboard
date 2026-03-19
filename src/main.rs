@@ -6,7 +6,7 @@ mod server;
 mod utils;
 
 use clap::Parser;
-use tracing_subscriber::{fmt::format::FmtSpan, layer::SubscriberExt, util::SubscriberInitExt};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use cli::Cli;
 use server::{Server, ServerConfig};
@@ -29,8 +29,7 @@ async fn main() {
             tracing_subscriber::fmt::layer()
                 .with_ansi(!args.no_color)
                 .with_thread_names(true)
-                .with_target(true)
-                .with_span_events(FmtSpan::FULL)
+                .with_target(false)
                 .with_writer(log_writer),
         )
         .with(tracing_subscriber::EnvFilter::new(&args.log_filter))

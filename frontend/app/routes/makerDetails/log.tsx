@@ -1,30 +1,82 @@
 import { useState, useEffect, useRef } from "react";
-import { monitoring, streamLogs } from "../../api";
+import { monitoring, streamLogs, downloadLogs } from "../../api";
 
 interface Props {
   id: string;
 }
+
+type Level = "ALL" | "INFO" | "WARN" | "ERROR" | "DEBUG" | "TRACE";
+
+const LEVELS: Level[] = ["ALL", "INFO", "WARN", "ERROR", "DEBUG", "TRACE"];
+
+// Strips tracing span context like `maker_server{maker_id=946 kind="taproot"}: `
+const SPAN_CONTEXT_RE = / \w+\{[^}]*\}:/g;
+
+interface ParsedLine {
+  time: string;
+  level: Exclude<Level, "ALL">;
+  thread: string;
+  message: string;
+}
+
+// Parses: `2026-03-19T17:04:23.045147Z  INFO          taproot-947 message…`
+const LINE_RE =
+  /^(\d{4}-\d{2}-\d{2}T(\d{2}:\d{2}:\d{2})\.\d+Z)\s+(INFO|WARN|ERROR|DEBUG|TRACE)\s+(\S+)\s+(.*)/s;
+
+function parse(raw: string): ParsedLine | null {
+  const m = raw.match(LINE_RE);
+  if (!m) return null;
+  return {
+    time: m[2],
+    level: m[3] as Exclude<Level, "ALL">,
+    thread: m[4],
+    message: m[5].replace(SPAN_CONTEXT_RE, "").trim(),
+  };
+}
+
+const LEVEL_COLOR: Record<Exclude<Level, "ALL">, string> = {
+  INFO: "text-blue-400",
+  WARN: "text-yellow-400",
+  ERROR: "text-red-400",
+  DEBUG: "text-gray-500",
+  TRACE: "text-purple-400",
+};
+
+const MSG_COLOR: Record<Exclude<Level, "ALL">, string> = {
+  INFO: "text-gray-200",
+  WARN: "text-yellow-200",
+  ERROR: "text-red-300",
+  DEBUG: "text-gray-500",
+  TRACE: "text-purple-300",
+};
+
+const FILTER_STYLES: Record<Level, string> = {
+  ALL: "bg-white text-black",
+  INFO: "bg-blue-600 text-white",
+  WARN: "bg-yellow-500 text-black",
+  ERROR: "bg-red-600 text-white",
+  DEBUG: "bg-gray-600 text-white",
+  TRACE: "bg-purple-600 text-white",
+};
 
 export default function Logs({ id }: Props) {
   const [logs, setLogs] = useState<string[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [dataDir, setDataDir] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [filter, setFilter] = useState<Level>("ALL");
   const logsEndRef = useRef<HTMLDivElement>(null);
   const initialLoadedRef = useRef(false);
 
   useEffect(() => {
-    // Fetch data dir for log path hint
     monitoring
       .dataDir(id)
       .then(setDataDir)
       .catch(() => {});
 
-    // Create a token to invalidate stale requests
     const requestToken = { isValid: true };
     const bufferedLines: string[] = [];
 
-    // Start streaming first and buffer incoming lines
     const stop = streamLogs(id, (line) => {
       if (requestToken.isValid) {
         bufferedLines.push(line);
@@ -35,28 +87,23 @@ export default function Logs({ id }: Props) {
     });
     setStreaming(true);
 
-    // Then fetch historical lines and merge with buffered lines
     monitoring
       .logs(id, 100)
       .then((initialLines) => {
         if (requestToken.isValid) {
-          // Merge initial lines with buffered lines, capping at 100
-          const merged = [...initialLines, ...bufferedLines].slice(-100);
-          setLogs(merged);
+          setLogs([...initialLines, ...bufferedLines].slice(-100));
           initialLoadedRef.current = true;
         }
       })
       .catch(() => {});
 
     return () => {
-      // Invalidate token to prevent stale updates
       requestToken.isValid = false;
       stop();
       setStreaming(false);
     };
   }, [id]);
 
-  // Auto-scroll to bottom on new lines
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
@@ -74,39 +121,102 @@ export default function Logs({ id }: Props) {
       .catch(() => {});
   }
 
+  const counts = logs.reduce<Record<string, number>>((acc, raw) => {
+    const p = parse(raw);
+    if (p) acc[p.level] = (acc[p.level] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  const visibleLogs =
+    filter === "ALL"
+      ? logs
+      : logs.filter((raw) => parse(raw)?.level === filter);
+
   return (
     <div className="space-y-4">
-      {/* Log file path */}
-
-      {/* Log viewer */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
+        {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <h3 className="text-lg font-semibold">Logs</h3>
             <span className="text-xs text-gray-500">last 100 lines</span>
           </div>
-          <span
-            className={`text-xs px-2 py-0.5 rounded-full ${
-              streaming
-                ? "bg-green-900 text-green-300"
-                : "bg-gray-800 text-gray-400"
-            }`}
-          >
-            {streaming ? "● Live" : "Static"}
-          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => downloadLogs(id)}
+              className="text-xs px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-all"
+            >
+              Download
+            </button>
+            <span
+              className={`text-xs px-2 py-0.5 rounded-full ${
+                streaming
+                  ? "bg-green-900 text-green-300"
+                  : "bg-gray-800 text-gray-400"
+              }`}
+            >
+              {streaming ? "● Live" : "Static"}
+            </span>
+          </div>
         </div>
-        <div className="bg-black rounded-lg p-4 font-mono text-xs sm:text-sm space-y-0.5 max-h-[32rem] overflow-y-auto">
-          {logs.length === 0 ? (
-            <div className="text-gray-500">No logs yet…</div>
-          ) : (
-            logs.map((line, i) => (
-              <div
-                key={i}
-                className="text-gray-300 leading-5 whitespace-pre-wrap break-all"
+
+        {/* Filter bar */}
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          {LEVELS.map((lvl) => {
+            const active = filter === lvl;
+            const count = lvl === "ALL" ? logs.length : (counts[lvl] ?? 0);
+            return (
+              <button
+                key={lvl}
+                type="button"
+                onClick={() => setFilter(lvl)}
+                className={`text-xs px-3 py-1 rounded-lg font-mono transition-all ${
+                  active
+                    ? FILTER_STYLES[lvl]
+                    : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                }`}
               >
-                {line}
-              </div>
-            ))
+                {lvl}
+                <span
+                  className={`ml-1.5 ${active ? "opacity-80" : "text-gray-500"}`}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Log lines */}
+        <div className="bg-black rounded-lg p-4 font-mono text-xs space-y-px max-h-128 overflow-y-auto">
+          {visibleLogs.length === 0 ? (
+            <div className="text-gray-500">
+              {logs.length === 0 ? "No logs yet…" : "No matching log lines."}
+            </div>
+          ) : (
+            visibleLogs.map((raw, i) => {
+              const p = parse(raw);
+              if (!p) {
+                return (
+                  <div key={i} className="text-gray-600 leading-5 break-all">
+                    {raw.replace(SPAN_CONTEXT_RE, "")}
+                  </div>
+                );
+              }
+              return (
+                <div key={i} className="flex gap-2 leading-5 min-w-0">
+                  <span className="shrink-0 text-gray-600">{p.time}</span>
+                  <span className={`shrink-0 w-11 ${LEVEL_COLOR[p.level]}`}>
+                    {p.level}
+                  </span>
+                  <span className="shrink-0 text-gray-600">{p.thread}</span>
+                  <span className={`${MSG_COLOR[p.level]} break-all`}>
+                    {p.message}
+                  </span>
+                </div>
+              );
+            })
           )}
           <div ref={logsEndRef} />
         </div>

@@ -353,11 +353,9 @@ impl MakerPool {
         let server_handle = match &entry.maker_handle {
             MakerHandle::Legacy(maker) => {
                 let maker = maker.clone();
-                let span = tracing::info_span!("maker_server", maker_id = %id, kind = "legacy");
                 thread::Builder::new()
                     .name(format!("legacy-{id}"))
                     .spawn(move || {
-                        let _guard = span.enter();
                         if let Err(e) = start_maker_server(maker) {
                             tracing::error!("Maker server error: {:?}", e);
                         }
@@ -365,11 +363,9 @@ impl MakerPool {
             }
             MakerHandle::Taproot(maker) => {
                 let maker = maker.clone();
-                let span = tracing::info_span!("maker_server", maker_id = %id, kind = "taproot");
                 thread::Builder::new()
                     .name(format!("taproot-{id}"))
                     .spawn(move || {
-                        let _guard = span.enter();
                         if let Err(e) = start_maker_server_taproot(maker) {
                             tracing::error!("Taproot maker server error: {:?}", e);
                         }
