@@ -3,8 +3,11 @@ use std::time::Duration;
 
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
-    response::sse::{Event, KeepAlive, Sse},
+    http::{header, HeaderValue, StatusCode},
+    response::{
+        sse::{Event, KeepAlive, Sse},
+        IntoResponse, Response,
+    },
     routing::get,
     Json, Router,
 };
@@ -25,6 +28,7 @@ pub fn routes() -> Router<AppState> {
         .route("/makers/{id}/swaps", get(get_swaps))
         .route("/makers/{id}/logs", get(get_logs))
         .route("/makers/{id}/logs/stream", get(get_logs_stream))
+        .route("/makers/{id}/logs/download", get(get_logs_download))
         .route("/makers/{id}/tor-address", get(get_tor_address))
         .route("/makers/{id}/data-dir", get(get_data_dir))
         .route("/makers/{id}/rpc-status", get(get_rpc_status))
@@ -138,6 +142,66 @@ async fn get_logs(
     }
 }
 
+/// Download the full log file for a maker.
+async fn get_logs_download(State(state): State<AppState>, Path(id): Path<String>) -> Response {
+    let manager = state.lock().await;
+    if !manager.has_maker(&id) {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(ApiResponse::<()>::err(format!("Maker '{id}' not found"))),
+        )
+            .into_response();
+    }
+    let log_path = manager.log_file_path(&id);
+    drop(manager);
+
+    // Guard against very large files consuming excessive memory.
+    if let Ok(meta) = tokio::fs::metadata(&log_path).await {
+        if meta.len() > 100_000_000 {
+            return (
+                StatusCode::PAYLOAD_TOO_LARGE,
+                Json(ApiResponse::<()>::err(
+                    "Log file exceeds 100 MB; access it directly at the path shown in the UI",
+                )),
+            )
+                .into_response();
+        }
+    }
+
+    match tokio::fs::read(&log_path).await {
+        Ok(bytes) => {
+            // Sanitize the maker ID so it can't inject characters into the header value.
+            let safe_id: String = id
+                .chars()
+                .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '_')
+                .collect();
+            let disposition = format!("attachment; filename=\"maker-{safe_id}.log\"");
+            let headers = [
+                (
+                    header::CONTENT_TYPE,
+                    HeaderValue::from_static("text/plain; charset=utf-8"),
+                ),
+                (
+                    header::CONTENT_DISPOSITION,
+                    HeaderValue::from_str(&disposition)
+                        .unwrap_or_else(|_| HeaderValue::from_static("attachment")),
+                ),
+            ];
+            (StatusCode::OK, headers, bytes).into_response()
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => (
+            StatusCode::NOT_FOUND,
+            Json(ApiResponse::<()>::err("Log file not found")),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<()>::err(format!("Failed to read log: {e}"))),
+        )
+            .into_response(),
+    }
+}
+
 /// Stream log entries in real-time via Server-Sent Events (like `tail -f`)
 #[utoipa::path(
     get,
@@ -177,17 +241,24 @@ async fn get_logs_stream(
         let contents = tokio::fs::read(&path).await.unwrap_or_default();
         let current_len = contents.len() as u64;
 
-        let events: Vec<Result<Event, Infallible>> = if current_len > last_pos {
-            let new_data = &contents[last_pos as usize..];
-            String::from_utf8_lossy(new_data)
+        let (events, new_pos): (Vec<Result<Event, Infallible>>, u64) = if current_len < last_pos {
+            // File was truncated or rotated — restart from the beginning.
+            let events = String::from_utf8_lossy(&contents)
                 .lines()
                 .map(|line| Ok(Event::default().data(line)))
-                .collect()
+                .collect();
+            (events, current_len)
+        } else if current_len > last_pos {
+            let new_data = &contents[last_pos as usize..];
+            let events = String::from_utf8_lossy(new_data)
+                .lines()
+                .map(|line| Ok(Event::default().data(line)))
+                .collect();
+            (events, current_len)
         } else {
-            Vec::new()
+            (Vec::new(), last_pos)
         };
 
-        let new_pos = current_len.max(last_pos);
         Some((stream::iter(events), (new_pos, path)))
     })
     .flatten();

@@ -198,6 +198,10 @@ export function streamLogs(
   return () => es.close();
 }
 
+export function downloadLogs(id: string): void {
+  window.open(`/api/makers/${id}/logs/download`, "_blank");
+}
+
 // ─── Makers ───────────────────────────────────────────────────────────────────
 
 export const makers = {
