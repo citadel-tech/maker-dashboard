@@ -6,7 +6,17 @@ interface Props {
   id: string;
 }
 
-function SwapTable({ utxos, status }: { utxos: UtxoInfo[]; status: "active" | "completed" }) {
+function swapKey(utxo: UtxoInfo) {
+  return [utxo.addr, utxo.amount, utxo.confirmations, utxo.utxo_type].join(":");
+}
+
+function SwapTable({
+  utxos,
+  status,
+}: {
+  utxos: UtxoInfo[];
+  status: "active" | "completed";
+}) {
   if (utxos.length === 0) {
     return (
       <p className="text-gray-400 text-sm">
@@ -26,10 +36,17 @@ function SwapTable({ utxos, status }: { utxos: UtxoInfo[]; status: "active" | "c
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-800">
-          {utxos.map((u, i) => (
-            <tr key={i} className="transition-colors duration-150 hover:bg-gray-800/50">
-              <td className="py-2 pr-4 font-mono text-xs truncate max-w-45">{u.addr}</td>
-              <td className="py-2 pr-4 text-orange-400">{satsToBtc(u.amount)} BTC</td>
+          {utxos.map((u) => (
+            <tr
+              key={swapKey(u)}
+              className="transition-colors duration-150 hover:bg-gray-800/50"
+            >
+              <td className="py-2 pr-4 font-mono text-xs truncate max-w-xs">
+                {u.addr}
+              </td>
+              <td className="py-2 pr-4 text-orange-400">
+                {satsToBtc(u.amount)} BTC
+              </td>
               <td className="py-2 pr-4 text-gray-300">{u.confirmations}</td>
               <td className="py-2">
                 {status === "active" ? (
@@ -65,7 +82,11 @@ export default function Swaps({ id }: Props) {
         setActive(data.active);
         setCompleted(data.completed);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load swap history"))
+      .catch((e) =>
+        setError(
+          e instanceof Error ? e.message : "Failed to load swap history",
+        ),
+      )
       .finally(() => setLoading(false));
   }, [id]);
 

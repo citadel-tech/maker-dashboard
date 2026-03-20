@@ -13,6 +13,7 @@ use axum::{
 };
 use futures::{stream, StreamExt};
 use serde::Deserialize;
+use tracing::warn;
 
 use crate::maker_manager::message::MessageResponse;
 use crate::utils::log_writer::read_last_n_lines;
@@ -94,33 +95,61 @@ async fn get_swaps(
     }
 
     let active = match state.lock().await.get_swap_utxos(&id).await {
-        Ok(crate::maker_manager::message::MessageResponse::SwapUtxoResp { utxos }) => utxos
-            .into_iter()
-            .filter_map(|u| {
-                serde_json::to_value(&u)
-                    .ok()
-                    .and_then(|v| serde_json::from_value::<UtxoInfo>(v).ok())
-            })
-            .collect(),
-        _ => vec![],
+        Ok(MessageResponse::SwapUtxoResp { utxos }) => convert_utxos(&id, "active", utxos),
+        Ok(other) => {
+            warn!(
+                "Unexpected active swap UTXO response for maker '{id}': {:?}",
+                other
+            );
+            vec![]
+        }
+        Err(e) => {
+            warn!("Failed to fetch active swap UTXOs for maker '{id}': {e}");
+            vec![]
+        }
     };
 
     let completed = match state.lock().await.get_swept_swap_utxos(&id).await {
-        Ok(crate::maker_manager::message::MessageResponse::SweptSwapUtxoResp { utxos }) => utxos
-            .into_iter()
-            .filter_map(|u| {
-                serde_json::to_value(&u)
-                    .ok()
-                    .and_then(|v| serde_json::from_value::<UtxoInfo>(v).ok())
-            })
-            .collect(),
-        _ => vec![],
+        Ok(MessageResponse::SweptSwapUtxoResp { utxos }) => convert_utxos(&id, "completed", utxos),
+        Ok(other) => {
+            warn!(
+                "Unexpected completed swap UTXO response for maker '{id}': {:?}",
+                other
+            );
+            vec![]
+        }
+        Err(e) => {
+            warn!("Failed to fetch completed swap UTXOs for maker '{id}': {e}");
+            vec![]
+        }
     };
 
     (
         StatusCode::OK,
         Json(ApiResponse::ok(SwapHistoryDto { active, completed })),
     )
+}
+
+fn convert_utxos<T>(id: &str, label: &str, utxos: Vec<T>) -> Vec<UtxoInfo>
+where
+    T: serde::Serialize,
+{
+    utxos
+        .into_iter()
+        .filter_map(|u| match serde_json::to_value(&u) {
+            Ok(value) => match serde_json::from_value::<UtxoInfo>(value) {
+                Ok(info) => Some(info),
+                Err(e) => {
+                    warn!("Failed to decode {label} swap UTXO for maker '{id}': {e}");
+                    None
+                }
+            },
+            Err(e) => {
+                warn!("Failed to serialize {label} swap UTXO for maker '{id}': {e}");
+                None
+            }
+        })
+        .collect()
 }
 
 /// Get recent log entries for a maker.

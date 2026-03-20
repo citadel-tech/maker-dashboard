@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import Nav from "../components/Nav";
 import OnboardingWizard from "./onboarding";
@@ -10,6 +10,7 @@ import {
   type MakerInfoDetailed,
   type BalanceInfo,
   type MakerState,
+  type UtxoInfo,
 } from "../api.ts";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -20,6 +21,18 @@ interface MakerRow {
   alive: boolean;
   balance: BalanceInfo | null;
   torAddress: string | null;
+  swapCompleted: UtxoInfo[];
+}
+
+const SWAP_HISTORY_REFRESH_MS = 60_000;
+
+function swapKey(
+  utxo: Pick<UtxoInfo, "addr" | "amount" | "confirmations" | "utxo_type">,
+  makerId?: string,
+) {
+  return [makerId, utxo.addr, utxo.amount, utxo.confirmations, utxo.utxo_type]
+    .filter(Boolean)
+    .join(":");
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -29,19 +42,33 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<Set<string>>(new Set());
+  const swapHistoryCache = useRef<Record<string, UtxoInfo[]>>({});
+  const lastSwapRefreshAt = useRef(0);
 
-  async function loadMakers() {
+  async function loadMakers(forceSwapRefresh = false) {
     try {
       setError(null);
       const list = await makers.list();
+      const includeSwaps =
+        forceSwapRefresh ||
+        lastSwapRefreshAt.current === 0 ||
+        Date.now() - lastSwapRefreshAt.current >= SWAP_HISTORY_REFRESH_MS;
       const rows = await Promise.all(
         list.map(async ({ id }): Promise<MakerRow> => {
-          const [detail, bal, status, tor] = await Promise.allSettled([
+          const requests = [
             makers.get(id),
             wallet.balance(id),
             monitoring.status(id),
             monitoring.torAddress(id),
-          ]);
+            includeSwaps
+              ? monitoring.swaps(id)
+              : Promise.resolve({
+                  active: [],
+                  completed: swapHistoryCache.current[id] ?? [],
+                }),
+          ] as const;
+          const [detail, bal, status, tor, swaps] =
+            await Promise.allSettled(requests);
           const info: MakerInfoDetailed | null =
             detail.status === "fulfilled" ? detail.value : null;
           const balData: BalanceInfo | null =
@@ -49,15 +76,24 @@ export default function Home() {
           const alive =
             status.status === "fulfilled" ? status.value.alive : false;
           const torAddress = tor.status === "fulfilled" ? tor.value : null;
+          const swapCompleted =
+            swaps.status === "fulfilled" ? swaps.value.completed : [];
+          if (includeSwaps && swaps.status === "fulfilled") {
+            swapHistoryCache.current[id] = swaps.value.completed;
+          }
           return {
             id,
             state: info?.state ?? "stopped",
             alive,
             balance: balData,
             torAddress,
+            swapCompleted,
           };
         }),
       );
+      if (includeSwaps) {
+        lastSwapRefreshAt.current = Date.now();
+      }
       setMakerRows(rows);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load makers");
@@ -67,8 +103,10 @@ export default function Home() {
   }
 
   useEffect(() => {
-    loadMakers();
-    const interval = setInterval(loadMakers, 15_000);
+    loadMakers(true);
+    const interval = setInterval(() => {
+      void loadMakers();
+    }, 15_000);
     return () => clearInterval(interval);
   }, []);
 
@@ -77,7 +115,7 @@ export default function Home() {
     try {
       if (currentState === "running") await makers.stop(id);
       else await makers.start(id);
-      await loadMakers();
+      await loadMakers(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Action failed");
     } finally {
@@ -283,8 +321,57 @@ export default function Home() {
           <h2 className="text-lg sm:text-xl font-semibold mb-4 sm:mb-5">
             Recent Activity
           </h2>
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 text-center">
-            <p className="text-sm text-gray-500">Swap history coming soon</p>
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
+            {(() => {
+              const recentSwaps = makerRows
+                .flatMap((r) =>
+                  r.swapCompleted.map((u) => ({ ...u, makerId: r.id })),
+                )
+                .sort((a, b) => a.confirmations - b.confirmations)
+                .slice(0, 10);
+
+              if (recentSwaps.length === 0) {
+                return (
+                  <p className="text-sm text-gray-500 text-center">
+                    No completed swaps yet
+                  </p>
+                );
+              }
+
+              return (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-gray-400 text-left border-b border-gray-800">
+                        <th className="pb-2 pr-4">Maker</th>
+                        <th className="pb-2 pr-4">Amount</th>
+                        <th className="pb-2">Confirmations</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-800">
+                      {recentSwaps.map((s) => (
+                        <tr
+                          key={swapKey(s, s.makerId)}
+                          className="transition-colors duration-150 hover:bg-gray-800/50"
+                        >
+                          <td className="py-2 pr-4">
+                            <span className="font-mono text-xs bg-gray-800 px-2 py-0.5 rounded">
+                              {s.makerId}
+                            </span>
+                          </td>
+                          <td className="py-2 pr-4 text-orange-400 font-medium">
+                            {satsToBtc(s.amount)} BTC
+                          </td>
+                          <td className="py-2 text-gray-300">
+                            {s.confirmations}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
           </div>
         </div>
       </main>

@@ -17,6 +17,11 @@ export default function AddMaker() {
     dataDir: "",
     taproot: true,
     password: "",
+    torAuth: "",
+    socksPort: "9050",
+    controlPort: "9051",
+    networkPort: "6102",
+    makerRpcPort: "6103",
   });
 
   const [submitting, setSubmitting] = useState(false);
@@ -24,6 +29,7 @@ export default function AddMaker() {
   const [showPassword, setShowPassword] = useState({
     password: false,
     bitcoinPassword: false,
+    torAuth: false,
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -48,6 +54,17 @@ export default function AddMaker() {
       taproot: formData.taproot,
       data_directory: formData.dataDir || undefined,
       password: formData.password || undefined,
+      tor_auth: formData.torAuth || undefined,
+      socks_port: formData.socksPort ? parseInt(formData.socksPort) : undefined,
+      control_port: formData.controlPort
+        ? parseInt(formData.controlPort)
+        : undefined,
+      network_port: formData.networkPort
+        ? parseInt(formData.networkPort)
+        : undefined,
+      rpc_port: formData.makerRpcPort
+        ? parseInt(formData.makerRpcPort)
+        : undefined,
     };
 
     try {
@@ -336,6 +353,150 @@ export default function AddMaker() {
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   ZeroMQ endpoint for blockchain notifications
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Tor Configuration */}
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
+            <h3 className="text-lg font-semibold mb-1">Tor Configuration</h3>
+            <p className="text-xs text-gray-500 mb-4">
+              Ports must match your Tor instance. Auth password is required if
+              your Tor control port uses{" "}
+              <code className="bg-gray-800 px-1 rounded">
+                HashedControlPassword
+              </code>
+              .
+            </p>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-2">
+                    SOCKS Port
+                  </label>
+                  <input
+                    type="number"
+                    name="socksPort"
+                    value={formData.socksPort}
+                    onChange={handleChange}
+                    placeholder="9050"
+                    className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 placeholder-gray-500 font-mono text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-2">
+                    Control Port
+                  </label>
+                  <input
+                    type="number"
+                    name="controlPort"
+                    value={formData.controlPort}
+                    onChange={handleChange}
+                    placeholder="9051"
+                    className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 placeholder-gray-500 font-mono text-sm"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">
+                  Tor Auth Password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword.torAuth ? "text" : "password"}
+                    name="torAuth"
+                    value={formData.torAuth}
+                    onChange={handleChange}
+                    placeholder="Leave blank if no auth configured"
+                    className="w-full px-4 py-2.5 pr-10 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 placeholder-gray-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setShowPassword((p) => ({ ...p, torAuth: !p.torAuth }))
+                    }
+                    className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-200"
+                    tabIndex={-1}
+                  >
+                    {showPassword.torAuth ? (
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
+                        />
+                      </svg>
+                    ) : (
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                        />
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                        />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Network Ports */}
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
+            <h3 className="text-lg font-semibold mb-1">Maker Network Ports</h3>
+            <p className="text-xs text-gray-500 mb-4">
+              Ports this maker listens on. Must be unique across all makers.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">
+                  Network Port
+                </label>
+                <input
+                  type="number"
+                  name="networkPort"
+                  value={formData.networkPort}
+                  onChange={handleChange}
+                  placeholder="6102"
+                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 placeholder-gray-500 font-mono text-sm"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  For client connections
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">
+                  RPC Port
+                </label>
+                <input
+                  type="number"
+                  name="makerRpcPort"
+                  value={formData.makerRpcPort}
+                  onChange={handleChange}
+                  placeholder="6103"
+                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 placeholder-gray-500 font-mono text-sm"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  For maker-cli operations
                 </p>
               </div>
             </div>
