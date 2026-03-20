@@ -23,7 +23,7 @@ RUN mkdir src && echo "fn main() {}" > src/main.rs \
 
 # Copy actual source and build
 COPY src ./src
-RUN touch src/main.rs && cargo build --release
+RUN cargo build --release
 
 # Stage 3: Runtime
 FROM debian:bookworm-slim
@@ -33,7 +33,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
 
 COPY --from=backend-builder /app/target/release/maker-dashboard ./maker-dashboard
-COPY --from=frontend-builder /app/frontend/build ./frontend/build
+COPY --from=frontend-builder /app/frontend/build/client ./frontend/build/client
 
 EXPOSE 3000
 
