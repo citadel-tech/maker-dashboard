@@ -207,6 +207,15 @@ pub struct UtxoInfo {
     pub utxo_type: String,
 }
 
+/// Swap history for a maker: active (in-flight) and completed (swept) swaps
+#[derive(Debug, Serialize, ToSchema)]
+pub struct SwapHistoryDto {
+    /// In-progress incoming swap coins (2-of-2 multisig not yet swept)
+    pub active: Vec<UtxoInfo>,
+    /// Completed swaps whose coins have been swept to the regular wallet
+    pub completed: Vec<UtxoInfo>,
+}
+
 #[derive(Debug, Serialize, ToSchema)]
 pub struct MakerStatus {
     pub id: String,

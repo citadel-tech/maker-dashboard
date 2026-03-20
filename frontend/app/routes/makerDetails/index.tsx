@@ -255,7 +255,7 @@ export default function MakerDetails() {
         {activeTab === "wallet" && (
           <Wallet id={id} onBalanceRefresh={loadCore} />
         )}
-        {activeTab === "swaps" && <Swaps />}
+        {activeTab === "swaps" && <Swaps id={id} />}
         {activeTab === "logs" && <Logs id={id} />}
         {activeTab === "settings" && (
           <Settings id={id} onSaved={() => setActiveTab("dashboard")} />

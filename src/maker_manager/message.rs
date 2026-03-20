@@ -37,6 +37,8 @@ pub enum MessageRequest {
     ListFidelity,
     /// Request to sync the internal wallet with blockchain.
     SyncWallet,
+    /// Request to fetch UTXOs for completed (swept) incoming swap coins.
+    SweptSwapUtxo,
 }
 
 /// Enum representing RPC message responses.
@@ -85,6 +87,11 @@ pub enum MessageResponse {
     ServerError(String),
     /// Response listing all current and past fidelity bonds.
     ListBonds(String),
+    /// Response containing UTXOs for completed (swept) incoming swap coins.
+    SweptSwapUtxoResp {
+        /// List of UTXOs that were swept from completed incoming swaps.
+        utxos: Vec<UTXO>,
+    },
 }
 
 impl std::fmt::Display for MessageResponse {
@@ -106,7 +113,8 @@ impl std::fmt::Display for MessageResponse {
             Self::UtxoResp { utxos }
             | Self::SwapUtxoResp { utxos }
             | Self::FidelityUtxoResp { utxos }
-            | Self::ContractUtxoResp { utxos } => {
+            | Self::ContractUtxoResp { utxos }
+            | Self::SweptSwapUtxoResp { utxos } => {
                 let json = serde_json::to_string_pretty(utxos).map_err(|_| std::fmt::Error)?;
                 write!(f, "{json}")
             }

@@ -314,6 +314,11 @@ impl MakerManager {
         self.request(id, MessageRequest::FidelityUtxo).await
     }
 
+    /// Gets swept (completed) incoming swap coin UTXOs from a maker's wallet
+    pub async fn get_swept_swap_utxos(&self, id: &MakerId) -> Result<MessageResponse> {
+        self.request(id, MessageRequest::SweptSwapUtxo).await
+    }
+
     /// Gets the balances from a maker's wallet
     pub async fn get_balances(&self, id: &MakerId) -> Result<MessageResponse> {
         self.request(id, MessageRequest::Balances).await

@@ -230,6 +230,16 @@ fn handle_request(
             },
             Err(e) => MessageResponse::ServerError(e.to_string()),
         },
+        MessageRequest::SweptSwapUtxo => match maker.wallet().read() {
+            Ok(wallet) => MessageResponse::SweptSwapUtxoResp {
+                utxos: wallet
+                    .list_swept_incoming_swap_utxos()
+                    .into_iter()
+                    .map(UTXO::from_utxo_data)
+                    .collect(),
+            },
+            Err(e) => MessageResponse::ServerError(e.to_string()),
+        },
     })
 }
 

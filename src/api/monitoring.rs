@@ -18,7 +18,7 @@ use crate::maker_manager::message::MessageResponse;
 use crate::utils::log_writer::read_last_n_lines;
 
 use super::{
-    dto::{ApiResponse, MakerStatus, RpcStatusInfo},
+    dto::{ApiResponse, MakerStatus, RpcStatusInfo, SwapHistoryDto, UtxoInfo},
     AppState,
 };
 
@@ -68,32 +68,58 @@ async fn get_status(
     )
 }
 
-/// List active and recent swaps for a maker. NOT IMPLEMENTED YET!!!
+/// List active and completed swaps for a maker.
+///
+/// - `active`: in-progress incoming swap coins (2-of-2 multisig not yet swept)
+/// - `completed`: coins swept from completed incoming swaps
 #[utoipa::path(
     get,
     path = "/api/makers/{id}/swaps",
     tag = "monitoring",
     params(("id" = String, Path, description = "Maker ID")),
     responses(
-        (status = 404, description = "Maker not found", body = ApiResponse<Vec<String>>),
-        (status = 501, description = "Not implemented", body = ApiResponse<Vec<String>>)
+        (status = 200, description = "Swap history", body = ApiResponse<SwapHistoryDto>),
+        (status = 404, description = "Maker not found", body = ApiResponse<SwapHistoryDto>)
     )
 )]
 async fn get_swaps(
     State(state): State<AppState>,
     Path(id): Path<String>,
-) -> (StatusCode, Json<ApiResponse<Vec<String>>>) {
+) -> (StatusCode, Json<ApiResponse<SwapHistoryDto>>) {
     if !state.lock().await.has_maker(&id) {
         return (
             StatusCode::NOT_FOUND,
             Json(ApiResponse::err(format!("Maker '{id}' not found"))),
         );
     }
+
+    let active = match state.lock().await.get_swap_utxos(&id).await {
+        Ok(crate::maker_manager::message::MessageResponse::SwapUtxoResp { utxos }) => utxos
+            .into_iter()
+            .filter_map(|u| {
+                serde_json::to_value(&u)
+                    .ok()
+                    .and_then(|v| serde_json::from_value::<UtxoInfo>(v).ok())
+            })
+            .collect(),
+        _ => vec![],
+    };
+
+    let completed = match state.lock().await.get_swept_swap_utxos(&id).await {
+        Ok(crate::maker_manager::message::MessageResponse::SweptSwapUtxoResp { utxos }) => utxos
+            .into_iter()
+            .filter_map(|u| {
+                serde_json::to_value(&u)
+                    .ok()
+                    .and_then(|v| serde_json::from_value::<UtxoInfo>(v).ok())
+            })
+            .collect(),
+        _ => vec![],
+    };
+
     (
-        StatusCode::NOT_IMPLEMENTED,
-        Json(ApiResponse::err(
-            "Swap history tracking is not yet implemented",
-        )),
+        StatusCode::OK,
+        Json(ApiResponse::ok(SwapHistoryDto { active, completed })),
     )
 }
 

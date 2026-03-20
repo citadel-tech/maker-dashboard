@@ -71,6 +71,13 @@ export interface RpcStatusInfo {
   sync_progress?: number;
 }
 
+export interface SwapHistoryDto {
+  /** In-progress incoming swap coins */
+  active: UtxoInfo[];
+  /** Coins swept from completed incoming swaps */
+  completed: UtxoInfo[];
+}
+
 // ─── Request bodies ───────────────────────────────────────────────────────────
 
 export interface CreateMakerRequest {
@@ -249,8 +256,7 @@ export const monitoring = {
   status: (id: string): Promise<MakerStatus> => get(`/makers/${id}/status`),
   torAddress: (id: string): Promise<string> => get(`/makers/${id}/tor-address`),
   dataDir: (id: string): Promise<string> => get(`/makers/${id}/data-dir`),
-  /** NOTE: Returns 501 Not Implemented — swap history tracking is not yet in the backend */
-  swaps: (id: string): Promise<string[]> => get(`/makers/${id}/swaps`),
+  swaps: (id: string): Promise<SwapHistoryDto> => get(`/makers/${id}/swaps`),
   /** Fetches the last N log lines for a maker (default: 100) */
   logs: (id: string, lines?: number): Promise<string[]> =>
     get(`/makers/${id}/logs${lines !== undefined ? `?lines=${lines}` : ""}`),
