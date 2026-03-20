@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::fs;
+use std::path::Path;
 use std::str::FromStr;
 use std::sync::atomic::Ordering::Relaxed;
 use std::sync::{Arc, RwLock};
@@ -53,9 +55,20 @@ impl MakerWalletAccess for TaprootMaker {
     }
 }
 
+fn read_tor_address(data_dir: &Path, network_port: u16) -> Result<String> {
+    let tor_metadata_path = data_dir.join("tor/hostname");
+    let tor_metadata = fs::read(&tor_metadata_path)
+        .map_err(|e| anyhow!("Failed to read {}: {e}", tor_metadata_path.display()))?;
+    let [_, hostname]: [String; 2] = serde_cbor::from_slice(&tor_metadata)
+        .map_err(|e| anyhow!("Failed to decode {}: {e}", tor_metadata_path.display()))?;
+
+    Ok(format!("{hostname}:{network_port}"))
+}
+
 /// Unified request handler for any maker implementing `MakerWalletAccess`
 fn handle_request(
     maker: &dyn MakerWalletAccess,
+    network_port: u16,
     request: MessageRequest,
 ) -> Result<MessageResponse> {
     let addr_type = maker.default_address_type();
@@ -196,9 +209,10 @@ fn handle_request(
             }
             MessageResponse::SendToAddressResp(txid.to_string())
         }
-        MessageRequest::GetTorAddress => {
-            MessageResponse::ServerError("GetTorAddress not yet implemented".to_string())
-        }
+        MessageRequest::GetTorAddress => match read_tor_address(maker.data_dir(), network_port) {
+            Ok(address) => MessageResponse::GetTorAddressResp(address),
+            Err(e) => MessageResponse::ServerError(e.to_string()),
+        },
         MessageRequest::GetDataDir => {
             MessageResponse::GetDataDirResp(maker.data_dir().to_path_buf())
         }
@@ -261,20 +275,31 @@ impl MakerHandle {
 /// Entry representing a single maker running in its own thread
 struct MakerEntry {
     inner: MakerHandle,
+    network_port: u16,
     responder: Responder<MessageRequest, MessageResponse>,
 }
 
 impl MakerEntry {
     /// Creates a new MakerEntry and returns the requester handle for communication
-    fn new(inner: MakerHandle) -> (Self, Requester<MessageRequest, MessageResponse>) {
+    fn new(
+        inner: MakerHandle,
+        network_port: u16,
+    ) -> (Self, Requester<MessageRequest, MessageResponse>) {
         let (requester, responder) = channel::<MessageRequest, MessageResponse>(100);
-        (Self { inner, responder }, requester)
+        (
+            Self {
+                inner,
+                network_port,
+                responder,
+            },
+            requester,
+        )
     }
 
     /// Starts handling incoming requests in a loop
     async fn run(mut self) {
         while let Some(req) = self.responder.recv().await {
-            let resp = handle_request(self.inner.as_wallet_access(), req)
+            let resp = handle_request(self.inner.as_wallet_access(), self.network_port, req)
                 .unwrap_or_else(|e| MessageResponse::ServerError(e.to_string()));
             if self.responder.send(resp).await.is_err() {
                 break;
@@ -310,13 +335,18 @@ impl MakerPool {
 
     /// Registers a new maker in the pool and spawns its message loop thread.
     /// The maker is NOT started (no coinswap server). Call `start_server` separately.
-    pub fn spawn_maker(&mut self, id: MakerId, maker: MakerHandle) -> Result<()> {
+    pub fn spawn_maker(
+        &mut self,
+        id: MakerId,
+        maker: MakerHandle,
+        network_port: u16,
+    ) -> Result<()> {
         if self.makers.contains_key(&id) {
             return Err(anyhow!("Maker with id '{id}' already exists"));
         }
 
         let message_maker = maker.clone_inner();
-        let (entry, requester) = MakerEntry::new(message_maker);
+        let (entry, requester) = MakerEntry::new(message_maker, network_port);
 
         let message_thread = thread::spawn(move || {
             let rt = Runtime::new().expect("Failed to create tokio runtime");
@@ -465,5 +495,32 @@ impl MakerPool {
 impl Default for MakerPool {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::read_tor_address;
+
+    #[test]
+    fn reads_tor_hostname_from_maker_data_dir() {
+        let temp_dir =
+            std::env::temp_dir().join(format!("maker-pool-tor-address-{}", std::process::id()));
+        let tor_dir = temp_dir.join("tor");
+        std::fs::create_dir_all(&tor_dir).unwrap();
+        std::fs::write(
+            tor_dir.join("hostname"),
+            serde_cbor::to_vec(&[
+                "ED25519-V3:private-key".to_string(),
+                "maker-example.onion".to_string(),
+            ])
+            .unwrap(),
+        )
+        .unwrap();
+
+        let address = read_tor_address(&temp_dir, 6102).unwrap();
+        assert_eq!(address, "maker-example.onion:6102");
+
+        std::fs::remove_dir_all(temp_dir).unwrap();
     }
 }

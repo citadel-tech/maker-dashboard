@@ -1631,6 +1631,7 @@ dependencies = [
  "http-body-util",
  "log",
  "serde",
+ "serde_cbor",
  "serde_json",
  "thiserror 2.0.18",
  "tokio",

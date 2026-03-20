@@ -5,6 +5,7 @@ import {
   makers,
   wallet,
   monitoring,
+  satsToBtc,
   type MakerInfoDetailed,
   type BalanceInfo,
   type MakerStatus,
@@ -117,6 +118,7 @@ export default function MakerDetails() {
     isRunning,
   };
 
+  const swapLiquidity = balances ? `${satsToBtc(balances.swap)} BTC` : "—";
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100">
       <Nav />
@@ -210,15 +212,18 @@ export default function MakerDetails() {
               </div>
             </div>
             <div>
-              <div className="text-sm text-orange-100 mb-1">
-                Another Section
-              </div>
-              <div className="text-xl sm:text-2xl font-bold text-white">
-                Have to think
+              <div className="text-sm text-orange-100 mb-2">Swap Stats</div>
+              <div>
+                <div className="text-xs uppercase tracking-wide text-orange-100/80 mb-1">
+                  Swap Liquidity
+                </div>
+                <div className="text-lg sm:text-xl font-bold text-white">
+                  {swapLiquidity}
+                </div>
               </div>
             </div>
             <div className="sm:max-w-xs">
-              <div className="text-sm text-orange-100 mb-1">Tor Address</div>
+              <div className="text-sm text-orange-100 mb-1">Tor Hostname</div>
               <div className="text-xs sm:text-sm font-mono text-white bg-white/10 px-3 py-2 rounded-lg truncate">
                 {torAddress ?? "—"}
               </div>

@@ -184,7 +184,7 @@ impl MakerManager {
                 .map_err(|e| anyhow!("Failed to initialize taproot maker: {e:?}"))?,
             );
             self.pool
-                .spawn_maker(id.clone(), MakerInner::Taproot(maker))?;
+                .spawn_maker(id.clone(), MakerInner::Taproot(maker), config.network_port)?;
         } else {
             let maker = Arc::new(
                 Maker::init(
@@ -203,7 +203,7 @@ impl MakerManager {
                 .map_err(|e| anyhow!("Failed to initialize maker: {e:?}"))?,
             );
             self.pool
-                .spawn_maker(id.clone(), MakerInner::Legacy(maker))?;
+                .spawn_maker(id.clone(), MakerInner::Legacy(maker), config.network_port)?;
         }
 
         self.configs.insert(id, config);
