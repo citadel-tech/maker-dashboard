@@ -43,7 +43,7 @@ pub struct Cli {
     /// Log filter directive (e.g. "debug", "tower_http=debug,info")
     #[arg(
         long,
-        default_value = "tower_http=info,debug",
+        default_value = "tower_http=debug,info",
         env = "DASHBOARD_LOG_FILTER"
     )]
     pub log_filter: String,
