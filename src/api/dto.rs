@@ -7,47 +7,78 @@ use crate::maker_manager::{MakerConfig, MakerInfo as ManagerMakerInfo, MakerStat
 /// Request body for `POST /api/makers`
 #[derive(Deserialize, ToSchema)]
 pub struct CreateMakerRequest {
+    #[schema(example = "maker1")]
     pub id: String,
+    #[schema(example = "127.0.0.1:38332")]
     pub rpc: Option<String>,
+    #[schema(example = "tcp://127.0.0.1:28332")]
     pub zmq: Option<String>,
+    #[schema(example = "user")]
     pub rpc_user: Option<String>,
+    #[schema(example = "password")]
     pub rpc_password: Option<String>,
     pub tor_auth: Option<String>,
+    #[schema(example = "maker1-wallet")]
     pub wallet_name: Option<String>,
+    #[schema(example = false)]
     pub taproot: Option<bool>,
     pub password: Option<String>,
     pub data_directory: Option<String>,
+    #[schema(example = 6102)]
     pub network_port: Option<u16>,
+    #[schema(example = 6103)]
     pub rpc_port: Option<u16>,
+    #[schema(example = 9050)]
     pub socks_port: Option<u16>,
+    #[schema(example = 9051)]
     pub control_port: Option<u16>,
+    #[schema(example = 10000)]
     pub min_swap_amount: Option<u64>,
+    #[schema(example = 50000)]
     pub fidelity_amount: Option<u64>,
+    #[schema(example = 13104)]
     pub fidelity_timelock: Option<u32>,
+    #[schema(example = 100)]
     pub base_fee: Option<u64>,
+    #[schema(example = 0.1)]
     pub amount_relative_fee_pct: Option<f64>,
 }
 
-#[derive(Deserialize, ToSchema)]
 /// Request body for `PUT /api/makers/{id}/config`
+#[derive(Deserialize, ToSchema)]
 pub struct UpdateMakerConfigRequest {
+    #[schema(example = "127.0.0.1:38332")]
     pub rpc: Option<String>,
+    #[schema(example = "tcp://127.0.0.1:28332")]
     pub zmq: Option<String>,
+    #[schema(example = "user")]
     pub rpc_user: Option<String>,
+    #[schema(example = "password")]
     pub rpc_password: Option<String>,
     pub tor_auth: Option<String>,
+    #[schema(example = "maker1-wallet")]
     pub wallet_name: Option<String>,
+    #[schema(example = false)]
     pub taproot: Option<bool>,
     pub password: Option<String>,
     pub data_directory: Option<String>,
+    #[schema(example = 6102)]
     pub network_port: Option<u16>,
+    #[schema(example = 6103)]
     pub rpc_port: Option<u16>,
+    #[schema(example = 9050)]
     pub socks_port: Option<u16>,
+    #[schema(example = 9051)]
     pub control_port: Option<u16>,
+    #[schema(example = 10000)]
     pub min_swap_amount: Option<u64>,
+    #[schema(example = 50000)]
     pub fidelity_amount: Option<u64>,
+    #[schema(example = 13104)]
     pub fidelity_timelock: Option<u32>,
+    #[schema(example = 100)]
     pub base_fee: Option<u64>,
+    #[schema(example = 0.1)]
     pub amount_relative_fee_pct: Option<f64>,
 }
 
@@ -87,8 +118,11 @@ impl UpdateMakerConfigRequest {
 /// Request body for `POST /api/makers/{id}/send`
 #[derive(Deserialize, ToSchema)]
 pub struct SendToAddressRequest {
+    #[schema(example = "bcrt1qxyzw0k8a3gp6n9lqz7th0gkc4e5mvetlkgkay")]
     pub address: String,
+    #[schema(example = 50000)]
     pub amount: u64,
+    #[schema(example = 1.0)]
     pub feerate: f64,
 }
 
@@ -233,6 +267,7 @@ pub struct RpcStatusInfo {
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct StartBitcoindRequest {
     /// Network to run bitcoind on: "regtest" or "signet"
+    #[schema(example = "regtest")]
     pub network: String,
 }
 
