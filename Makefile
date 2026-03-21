@@ -41,7 +41,7 @@ docker-build:
 	docker build -t maker-dashboard .
 
 docker-run:
-	docker run -p 3000:3000 maker-dashboard
+	docker run -p 3000:3000 -e DASHBOARD_HOST=0.0.0.0 -e DASHBOARD_ALLOW_REMOTE=true maker-dashboard
 
 help:
 	@echo "Maker Dashboard - Available commands:"

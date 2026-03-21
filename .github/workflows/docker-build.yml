@@ -43,7 +43,9 @@ jobs:
 
       - name: Test container starts and responds
         run: |
-          docker run -d --name test-container -p 3000:3000 maker-dashboard:test
+          docker run -d --rm --name test-container -p 3000:3000 \
+            -e DASHBOARD_HOST=0.0.0.0 -e DASHBOARD_ALLOW_REMOTE=true \
+            maker-dashboard:test
           # Wait for the server to be ready
           for i in $(seq 1 30); do
             if curl -sf http://localhost:3000/ > /dev/null 2>&1; then
@@ -59,4 +61,4 @@ jobs:
           done
           # Verify API responds
           curl -sf http://localhost:3000/api/makers | jq .
-          docker stop test-container
+          docker stop test-container || true

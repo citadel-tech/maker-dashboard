@@ -13,7 +13,7 @@ FROM rust:1.88-slim AS backend-builder
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y pkg-config curl libssl-dev build-essential cmake && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends pkg-config curl libssl-dev build-essential cmake && rm -rf /var/lib/apt/lists/*
 
 # Copy manifests and cache dependencies
 COPY Cargo.toml Cargo.lock ./
@@ -30,11 +30,19 @@ FROM debian:bookworm-slim
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && rm -rf /var/lib/apt/lists/*
+
+RUN useradd --create-home --shell /bin/bash appuser
 
 COPY --from=backend-builder /app/target/release/maker-dashboard ./maker-dashboard
 COPY --from=frontend-builder /app/frontend/build/client ./frontend/build/client
 
+RUN chown -R appuser:appuser /app
+USER appuser
+
 EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:3000/ || exit 1
 
 CMD ["./maker-dashboard"]
