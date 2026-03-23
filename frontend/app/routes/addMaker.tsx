@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { X } from "lucide-react";
 import Nav from "../components/Nav";
 import { makers, type CreateMakerRequest, ApiError } from "../api";
 
@@ -105,7 +106,7 @@ export default function AddMaker() {
               onClick={() => setError(null)}
               className="ml-4 text-red-400 hover:text-red-200 font-bold"
             >
-              ✕
+              <X className="w-4 h-4" />
             </button>
           </div>
         )}

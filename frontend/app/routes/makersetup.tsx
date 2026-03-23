@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { Bitcoin, Check, X } from "lucide-react";
 import Nav from "../components/Nav";
 import { makers, monitoring, wallet, streamLogs, ApiError } from "../api";
 
@@ -232,8 +233,8 @@ export default function MakerSetup() {
     },
     awaiting_funds: {
       icon: (
-        <div className="w-16 h-16 rounded-full bg-orange-500/10 border-2 border-orange-500 flex items-center justify-center text-3xl">
-          ₿
+        <div className="w-16 h-16 rounded-full bg-orange-500/10 border-2 border-orange-500 flex items-center justify-center">
+          <Bitcoin className="w-8 h-8 text-orange-500" />
         </div>
       ),
       title: "Deposit Required",
@@ -270,8 +271,8 @@ export default function MakerSetup() {
     },
     live: {
       icon: (
-        <div className="w-16 h-16 rounded-full bg-emerald-500/10 border-2 border-emerald-500 flex items-center justify-center text-3xl">
-          ✓
+        <div className="w-16 h-16 rounded-full bg-emerald-500/10 border-2 border-emerald-500 flex items-center justify-center">
+          <Check className="w-8 h-8 text-emerald-500" />
         </div>
       ),
       title: "Maker is Live!",
@@ -280,8 +281,8 @@ export default function MakerSetup() {
     },
     error: {
       icon: (
-        <div className="w-16 h-16 rounded-full bg-red-500/10 border-2 border-red-500 flex items-center justify-center text-3xl">
-          ✕
+        <div className="w-16 h-16 rounded-full bg-red-500/10 border-2 border-red-500 flex items-center justify-center">
+          <X className="w-8 h-8 text-red-500" />
         </div>
       ),
       title: "Setup Failed",
@@ -355,7 +356,7 @@ export default function MakerSetup() {
                           : "bg-gray-800 text-gray-500"
                     }`}
                   >
-                    {isDone ? "✓" : i + 1}
+                    {isDone ? <Check className="w-4 h-4" /> : i + 1}
                   </div>
                   <span
                     className={`text-xs ${isActive ? "text-orange-400" : isDone ? "text-emerald-400" : "text-gray-500"}`}

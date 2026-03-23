@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { Check, X as XIcon } from "lucide-react";
 import {
   makers,
   monitoring,
@@ -722,7 +723,7 @@ export default function Settings({ id, onSaved }: Props) {
             <div className="space-y-3 mb-6">
               {[
                 {
-                  icon: "✓",
+                  icon: <Check className="w-4 h-4" />,
                   color: "text-green-400",
                   text: (
                     <>
@@ -732,12 +733,12 @@ export default function Settings({ id, onSaved }: Props) {
                   ),
                 },
                 {
-                  icon: "✓",
+                  icon: <Check className="w-4 h-4" />,
                   color: "text-green-400",
                   text: "Stops the maker process if it is currently running",
                 },
                 {
-                  icon: "✗",
+                  icon: <XIcon className="w-4 h-4" />,
                   color: "text-red-400",
                   text: (
                     <>
@@ -747,7 +748,7 @@ export default function Settings({ id, onSaved }: Props) {
                   ),
                 },
                 {
-                  icon: "✗",
+                  icon: <XIcon className="w-4 h-4" />,
                   color: "text-red-400",
                   text: (
                     <>
@@ -757,7 +758,7 @@ export default function Settings({ id, onSaved }: Props) {
                   ),
                 },
                 {
-                  icon: "✗",
+                  icon: <XIcon className="w-4 h-4" />,
                   color: "text-red-400",
                   text: 'Cannot undo blockchain transactions — nothing on-chain is ever "deleted"',
                 },

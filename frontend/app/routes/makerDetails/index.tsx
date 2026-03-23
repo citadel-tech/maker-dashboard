@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "react-router-dom";
+import { Zap, Moon } from "lucide-react";
 import Nav from "../../components/Nav";
 import {
   makers,
@@ -202,7 +203,11 @@ export default function MakerDetails() {
           <div className="flex flex-col sm:flex-row justify-between gap-4">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center text-2xl">
-                {isRunning ? "⚡" : "💤"}
+                {isRunning ? (
+                  <Zap className="w-6 h-6" />
+                ) : (
+                  <Moon className="w-6 h-6" />
+                )}
               </div>
               <div>
                 <div className="text-sm text-orange-100 mb-1">Status</div>

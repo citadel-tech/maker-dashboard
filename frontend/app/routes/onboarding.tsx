@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Check, X, Zap, ShieldCheck, Coins, Globe } from "lucide-react";
 import Nav from "../components/Nav";
 import { makers, type CreateMakerRequest, ApiError } from "../api.ts";
 
@@ -30,7 +31,7 @@ function StepIndicator({ current }: { current: OnboardStep }) {
                     : "bg-gray-800 text-gray-500"
               }`}
             >
-              {i < idx ? "✓" : i + 1}
+              {i < idx ? <Check className="w-4 h-4" /> : i + 1}
             </div>
             <span
               className={`text-xs mt-1.5 font-medium ${i === idx ? "text-orange-400" : "text-gray-500"}`}
@@ -54,7 +55,9 @@ function StepIndicator({ current }: { current: OnboardStep }) {
 function WelcomeStep({ onNext }: { onNext: () => void }) {
   return (
     <div className="max-w-2xl mx-auto text-center">
-      <div className="text-6xl mb-6">⚡</div>
+      <div className="mb-6">
+        <Zap className="w-14 h-14 text-orange-500" />
+      </div>
       <h2 className="text-3xl font-bold mb-3">Welcome to Coinswap Maker</h2>
       <p className="text-gray-400 mb-8 text-lg leading-relaxed">
         A <strong className="text-gray-200">maker</strong> is a node that
@@ -65,17 +68,17 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10 text-left">
         {[
           {
-            icon: "🔐",
+            icon: <ShieldCheck className="w-6 h-6 text-orange-400" />,
             title: "Privacy-first",
             desc: "Coinswap breaks the transaction graph without requiring a trusted third party.",
           },
           {
-            icon: "💰",
+            icon: <Coins className="w-6 h-6 text-orange-400" />,
             title: "Earn fees",
             desc: "You earn a base fee + a percentage of each swap amount for providing liquidity.",
           },
           {
-            icon: "🌐",
+            icon: <Globe className="w-6 h-6 text-orange-400" />,
             title: "Tor native",
             desc: "Makers advertise over Tor — it's how takers find you and how all swap communication works.",
           },
@@ -84,7 +87,7 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
             key={f.title}
             className="bg-gray-800 rounded-xl p-4 border border-gray-700"
           >
-            <div className="text-2xl mb-2">{f.icon}</div>
+            <div className="mb-2">{f.icon}</div>
             <div className="font-semibold text-gray-100 mb-1">{f.title}</div>
             <div className="text-sm text-gray-400">{f.desc}</div>
           </div>
@@ -169,9 +172,7 @@ function PrereqsStep({
                     : "border-gray-600"
                 }`}
               >
-                {checked[p.id] && (
-                  <span className="text-white text-xs font-bold">✓</span>
-                )}
+                {checked[p.id] && <Check className="w-3.5 h-3.5 text-white" />}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="font-semibold text-gray-100 mb-1">
@@ -272,7 +273,7 @@ function CreateStep({ onBack }: { onBack: () => void }) {
             onClick={() => setError(null)}
             className="ml-4 text-red-400 font-bold"
           >
-            ✕
+            <X className="w-4 h-4" />
           </button>
         </div>
       )}
