@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import { Circle } from "lucide-react";
 import { monitoring, streamLogs, downloadLogs } from "../../api";
 
 interface Props {
@@ -163,7 +164,14 @@ export default function Logs({ id }: Props) {
                   : "bg-gray-800 text-gray-400"
               }`}
             >
-              {streaming ? "● Live" : "Static"}
+              {streaming ? (
+                <>
+                  <Circle className="w-2 h-2 fill-current inline-block mr-1" />{" "}
+                  Live
+                </>
+              ) : (
+                "Static"
+              )}
             </span>
           </div>
         </div>

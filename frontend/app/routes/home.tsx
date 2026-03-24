@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { X } from "lucide-react";
 import Nav from "../components/Nav";
 import OnboardingWizard from "./onboarding";
 import {
@@ -160,7 +161,7 @@ export default function Home() {
               onClick={() => setError(null)}
               className="ml-4 text-red-400 hover:text-red-200 font-bold"
             >
-              ✕
+              <X className="w-4 h-4" />
             </button>
           </div>
         )}
