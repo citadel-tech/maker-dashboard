@@ -97,6 +97,9 @@ pub struct MakerManager {
 }
 
 impl MakerManager {
+    const DEFAULT_WALLET_NAME: &'static str = "maker-wallet";
+    const LEGACY_RPC_WALLET_NAME: &'static str = "random";
+
     /// Creates a new MakerManager with persistence at the given config directory.
     /// Loads any previously saved maker configs and re-initializes them (but does NOT start servers).
     pub fn new(config_dir: PathBuf) -> Result<Self> {
@@ -112,9 +115,14 @@ impl MakerManager {
         };
 
         // Restore previously registered makers (init only, not started)
+        let mut normalized_any = false;
         for (id, config) in saved_configs {
             tracing::info!("Restoring maker '{}'", id);
-            match mgr.create_maker_internal(id.clone(), config.clone(), false) {
+            let original_wallet_name = config.wallet_name.clone();
+            let normalized_config = Self::normalize_config(&id, config);
+            normalized_any |= normalized_config.wallet_name != original_wallet_name;
+
+            match mgr.create_maker_internal(id.clone(), normalized_config.clone(), false) {
                 Ok(()) => tracing::info!("Maker '{}' restored successfully (stopped)", id),
                 Err(e) => {
                     tracing::warn!(
@@ -122,9 +130,13 @@ impl MakerManager {
                         id,
                         e
                     );
-                    mgr.configs.insert(id, config);
+                    mgr.configs.insert(id, normalized_config);
                 }
             }
+        }
+
+        if normalized_any {
+            mgr.persist();
         }
 
         Ok(mgr)
@@ -135,6 +147,28 @@ impl MakerManager {
     fn default_maker_data_dir(id: &MakerId) -> PathBuf {
         let home = dirs::home_dir().expect("Failed to determine home directory");
         home.join(".coinswap").join(id)
+    }
+
+    fn normalize_wallet_name(id: &MakerId, wallet_name: Option<String>) -> Option<String> {
+        match wallet_name {
+            Some(name) => {
+                let trimmed = name.trim();
+                if trimmed.is_empty()
+                    || trimmed == Self::DEFAULT_WALLET_NAME
+                    || trimmed == Self::LEGACY_RPC_WALLET_NAME
+                {
+                    Some(id.clone())
+                } else {
+                    Some(trimmed.to_string())
+                }
+            }
+            None => Some(id.clone()),
+        }
+    }
+
+    fn normalize_config(id: &MakerId, mut config: MakerConfig) -> MakerConfig {
+        config.wallet_name = Self::normalize_wallet_name(id, config.wallet_name);
+        config
     }
 
     /// Internal: initialise the maker and register it in the pool.
@@ -149,7 +183,7 @@ impl MakerManager {
             anyhow!("RPC authentication credentials must be provided in MakerConfig.auth")
         })?;
 
-        let mut config = config;
+        let mut config = Self::normalize_config(&id, config);
         if config.data_directory.is_none() {
             let maker_dir = Self::default_maker_data_dir(&id);
             std::fs::create_dir_all(&maker_dir)?;
@@ -162,7 +196,7 @@ impl MakerManager {
             wallet_name: config
                 .wallet_name
                 .clone()
-                .unwrap_or_else(|| "random".to_string()),
+                .unwrap_or_else(|| id.clone()),
         };
 
         if config.taproot {
@@ -220,6 +254,7 @@ impl MakerManager {
     /// Creates and registers a new maker (init + message loop only, NOT started).
     /// Use `start_maker` to start the coinswap server.
     pub fn create_maker(&mut self, id: MakerId, config: MakerConfig) -> Result<()> {
+        let config = Self::normalize_config(&id, config);
         self.create_maker_internal(id, config, true)
     }
 
@@ -376,6 +411,7 @@ impl MakerManager {
 
     /// Updates a maker's configuration, re-initialising the maker with the new settings.
     pub fn update_config(&mut self, id: &MakerId, config: MakerConfig) -> Result<()> {
+        let config = Self::normalize_config(id, config);
         let previous = self
             .configs
             .get(id)
@@ -542,6 +578,52 @@ impl MakerManager {
         } else {
             (false, None)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{MakerConfig, MakerManager};
+
+    #[test]
+    fn normalize_wallet_name_defaults_to_maker_id() {
+        assert_eq!(
+            MakerManager::normalize_wallet_name(&"maker101".to_string(), None),
+            Some("maker101".to_string())
+        );
+        assert_eq!(
+            MakerManager::normalize_wallet_name(&"maker101".to_string(), Some("".to_string())),
+            Some("maker101".to_string())
+        );
+        assert_eq!(
+            MakerManager::normalize_wallet_name(
+                &"maker101".to_string(),
+                Some(" maker-wallet ".to_string())
+            ),
+            Some("maker101".to_string())
+        );
+    }
+
+    #[test]
+    fn normalize_wallet_name_preserves_custom_values() {
+        assert_eq!(
+            MakerManager::normalize_wallet_name(
+                &"maker101".to_string(),
+                Some("custom-wallet".to_string())
+            ),
+            Some("custom-wallet".to_string())
+        );
+    }
+
+    #[test]
+    fn normalize_config_updates_wallet_name() {
+        let config = MakerConfig {
+            wallet_name: Some("random".to_string()),
+            ..MakerConfig::default()
+        };
+
+        let normalized = MakerManager::normalize_config(&"maker101".to_string(), config);
+        assert_eq!(normalized.wallet_name.as_deref(), Some("maker101"));
     }
 }
 

@@ -122,6 +122,7 @@ impl From<StoredMakerConfig> for MakerConfig {
         }
     }
 }
+
 /// On-disk representation of all maker registrations
 #[derive(Debug, Serialize, Deserialize)]
 struct StoredState {

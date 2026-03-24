@@ -18,7 +18,7 @@ pub struct CreateMakerRequest {
     #[schema(example = "password")]
     pub rpc_password: Option<String>,
     pub tor_auth: Option<String>,
-    #[schema(example = "maker1-wallet")]
+    #[schema(example = "maker1")]
     pub wallet_name: Option<String>,
     #[schema(example = false)]
     pub taproot: Option<bool>,
@@ -56,7 +56,7 @@ pub struct UpdateMakerConfigRequest {
     #[schema(example = "password")]
     pub rpc_password: Option<String>,
     pub tor_auth: Option<String>,
-    #[schema(example = "maker1-wallet")]
+    #[schema(example = "maker1")]
     pub wallet_name: Option<String>,
     #[schema(example = false)]
     pub taproot: Option<bool>,

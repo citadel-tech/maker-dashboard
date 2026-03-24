@@ -242,6 +242,7 @@ function CreateStep({ onBack }: { onBack: () => void }) {
       zmq: form.zmq,
       rpc_user: form.rpcUser,
       rpc_password: form.rpcPass,
+      wallet_name: form.id || undefined,
       taproot: form.taproot,
       data_directory: form.dataDir || undefined,
       password: form.password || undefined,

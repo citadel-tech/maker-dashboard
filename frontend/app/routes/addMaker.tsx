@@ -51,6 +51,7 @@ export default function AddMaker() {
       zmq: formData.zmq,
       rpc_user: formData.bitcoinUser,
       rpc_password: formData.bitcoinPassword,
+      wallet_name: formData.id || undefined,
       taproot: formData.taproot,
       data_directory: formData.dataDir || undefined,
       password: formData.password || undefined,
