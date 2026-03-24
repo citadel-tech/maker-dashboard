@@ -106,16 +106,16 @@ Registered makers are restored on dashboard restart, but they are **not auto-sta
 
 Runtime options can be set with CLI flags or environment variables:
 
-| Flag | Env var | Default | Description |
-|------|---------|---------|-------------|
-| `--host` | `DASHBOARD_HOST` | `127.0.0.1` | IP address to bind to |
-| `--port` | `DASHBOARD_PORT` | `3000` | Port to listen on |
-| `--frontend-path` | `DASHBOARD_FRONTEND_PATH` | `frontend/build/client` | Directory containing built frontend assets |
-| `--spa-index` | `DASHBOARD_SPA_INDEX` | `frontend/build/client/index.html` | SPA fallback file |
-| `--allow-remote` | `DASHBOARD_ALLOW_REMOTE` | `false` | Allow non-localhost requests |
-| `--log-filter` | `DASHBOARD_LOG_FILTER` | `tower_http=debug,info` | Tracing filter directive |
-| `--no-color` | `DASHBOARD_NO_COLOR` | `false` | Disable ANSI colors in logs |
-| `--config-dir` | `DASHBOARD_CONFIG_DIR` | platform default | Dashboard config directory |
+| Flag              | Env var                   | Default                            | Description                                |
+| ----------------- | ------------------------- | ---------------------------------- | ------------------------------------------ |
+| `--host`          | `DASHBOARD_HOST`          | `127.0.0.1`                        | IP address to bind to                      |
+| `--port`          | `DASHBOARD_PORT`          | `3000`                             | Port to listen on                          |
+| `--frontend-path` | `DASHBOARD_FRONTEND_PATH` | `frontend/build/client`            | Directory containing built frontend assets |
+| `--spa-index`     | `DASHBOARD_SPA_INDEX`     | `frontend/build/client/index.html` | SPA fallback file                          |
+| `--allow-remote`  | `DASHBOARD_ALLOW_REMOTE`  | `false`                            | Allow non-localhost requests               |
+| `--log-filter`    | `DASHBOARD_LOG_FILTER`    | `tower_http=debug,info`            | Tracing filter directive                   |
+| `--no-color`      | `DASHBOARD_NO_COLOR`      | `false`                            | Disable ANSI colors in logs                |
+| `--config-dir`    | `DASHBOARD_CONFIG_DIR`    | platform default                   | Dashboard config directory                 |
 
 By default the dashboard only accepts connections from the local machine. If you enable `--allow-remote`, put authentication and TLS in front of it with a reverse proxy.
 
