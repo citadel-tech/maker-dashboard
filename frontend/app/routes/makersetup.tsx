@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Nav from "../components/Nav";
 import { makers, monitoring, wallet, streamLogs, ApiError } from "../api";
@@ -58,6 +58,18 @@ function fundsDetected(logs: string[]): boolean {
   );
 }
 
+const LOG_LEVEL_RE = /(?:^|\s|\[)(INFO|WARN|ERROR|DEBUG|TRACE)(?=$|\s|:|\])/i;
+
+function isInfoLog(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed) return false;
+
+  const levelMatch = trimmed.match(LOG_LEVEL_RE);
+  if (!levelMatch) return true;
+
+  return levelMatch[1].toUpperCase() === "INFO";
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function MakerSetup() {
@@ -74,12 +86,13 @@ export default function MakerSetup() {
   const logsEndRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const id = makerId!;
+  const visibleLogs = useMemo(() => logs.filter(isInfoLog), [logs]);
 
   // ─── Auto-scroll logs ─────────────────────────────────────────────────────
 
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [logs]);
+  }, [visibleLogs]);
 
   // ─── Start maker + stream logs ────────────────────────────────────────────
 
@@ -636,10 +649,10 @@ export default function MakerSetup() {
             </div>
           </div>
           <div className="bg-black p-4 font-mono text-xs h-48 overflow-y-auto">
-            {logs.length === 0 ? (
-              <span className="text-gray-600">Waiting for logs…</span>
+            {visibleLogs.length === 0 ? (
+              <span className="text-gray-600">Waiting for info logs…</span>
             ) : (
-              logs.map((line, i) => (
+              visibleLogs.map((line, i) => (
                 <div
                   key={i}
                   className={`leading-5 ${

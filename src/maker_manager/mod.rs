@@ -193,10 +193,7 @@ impl MakerManager {
         let rpc_config = RPCConfig {
             url: config.rpc.clone(),
             auth: Auth::UserPass(user, pass),
-            wallet_name: config
-                .wallet_name
-                .clone()
-                .unwrap_or_else(|| id.clone()),
+            wallet_name: config.wallet_name.clone().unwrap_or_else(|| id.clone()),
         };
 
         if config.taproot {

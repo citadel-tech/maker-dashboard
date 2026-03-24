@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { monitoring, streamLogs, downloadLogs } from "../../api";
 
 interface Props {
@@ -121,16 +121,23 @@ export default function Logs({ id }: Props) {
       .catch(() => {});
   }
 
-  const counts = logs.reduce<Record<string, number>>((acc, raw) => {
-    const p = parse(raw);
-    if (p) acc[p.level] = (acc[p.level] ?? 0) + 1;
-    return acc;
-  }, {});
+  const counts = useMemo(
+    () =>
+      logs.reduce<Record<string, number>>((acc, raw) => {
+        const p = parse(raw);
+        if (p) acc[p.level] = (acc[p.level] ?? 0) + 1;
+        return acc;
+      }, {}),
+    [logs],
+  );
 
-  const visibleLogs =
-    filter === "ALL"
-      ? logs
-      : logs.filter((raw) => parse(raw)?.level === filter);
+  const visibleLogs = useMemo(
+    () =>
+      filter === "ALL"
+        ? logs
+        : logs.filter((raw) => parse(raw)?.level === filter),
+    [filter, logs],
+  );
 
   return (
     <div className="space-y-4">
