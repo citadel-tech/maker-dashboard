@@ -253,6 +253,13 @@ function CreateStep({ onBack }: { onBack: () => void }) {
     };
     try {
       await makers.create(body);
+      try {
+        await makers.start(form.id);
+      } catch (startErr) {
+        if (!(startErr instanceof ApiError && startErr.status === 409)) {
+          throw startErr;
+        }
+      }
       navigate(`/makers/${form.id}/setup`);
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {

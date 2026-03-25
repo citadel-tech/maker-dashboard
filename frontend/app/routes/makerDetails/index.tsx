@@ -36,6 +36,8 @@ export default function MakerDetails() {
   const [info, setInfo] = useState<MakerInfoDetailed | null>(null);
   const [status, setStatus] = useState<MakerStatus | null>(null);
   const [balances, setBalances] = useState<BalanceInfo | null>(null);
+  const [earningsSats, setEarningsSats] = useState(0);
+  const [swapReportCount, setSwapReportCount] = useState(0);
   const [torAddress, setTorAddress] = useState<string | null>(null);
   const [dataDir, setDataDir] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -43,20 +45,35 @@ export default function MakerDetails() {
   const [actionLoading, setActionLoading] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  const [walletRefreshToken, setWalletRefreshToken] = useState(0);
 
   const loadCore = useCallback(async () => {
     if (!id) return;
     setLoading(true);
     setError(null);
     try {
-      const [infoData, statusData, balanceData] = await Promise.allSettled([
-        makers.get(id),
-        monitoring.status(id),
-        wallet.balance(id),
-      ]);
+      const [infoData, statusData, balanceData, reportsData] =
+        await Promise.allSettled([
+          makers.get(id),
+          monitoring.status(id),
+          wallet.balance(id),
+          monitoring.swapReports(id),
+        ]);
       if (infoData.status === "fulfilled") setInfo(infoData.value);
       if (statusData.status === "fulfilled") setStatus(statusData.value);
       if (balanceData.status === "fulfilled") setBalances(balanceData.value);
+      if (reportsData.status === "fulfilled") {
+        setSwapReportCount(reportsData.value.length);
+        setEarningsSats(
+          reportsData.value.reduce(
+            (sum, report) => sum + report.fee_paid_or_earned,
+            0,
+          ),
+        );
+      } else {
+        setSwapReportCount(0);
+        setEarningsSats(0);
+      }
 
       monitoring
         .torAddress(id)
@@ -97,10 +114,8 @@ export default function MakerDetails() {
     try {
       const msg = await wallet.sync(id);
       setSyncMsg(msg);
-      wallet
-        .balance(id)
-        .then(setBalances)
-        .catch(() => {});
+      await loadCore();
+      setWalletRefreshToken((value) => value + 1);
     } catch (e) {
       setSyncMsg(e instanceof Error ? e.message : "Sync failed");
     } finally {
@@ -113,6 +128,8 @@ export default function MakerDetails() {
     info,
     status,
     balances,
+    earningsSats,
+    swapReportCount,
     torAddress,
     dataDir,
     loading,
@@ -258,7 +275,11 @@ export default function MakerDetails() {
         {/* Tab Content */}
         {activeTab === "dashboard" && <Dashboard core={core} />}
         {activeTab === "wallet" && (
-          <Wallet id={id} onBalanceRefresh={loadCore} />
+          <Wallet
+            id={id}
+            onBalanceRefresh={loadCore}
+            refreshToken={walletRefreshToken}
+          />
         )}
         {activeTab === "swaps" && <Swaps id={id} />}
         {activeTab === "logs" && <Logs id={id} />}

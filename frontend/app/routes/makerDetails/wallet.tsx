@@ -3,12 +3,29 @@ import { wallet, satsToBtc, btcToSats, type UtxoInfo } from "../../api";
 
 interface Props {
   id: string;
-  onBalanceRefresh: () => void;
+  onBalanceRefresh: () => Promise<void>;
+  refreshToken: number;
 }
 
-export default function Wallet({ id, onBalanceRefresh }: Props) {
+function utxoPurpose(type: string): string {
+  switch (type) {
+    case "regular":
+      return "Single-sig wallet funds";
+    case "swap":
+      return "Swap liquidity";
+    case "contract":
+      return "Active contract funds";
+    case "fidelity":
+      return "Bond collateral";
+    default:
+      return "Wallet funds";
+  }
+}
+
+export default function Wallet({ id, onBalanceRefresh, refreshToken }: Props) {
   const [utxos, setUtxos] = useState<UtxoInfo[] | null>(null);
   const [utxosLoading, setUtxosLoading] = useState(false);
+  const [utxosError, setUtxosError] = useState<string | null>(null);
 
   const [newAddress, setNewAddress] = useState<string | null>(null);
   const [addrLoading, setAddrLoading] = useState(false);
@@ -22,26 +39,53 @@ export default function Wallet({ id, onBalanceRefresh }: Props) {
     msg: string;
   } | null>(null);
 
-  const fetchUtxos = useCallback(() => {
-    setUtxosLoading(true);
-    Promise.allSettled([
-      wallet.swapUtxos(id),
-      wallet.contractUtxos(id),
-      wallet.fidelityUtxos(id),
-      wallet.utxos(id),
-    ])
-      .then((results) => {
+  const fetchUtxos = useCallback(
+    async (syncFirst = false) => {
+      setUtxosLoading(true);
+      setUtxosError(null);
+      try {
+        if (syncFirst) {
+          await wallet.sync(id);
+        }
+
+        const results = await Promise.allSettled([
+          wallet.swapUtxos(id),
+          wallet.contractUtxos(id),
+          wallet.fidelityUtxos(id),
+          wallet.utxos(id),
+        ]);
+
         const merged = results.flatMap((r) =>
           r.status === "fulfilled" ? r.value : [],
         );
+        const rejected = results.filter((r) => r.status === "rejected");
+
         setUtxos(merged);
-      })
-      .finally(() => setUtxosLoading(false));
-  }, [id]);
+
+        if (rejected.length === results.length) {
+          const firstError = rejected[0];
+          if (firstError?.status === "rejected") {
+            throw firstError.reason;
+          }
+        }
+
+        if (syncFirst) {
+          await onBalanceRefresh();
+        }
+      } catch (e) {
+        setUtxosError(
+          e instanceof Error ? e.message : "Failed to refresh wallet data",
+        );
+      } finally {
+        setUtxosLoading(false);
+      }
+    },
+    [id, onBalanceRefresh],
+  );
 
   useEffect(() => {
-    fetchUtxos();
-  }, [fetchUtxos]);
+    void fetchUtxos();
+  }, [fetchUtxos, refreshToken]);
 
   async function handleGenerateAddress() {
     setAddrLoading(true);
@@ -68,7 +112,8 @@ export default function Wallet({ id, onBalanceRefresh }: Props) {
       setSendResult({ ok: true, msg: `Sent! TxID: ${txid}` });
       setSendAddr("");
       setSendAmount("");
-      onBalanceRefresh();
+      await onBalanceRefresh();
+      await fetchUtxos();
     } catch (e) {
       setSendResult({
         ok: false,
@@ -172,13 +217,19 @@ export default function Wallet({ id, onBalanceRefresh }: Props) {
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold">UTXOs</h3>
           <button
-            onClick={fetchUtxos}
+            onClick={() => void fetchUtxos(true)}
             disabled={utxosLoading}
             className="text-xs px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded-lg transition-all disabled:opacity-50"
           >
             {utxosLoading ? "Refreshing…" : "↻ Refresh"}
           </button>
         </div>
+
+        {utxosError && (
+          <div className="mb-4 text-sm text-red-300 bg-red-950/40 border border-red-900 rounded-lg px-3 py-2">
+            {utxosError}
+          </div>
+        )}
 
         {utxosLoading ? (
           <div className="animate-pulse space-y-2">
@@ -193,8 +244,8 @@ export default function Wallet({ id, onBalanceRefresh }: Props) {
                 <tr className="text-gray-400 text-left border-b border-gray-800">
                   <th className="pb-2 pr-4">Address</th>
                   <th className="pb-2 pr-4">Amount</th>
-                  <th className="pb-2 pr-4">Confirmations</th>
-                  <th className="pb-2">Type</th>
+                  <th className="pb-2 pr-4">Type</th>
+                  <th className="pb-2">Purpose</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800">
@@ -209,13 +260,13 @@ export default function Wallet({ id, onBalanceRefresh }: Props) {
                     <td className="py-2 pr-4 text-orange-400">
                       {satsToBtc(u.amount)} BTC
                     </td>
-                    <td className="py-2 pr-4 text-gray-300">
-                      {u.confirmations}
-                    </td>
-                    <td className="py-2">
+                    <td className="py-2 pr-4">
                       <span className="text-xs bg-gray-800 px-2 py-0.5 rounded capitalize">
                         {u.utxo_type}
                       </span>
+                    </td>
+                    <td className="py-2 text-gray-300">
+                      {utxoPurpose(u.utxo_type)}
                     </td>
                   </tr>
                 ))}

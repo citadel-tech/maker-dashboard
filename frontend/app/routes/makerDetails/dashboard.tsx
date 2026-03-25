@@ -6,7 +6,8 @@ interface Props {
 }
 
 export default function Dashboard({ core }: Props) {
-  const { info, balances, dataDir, loading } = core;
+  const { info, balances, dataDir, loading, earningsSats, swapReportCount } =
+    core;
 
   const totalBtc = balances
     ? satsToBtc(
@@ -30,7 +31,7 @@ export default function Dashboard({ core }: Props) {
   return (
     <div className="space-y-6">
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-gray-900 p-4 sm:p-5 rounded-xl border border-gray-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-orange-500/5">
           <div className="text-sm text-gray-400 mb-2">Spendable Balance</div>
           <div className="text-2xl font-bold text-orange-500">
@@ -59,6 +60,23 @@ export default function Dashboard({ core }: Props) {
             {info ? (info.taproot ? "Enabled" : "Disabled") : "—"}
           </div>
           <div className="text-xs text-gray-500 mt-1">Wallet type</div>
+        </div>
+
+        <div className="bg-gray-900 p-4 sm:p-5 rounded-xl border border-gray-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-orange-500/5">
+          <div className="text-sm text-gray-400 mb-2">Net Earnings</div>
+          <div
+            className={`text-2xl font-bold ${
+              earningsSats >= 0 ? "text-emerald-500" : "text-red-300"
+            }`}
+          >
+            {satsToBtc(earningsSats)} BTC
+          </div>
+          <div className="text-xs text-gray-500 mt-1">
+            {btcUsd(satsToBtc(earningsSats))}
+          </div>
+          <div className="text-xs text-gray-500 mt-1">
+            Across {swapReportCount} swap{swapReportCount === 1 ? "" : "s"}
+          </div>
         </div>
       </div>
 

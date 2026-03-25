@@ -250,6 +250,36 @@ pub struct SwapHistoryDto {
     pub completed: Vec<UtxoInfo>,
 }
 
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct SwapReportDto {
+    pub swap_id: String,
+    pub role: String,
+    pub status: String,
+    pub swap_duration_seconds: f64,
+    pub start_timestamp: u64,
+    pub end_timestamp: u64,
+    pub network: String,
+    pub error_message: Option<String>,
+    pub incoming_amount: u64,
+    pub outgoing_amount: u64,
+    pub fee_paid_or_earned: i64,
+    pub incoming_contract_txid: Option<String>,
+    pub outgoing_contract_txid: Option<String>,
+    pub funding_txids: Vec<Vec<String>>,
+    pub recovery_txid: Option<String>,
+    pub timelock: u16,
+    pub makers_count: Option<usize>,
+    pub maker_addresses: Vec<String>,
+    pub total_maker_fees: u64,
+    pub mining_fee: u64,
+    pub fee_percentage: f64,
+    pub input_utxos: Vec<u64>,
+    pub output_change_amounts: Vec<u64>,
+    pub output_swap_amounts: Vec<u64>,
+    pub output_change_utxos: Vec<(u64, String)>,
+    pub output_swap_utxos: Vec<(u64, String)>,
+}
+
 #[derive(Debug, Serialize, ToSchema)]
 pub struct MakerStatus {
     pub id: String,

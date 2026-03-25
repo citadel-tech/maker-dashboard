@@ -1,4 +1,5 @@
 use std::convert::Infallible;
+use std::fs;
 use std::time::Duration;
 
 use axum::{
@@ -19,7 +20,7 @@ use crate::maker_manager::message::MessageResponse;
 use crate::utils::log_writer::read_last_n_lines;
 
 use super::{
-    dto::{ApiResponse, MakerStatus, RpcStatusInfo, SwapHistoryDto, UtxoInfo},
+    dto::{ApiResponse, MakerStatus, RpcStatusInfo, SwapHistoryDto, SwapReportDto, UtxoInfo},
     AppState,
 };
 
@@ -27,6 +28,7 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/makers/{id}/status", get(get_status))
         .route("/makers/{id}/swaps", get(get_swaps))
+        .route("/makers/{id}/swap-reports", get(get_swap_reports))
         .route("/makers/{id}/logs", get(get_logs))
         .route("/makers/{id}/logs/stream", get(get_logs_stream))
         .route("/makers/{id}/logs/download", get(get_logs_download))
@@ -128,6 +130,89 @@ async fn get_swaps(
         StatusCode::OK,
         Json(ApiResponse::ok(SwapHistoryDto { active, completed })),
     )
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/makers/{id}/swap-reports",
+    tag = "monitoring",
+    params(("id" = String, Path, description = "Maker ID")),
+    responses(
+        (status = 200, description = "Swap reports", body = ApiResponse<Vec<SwapReportDto>>),
+        (status = 404, description = "Maker not found", body = ApiResponse<Vec<SwapReportDto>>),
+        (status = 500, description = "Internal error", body = ApiResponse<Vec<SwapReportDto>>)
+    )
+)]
+async fn get_swap_reports(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> (StatusCode, Json<ApiResponse<Vec<SwapReportDto>>>) {
+    let manager = state.lock().await;
+    let Some(config) = manager.get_maker_config(&id).cloned() else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(ApiResponse::err(format!("Maker '{id}' not found"))),
+        );
+    };
+    drop(manager);
+
+    let Some(data_dir) = config.data_directory else {
+        return (
+            StatusCode::OK,
+            Json(ApiResponse::ok(Vec::<SwapReportDto>::new())),
+        );
+    };
+
+    let reports_dir = data_dir.join("swap_reports");
+
+    let result = tokio::task::spawn_blocking(move || load_swap_reports(reports_dir, id)).await;
+
+    match result {
+        Ok(Ok(reports)) => (StatusCode::OK, Json(ApiResponse::ok(reports))),
+        Ok(Err((status, msg))) => (status, Json(ApiResponse::err(msg))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::err(e.to_string())),
+        ),
+    }
+}
+
+fn load_swap_reports(
+    reports_dir: std::path::PathBuf,
+    id: String,
+) -> Result<Vec<SwapReportDto>, (StatusCode, String)> {
+    let entries = match fs::read_dir(&reports_dir) {
+        Ok(entries) => entries,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(e) => {
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to read swap reports: {e}"),
+            ))
+        }
+    };
+
+    let mut reports = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
+            continue;
+        }
+        match fs::read_to_string(&path)
+            .ok()
+            .and_then(|raw| serde_json::from_str::<SwapReportDto>(&raw).ok())
+        {
+            Some(report) => reports.push(report),
+            None => warn!(
+                "Failed to parse swap report for maker '{}' at {}",
+                id,
+                path.display()
+            ),
+        }
+    }
+
+    reports.sort_by(|a, b| b.end_timestamp.cmp(&a.end_timestamp));
+    Ok(reports)
 }
 
 fn convert_utxos<T>(id: &str, label: &str, utxos: Vec<T>) -> Vec<UtxoInfo>

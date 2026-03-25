@@ -71,6 +71,13 @@ export default function AddMaker() {
 
     try {
       await makers.create(body);
+      try {
+        await makers.start(formData.id);
+      } catch (startErr) {
+        if (!(startErr instanceof ApiError && startErr.status === 409)) {
+          throw startErr;
+        }
+      }
       navigate(`/makers/${formData.id}/setup`);
     } catch (err: unknown) {
       if (err instanceof ApiError && err.status === 409) {

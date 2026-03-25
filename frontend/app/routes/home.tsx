@@ -11,6 +11,7 @@ import {
   type MakerInfoDetailed,
   type BalanceInfo,
   type MakerState,
+  type SwapReportDto,
   type UtxoInfo,
 } from "../api.ts";
 
@@ -22,16 +23,18 @@ interface MakerRow {
   alive: boolean;
   balance: BalanceInfo | null;
   torAddress: string | null;
+  earningsSats: number | null;
+  swapReportCount: number | null;
   swapCompleted: UtxoInfo[];
 }
 
 const SWAP_HISTORY_REFRESH_MS = 60_000;
 
 function swapKey(
-  utxo: Pick<UtxoInfo, "addr" | "amount" | "confirmations" | "utxo_type">,
+  utxo: Pick<UtxoInfo, "addr" | "amount" | "utxo_type">,
   makerId?: string,
 ) {
-  return [makerId, utxo.addr, utxo.amount, utxo.confirmations, utxo.utxo_type]
+  return [makerId, utxo.addr, utxo.amount, utxo.utxo_type]
     .filter(Boolean)
     .join(":");
 }
@@ -44,6 +47,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<Set<string>>(new Set());
   const swapHistoryCache = useRef<Record<string, UtxoInfo[]>>({});
+  const swapReportCache = useRef<Record<string, SwapReportDto[]>>({});
   const lastSwapRefreshAt = useRef(0);
 
   async function loadMakers(forceSwapRefresh = false) {
@@ -62,13 +66,16 @@ export default function Home() {
             monitoring.status(id),
             monitoring.torAddress(id),
             includeSwaps
+              ? monitoring.swapReports(id)
+              : Promise.resolve(swapReportCache.current[id] ?? []),
+            includeSwaps
               ? monitoring.swaps(id)
               : Promise.resolve({
                   active: [],
                   completed: swapHistoryCache.current[id] ?? [],
                 }),
           ] as const;
-          const [detail, bal, status, tor, swaps] =
+          const [detail, bal, status, tor, reports, swaps] =
             await Promise.allSettled(requests);
           const info: MakerInfoDetailed | null =
             detail.status === "fulfilled" ? detail.value : null;
@@ -77,8 +84,19 @@ export default function Home() {
           const alive =
             status.status === "fulfilled" ? status.value.alive : false;
           const torAddress = tor.status === "fulfilled" ? tor.value : null;
+          const swapReports =
+            reports.status === "fulfilled" ? reports.value : null;
           const swapCompleted =
             swaps.status === "fulfilled" ? swaps.value.completed : [];
+          const earningsSats =
+            swapReports !== null
+              ? swapReports.reduce((sum, r) => sum + r.fee_paid_or_earned, 0)
+              : null;
+          const swapReportCount =
+            swapReports !== null ? swapReports.length : null;
+          if (includeSwaps && reports.status === "fulfilled") {
+            swapReportCache.current[id] = reports.value;
+          }
           if (includeSwaps && swaps.status === "fulfilled") {
             swapHistoryCache.current[id] = swaps.value.completed;
           }
@@ -88,6 +106,8 @@ export default function Home() {
             alive,
             balance: balData,
             torAddress,
+            earningsSats,
+            swapReportCount,
             swapCompleted,
           };
         }),
@@ -148,6 +168,16 @@ export default function Home() {
     (sum, m) => sum + (m.balance?.spendable ?? 0),
     0,
   );
+  const reportsPartial = makerRows.some((m) => m.earningsSats === null);
+  const totalEarningsSats = makerRows.reduce(
+    (sum, m) => sum + (m.earningsSats ?? 0),
+    0,
+  );
+  const totalEarningsBtc = satsToBtc(totalEarningsSats);
+  const totalSwaps = makerRows.reduce(
+    (sum, m) => sum + (m.swapReportCount ?? 0),
+    0,
+  );
   const onlineCount = makerRows.filter((m) => m.alive).length;
 
   return (
@@ -167,7 +197,7 @@ export default function Home() {
         )}
 
         {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 mb-6 sm:mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 mb-6 sm:mb-8">
           <div className="bg-gray-900 p-4 sm:p-5 rounded-xl border border-gray-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-orange-500/5">
             <div className="text-sm text-gray-400 mb-2">Total Spendable</div>
             <div className="text-2xl sm:text-3xl font-bold text-orange-500">
@@ -192,6 +222,30 @@ export default function Home() {
             <div className="text-xs text-gray-500 mt-1">
               {makerRows.filter((m) => m.state === "stopped").length} stopped
             </div>
+          </div>
+          <div className="bg-gray-900 p-4 sm:p-5 rounded-xl border border-gray-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-orange-500/5">
+            <div className="text-sm text-gray-400 mb-2">Net Earnings</div>
+            <div
+              className={`text-2xl sm:text-3xl font-bold ${
+                totalEarningsSats >= 0 ? "text-emerald-500" : "text-red-300"
+              }`}
+            >
+              {totalEarningsBtc} BTC
+            </div>
+            <div className="text-xs text-gray-500 mt-1">
+              {`$${(parseFloat(totalEarningsBtc) * 95000).toLocaleString(
+                undefined,
+                { maximumFractionDigits: 2 },
+              )}`}
+            </div>
+            <div className="text-xs text-gray-500 mt-1">
+              Across {totalSwaps} swap{totalSwaps === 1 ? "" : "s"}
+            </div>
+            {reportsPartial && (
+              <div className="text-xs text-yellow-500 mt-1">
+                Partial data — some reports unavailable
+              </div>
+            )}
           </div>
         </div>
 
@@ -328,7 +382,6 @@ export default function Home() {
                 .flatMap((r) =>
                   r.swapCompleted.map((u) => ({ ...u, makerId: r.id })),
                 )
-                .sort((a, b) => a.confirmations - b.confirmations)
                 .slice(0, 10);
 
               if (recentSwaps.length === 0) {
@@ -346,7 +399,7 @@ export default function Home() {
                       <tr className="text-gray-400 text-left border-b border-gray-800">
                         <th className="pb-2 pr-4">Maker</th>
                         <th className="pb-2 pr-4">Amount</th>
-                        <th className="pb-2">Confirmations</th>
+                        <th className="pb-2">Type</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-800">
@@ -364,7 +417,9 @@ export default function Home() {
                             {satsToBtc(s.amount)} BTC
                           </td>
                           <td className="py-2 text-gray-300">
-                            {s.confirmations}
+                            <span className="font-mono text-xs bg-gray-800 px-2 py-0.5 rounded capitalize">
+                              {s.utxo_type}
+                            </span>
                           </td>
                         </tr>
                       ))}
