@@ -213,9 +213,9 @@ function CreateStep({ onBack }: { onBack: () => void }) {
   const navigate = useNavigate();
   const [form, setForm] = useState({
     id: "",
-    rpc: "127.0.0.1:18443",
-    rpcUser: "",
-    rpcPass: "",
+    rpc: "127.0.0.1:38332",
+    rpcUser: "user",
+    rpcPass: "password",
     zmq: "tcp://127.0.0.1:28332",
     dataDir: "",
     taproot: true,

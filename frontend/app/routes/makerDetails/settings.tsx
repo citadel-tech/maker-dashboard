@@ -75,10 +75,10 @@ export default function Settings({ id, onSaved }: Props) {
 
   // ── Swap & Fidelity ───────────────────────────────────────────────────────
   const [minSwapAmount, setMinSwapAmount] = useState(10000);
-  const [baseFee, setBaseFee] = useState(100);
-  const [amountRelativeFeePct, setAmountRelativeFeePct] = useState(0.1);
-  const [fidelityAmount, setFidelityAmount] = useState(50000);
-  const [fidelityTimelock, setFidelityTimelock] = useState(13104);
+  const [baseFee, setBaseFee] = useState(1000);
+  const [amountRelativeFeePct, setAmountRelativeFeePct] = useState(0.025);
+  const [fidelityAmount, setFidelityAmount] = useState(10000);
+  const [fidelityTimelock, setFidelityTimelock] = useState(15000);
 
   // ── UI state ──────────────────────────────────────────────────────────────
   const [showRpcPassword, setShowRpcPassword] = useState(false);
@@ -109,10 +109,10 @@ export default function Settings({ id, onSaved }: Props) {
         setSocksPort(info.socks_port ?? 9050);
         setControlPort(info.control_port ?? 9051);
         setMinSwapAmount(info.min_swap_amount ?? 10000);
-        setBaseFee(info.base_fee ?? 100);
-        setAmountRelativeFeePct(info.amount_relative_fee_pct ?? 0.1);
-        setFidelityAmount(info.fidelity_amount ?? 50000);
-        setFidelityTimelock(info.fidelity_timelock ?? 13104);
+        setBaseFee(info.base_fee ?? 1000);
+        setAmountRelativeFeePct(info.amount_relative_fee_pct ?? 0.025);
+        setFidelityAmount(info.fidelity_amount ?? 10000);
+        setFidelityTimelock(info.fidelity_timelock ?? 15000);
         // passwords / ports not returned by API — keep defaults
       })
       .catch((e: Error) => setLoadError(e.message));

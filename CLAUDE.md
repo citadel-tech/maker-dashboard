@@ -87,6 +87,9 @@ All endpoints return `ApiResponse<T>` (defined in `src/api/dto.rs`):
 
 ## Orchestration Protocol
 
+**Always output the planning doc visibly before any file read or edit. 
+This is not optional. Even for single-agent small tasks.**
+
 When given a task, always follow this pipeline. Do not skip steps.
 
 ### Step 1 — Plan first, code never first
@@ -131,13 +134,16 @@ After all agents complete, spawn 1-2 review Tasks that:
 
 ### Step 4 — Cleanup
 
-Run the appropriate formatters based on what changed:
-- Any `.rs` files touched → `cargo fmt`
-- Any `.ts` / `.tsx` files touched → `cd frontend && npx prettier --write <changed files>`
-- If both → run both
+**Run this before verify. No exceptions.**
+
+- Any `.rs` file touched → run `cargo fmt` from project root
+- Any `.ts` / `.tsx` file touched → run `cd frontend && npx prettier --write .`
+- If both → run both, in that order
 
 ### Step 5 — Verify
 
-- If `.rs` changed → `cargo build` (not release, just check it compiles)
+**Only run this after Step 4 cleanup is confirmed done.**
+
+- If `.rs` changed → `cargo build`
 - If `.ts`/`.tsx` changed → `cd frontend && npm run build`
 - Report any errors back to planner for a fix cycle

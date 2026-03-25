@@ -24,16 +24,16 @@ fn default_min_swap_amount() -> u64 {
     10000
 }
 fn default_fidelity_amount() -> u64 {
-    50000
+    10000
 }
 fn default_fidelity_timelock() -> u32 {
-    13104
+    15000
 }
 fn default_base_fee() -> u64 {
-    100
+    1000
 }
 fn default_amount_relative_fee_pct() -> f64 {
-    0.1
+    0.025
 }
 /// On-disk representation of a single maker's config.
 #[derive(Debug, Serialize, Deserialize)]
