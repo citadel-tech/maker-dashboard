@@ -250,6 +250,36 @@ pub struct SwapHistoryDto {
     pub completed: Vec<UtxoInfo>,
 }
 
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct SwapReportDto {
+    pub swap_id: String,
+    pub role: String,
+    pub status: String,
+    pub swap_duration_seconds: f64,
+    pub start_timestamp: u64,
+    pub end_timestamp: u64,
+    pub network: String,
+    pub error_message: Option<String>,
+    pub incoming_amount: u64,
+    pub outgoing_amount: u64,
+    pub fee_paid_or_earned: i64,
+    pub incoming_contract_txid: Option<String>,
+    pub outgoing_contract_txid: Option<String>,
+    pub funding_txids: Vec<Vec<String>>,
+    pub recovery_txid: Option<String>,
+    pub timelock: u16,
+    pub makers_count: Option<usize>,
+    pub maker_addresses: Vec<String>,
+    pub total_maker_fees: u64,
+    pub mining_fee: u64,
+    pub fee_percentage: f64,
+    pub input_utxos: Vec<u64>,
+    pub output_change_amounts: Vec<u64>,
+    pub output_swap_amounts: Vec<u64>,
+    pub output_change_utxos: Vec<(u64, String)>,
+    pub output_swap_utxos: Vec<(u64, String)>,
+}
+
 #[derive(Debug, Serialize, ToSchema)]
 pub struct MakerStatus {
     pub id: String,
@@ -270,6 +300,42 @@ pub struct RpcStatusInfo {
     pub network: Option<String>,
     pub block_height: Option<u64>,
     pub sync_progress: Option<f64>,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema, Clone, Copy)]
+#[serde(rename_all = "lowercase")]
+pub enum StartupCheckKind {
+    Bitcoin,
+    Rpc,
+    Rest,
+    Zmq,
+    Tor,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct StartupCheckRequest {
+    pub check: StartupCheckKind,
+    #[schema(example = "127.0.0.1:38332")]
+    pub rpc: Option<String>,
+    #[schema(example = "user")]
+    pub rpc_user: Option<String>,
+    #[schema(example = "password")]
+    pub rpc_password: Option<String>,
+    #[schema(example = "tcp://127.0.0.1:28332")]
+    pub zmq: Option<String>,
+    #[schema(example = 9050)]
+    pub socks_port: Option<u16>,
+    #[schema(example = 9051)]
+    pub control_port: Option<u16>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct StartupCheckResponse {
+    pub check: StartupCheckKind,
+    pub success: bool,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
 }
 
 /// Request body for `POST /api/bitcoind/start`

@@ -3,6 +3,7 @@ pub mod dto;
 pub mod fidelity;
 pub mod makers;
 pub mod monitoring;
+pub mod onboarding;
 pub mod wallet;
 
 use std::sync::Arc;
@@ -42,6 +43,7 @@ pub type AppState = Arc<Mutex<MakerManager>>;
         fidelity::list_fidelity,
         monitoring::get_status,
         monitoring::get_swaps,
+        monitoring::get_swap_reports,
         monitoring::get_logs,
         monitoring::get_logs_stream,
         monitoring::get_tor_address,
@@ -50,6 +52,7 @@ pub type AppState = Arc<Mutex<MakerManager>>;
         bitcoind::get_status,
         bitcoind::start,
         bitcoind::stop,
+        onboarding::run_startup_check,
         health_check,
     ),
     components(schemas(
@@ -64,6 +67,10 @@ pub type AppState = Arc<Mutex<MakerManager>>;
         dto::MakerStatus,
         dto::HealthResponse,
         dto::RpcStatusInfo,
+        dto::SwapReportDto,
+        dto::StartupCheckKind,
+        dto::StartupCheckRequest,
+        dto::StartupCheckResponse,
         dto::StartBitcoindRequest,
         dto::BitcoindStatusInfo,
     )),
@@ -73,6 +80,7 @@ pub type AppState = Arc<Mutex<MakerManager>>;
         (name = "fidelity", description = "Fidelity bonds"),
         (name = "monitoring", description = "Status and monitoring"),
         (name = "bitcoind", description = "Bitcoin node management"),
+        (name = "onboarding", description = "Environment setup checks"),
     )
 )]
 pub struct ApiDoc;
@@ -85,6 +93,7 @@ pub fn api_router() -> Router<AppState> {
         .merge(fidelity::routes())
         .merge(monitoring::routes())
         .merge(bitcoind::routes())
+        .merge(onboarding::routes())
         .route("/health", get(health_check))
 }
 

@@ -71,11 +71,59 @@ export interface RpcStatusInfo {
   sync_progress?: number;
 }
 
+export type StartupCheckKind = "bitcoin" | "rpc" | "rest" | "zmq" | "tor";
+
+export interface StartupCheckRequest {
+  check: StartupCheckKind;
+  rpc?: string;
+  rpc_user?: string;
+  rpc_password?: string;
+  zmq?: string;
+  socks_port?: number;
+  control_port?: number;
+}
+
+export interface StartupCheckResponse {
+  check: StartupCheckKind;
+  success: boolean;
+  message: string;
+  detail?: string;
+}
+
 export interface SwapHistoryDto {
   /** In-progress incoming swap coins */
   active: UtxoInfo[];
   /** Coins swept from completed incoming swaps */
   completed: UtxoInfo[];
+}
+
+export interface SwapReportDto {
+  swap_id: string;
+  role: string;
+  status: string;
+  swap_duration_seconds: number;
+  start_timestamp: number;
+  end_timestamp: number;
+  network: string;
+  error_message?: string | null;
+  incoming_amount: number;
+  outgoing_amount: number;
+  fee_paid_or_earned: number;
+  incoming_contract_txid?: string | null;
+  outgoing_contract_txid?: string | null;
+  funding_txids: string[][];
+  recovery_txid?: string | null;
+  timelock: number;
+  makers_count?: number | null;
+  maker_addresses: string[];
+  total_maker_fees: number;
+  mining_fee: number;
+  fee_percentage: number;
+  input_utxos: number[];
+  output_change_amounts: number[];
+  output_swap_amounts: number[];
+  output_change_utxos: [number, string][];
+  output_swap_utxos: [number, string][];
 }
 
 // ─── Request bodies ───────────────────────────────────────────────────────────
@@ -168,15 +216,32 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     clearTimeout(timer);
   }
 
-  let body: ApiResponse<T>;
-  try {
-    body = await res.json();
-  } catch {
-    throw new ApiError(res.status, "Invalid JSON response");
+  const raw = await res.text();
+  let body: ApiResponse<T> | null = null;
+
+  if (raw) {
+    try {
+      body = JSON.parse(raw) as ApiResponse<T>;
+    } catch {
+      if (!res.ok) {
+        throw new ApiError(res.status, raw);
+      }
+      throw new ApiError(res.status, "Invalid JSON response");
+    }
+  }
+
+  if (!body) {
+    throw new ApiError(
+      res.status,
+      res.ok ? "Empty response body" : res.statusText || "Unknown error",
+    );
   }
 
   if (!body.success || !res.ok) {
-    throw new ApiError(res.status, body.error ?? "Unknown error");
+    throw new ApiError(
+      res.status,
+      body.error ?? (res.statusText || "Unknown error"),
+    );
   }
 
   return body.data as T;
@@ -276,6 +341,8 @@ export const monitoring = {
   torAddress: (id: string): Promise<string> => get(`/makers/${id}/tor-address`),
   dataDir: (id: string): Promise<string> => get(`/makers/${id}/data-dir`),
   swaps: (id: string): Promise<SwapHistoryDto> => get(`/makers/${id}/swaps`),
+  swapReports: (id: string): Promise<SwapReportDto[]> =>
+    get(`/makers/${id}/swap-reports`),
   /** Fetches the last N log lines for a maker (default: 100) */
   logs: (id: string, lines?: number): Promise<string[]> =>
     get(`/makers/${id}/logs${lines !== undefined ? `?lines=${lines}` : ""}`),
@@ -307,6 +374,11 @@ export const bitcoind = {
 
 export const health = {
   check: (): Promise<HealthResponse> => get("/health"),
+};
+
+export const onboarding = {
+  startupCheck: (body: StartupCheckRequest): Promise<StartupCheckResponse> =>
+    post("/onboarding/startup-check", body),
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

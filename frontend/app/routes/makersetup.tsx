@@ -35,18 +35,25 @@ function parseDepositAddress(logs: string[]): string | null {
   return null;
 }
 
-/** Check if logs indicate the fidelity bond was successfully created */
+/** Check if logs indicate the fidelity bond transaction was created */
 function bondCreated(logs: string[]): boolean {
   return logs.some((l) => l.includes("Successfully created fidelity bond"));
 }
 
-/** Check if logs indicate the maker is fully live */
 function makerLive(logs: string[]): boolean {
   return logs.some(
-    (l) =>
-      l.includes("Taproot maker server listening on port") ||
-      l.includes("maker server listening on port"),
+    (line) =>
+      line.includes("Taproot swap liquidity ready") ||
+      line.includes("swap liquidity ready") ||
+      line.includes("Taproot maker setup completed") ||
+      line.includes("maker setup completed") ||
+      line.includes("Taproot maker server listening on port") ||
+      line.includes("maker server listening on port"),
   );
+}
+
+function hasConfirmedFidelityBond(confirmations: number[]): boolean {
+  return confirmations.some((count) => count > 0);
 }
 
 /** Check if logs indicate funds were found */
@@ -106,6 +113,20 @@ function latestProgressDetail(logs: string[]): string | null {
   return null;
 }
 
+function inferStage(
+  logs: string[],
+  fidelityConfirmations: number[],
+  isServerRunning: boolean,
+): SetupStage {
+  if (makerLive(logs)) return "live";
+  if (hasConfirmedFidelityBond(fidelityConfirmations)) return "live";
+  if (bondCreated(logs) || fundsDetected(logs)) return "creating_bond";
+  if (parseDepositAddress(logs) || parseMinAmount(logs) || isServerRunning) {
+    return "awaiting_funds";
+  }
+  return "starting";
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function MakerSetup() {
@@ -138,13 +159,63 @@ export default function MakerSetup() {
 
     async function boot() {
       try {
-        const status = await monitoring.status(id);
-        if (status.is_server_running) {
-          setStage("live");
-          stopStream = streamLogs(id, (line) =>
-            setLogs((prev) => [...prev, line]),
-          );
+        const [status, existingLogs, fidelityUtxos] = await Promise.all([
+          monitoring.status(id),
+          monitoring.logs(id, 200).catch(() => []),
+          wallet.fidelityUtxos(id).catch(() => []),
+        ]);
 
+        if (existingLogs.length > 0) {
+          setLogs(existingLogs);
+          const addr = parseDepositAddress(existingLogs);
+          const amt = parseMinAmount(existingLogs);
+          if (addr) setDepositAddress(addr);
+          if (amt) setMinAmount(amt);
+        }
+
+        setStage(
+          inferStage(
+            existingLogs,
+            fidelityUtxos.map((utxo) => utxo.confirmations),
+            status.is_server_running,
+          ),
+        );
+
+        stopStream = streamLogs(
+          id,
+          (line) => {
+            setLogs((prev) => {
+              const next = [...prev, line];
+              const addr = parseDepositAddress(next);
+              const amt = parseMinAmount(next);
+              if (addr) setDepositAddress(addr);
+              if (amt) setMinAmount(amt);
+
+              if (makerLive(next)) {
+                setStage("live");
+              } else if (fundsDetected(next) || bondCreated(next)) {
+                setStage((current) =>
+                  current === "live" ? current : "creating_bond",
+                );
+              } else if (
+                parseDepositAddress(next) ||
+                parseMinAmount(next) ||
+                status.is_server_running
+              ) {
+                setStage((current) =>
+                  current === "starting" ? "awaiting_funds" : current,
+                );
+              }
+
+              return next;
+            });
+          },
+          () => {
+            // SSE error — fall back to polling logs
+          },
+        );
+
+        if (status.is_server_running) {
           return;
         }
       } catch {
@@ -165,34 +236,34 @@ export default function MakerSetup() {
 
       setStage("awaiting_funds");
 
-      // Stream logs in real time
-      stopStream = streamLogs(
-        id,
-        (line) => {
-          setLogs((prev) => {
-            const next = [...prev, line];
+      if (!stopStream) {
+        stopStream = streamLogs(
+          id,
+          (line) => {
+            setLogs((prev) => {
+              const next = [...prev, line];
 
-            // Parse deposit address and min amount from logs
-            const addr = parseDepositAddress(next);
-            const amt = parseMinAmount(next);
-            if (addr) setDepositAddress(addr);
-            if (amt) setMinAmount(amt);
+              const addr = parseDepositAddress(next);
+              const amt = parseMinAmount(next);
+              if (addr) setDepositAddress(addr);
+              if (amt) setMinAmount(amt);
 
-            // Update progress detail from latest log
-            const detail = latestProgressDetail(next);
-            setProgressDetail(detail);
+              if (makerLive(next)) {
+                setStage("live");
+              } else if (fundsDetected(next) || bondCreated(next)) {
+                setStage((current) =>
+                  current === "live" ? current : "creating_bond",
+                );
+              }
 
-            // Advance stage based on log content
-            if (fundsDetected(next)) setStage("creating_bond");
-            if (bondCreated(next) || makerLive(next)) setStage("live");
-
-            return next;
-          });
-        },
-        () => {
-          // SSE error — fall back to polling logs
-        },
-      );
+              return next;
+            });
+          },
+          () => {
+            // SSE error — fall back to polling logs
+          },
+        );
+      }
     }
 
     boot();
@@ -223,15 +294,19 @@ export default function MakerSetup() {
     };
   }, [stage, id]);
 
-  // ─── Poll status for bond confirmation ────────────────────────────────────
+  // ─── Poll fidelity UTXOs for bond confirmation ───────────────────────────
 
   useEffect(() => {
     if (stage !== "creating_bond") return;
 
     pollRef.current = setInterval(async () => {
       try {
-        const status = await monitoring.status(id);
-        if (status.is_server_running) {
+        const fidelityUtxos = await wallet.fidelityUtxos(id);
+        if (
+          hasConfirmedFidelityBond(
+            fidelityUtxos.map((utxo) => utxo.confirmations),
+          )
+        ) {
           setStage("live");
         }
       } catch {

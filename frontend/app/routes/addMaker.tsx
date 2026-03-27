@@ -11,9 +11,9 @@ export default function AddMaker() {
     id: "",
     rpcHost: "127.0.0.1",
     rpcPort: "38332",
-    bitcoinRpc: "127.0.0.1:18443",
-    bitcoinUser: "",
-    bitcoinPassword: "",
+    bitcoinRpc: "127.0.0.1:38332",
+    bitcoinUser: "user",
+    bitcoinPassword: "password",
     zmq: "tcp://127.0.0.1:28332",
     dataDir: "",
     taproot: true,
@@ -71,6 +71,13 @@ export default function AddMaker() {
 
     try {
       await makers.create(body);
+      try {
+        await makers.start(formData.id);
+      } catch (startErr) {
+        if (!(startErr instanceof ApiError && startErr.status === 409)) {
+          throw startErr;
+        }
+      }
       navigate(`/makers/${formData.id}/setup`);
     } catch (err: unknown) {
       if (err instanceof ApiError && err.status === 409) {

@@ -50,7 +50,7 @@ impl Default for MakerConfig {
             data_directory: None,
             rpc: "127.0.0.1:38332".to_string(),
             zmq: "tcp://127.0.0.1:28332".to_string(),
-            auth: None,
+            auth: Some(("user".to_string(), "password".to_string())),
             tor_auth: None,
             wallet_name: None,
             taproot: false,
@@ -60,10 +60,10 @@ impl Default for MakerConfig {
             socks_port: 9050,
             control_port: 9051,
             min_swap_amount: 10000,
-            fidelity_amount: 50000,
-            fidelity_timelock: 13104,
-            base_fee: 100,
-            amount_relative_fee_pct: 0.1,
+            fidelity_amount: 10000,
+            fidelity_timelock: 15000,
+            base_fee: 1000,
+            amount_relative_fee_pct: 0.025,
         }
     }
 }

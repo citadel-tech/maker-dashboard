@@ -67,7 +67,7 @@ async fn get_status(State(state): State<AppState>) -> Json<ApiResponse<BitcoindS
     if let Some(network) = result {
         // Reachable via maker RPC config — may be an external process, not dashboard-managed
         return Json(ApiResponse::ok(BitcoindStatusInfo {
-            running: managed,
+            running: true,
             network: Some(network),
             managed,
         }));
