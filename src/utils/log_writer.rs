@@ -36,8 +36,8 @@ impl Write for LogWriter {
 }
 
 /// A `MakeWriter` implementation that routes logs to per-maker files
-/// based on the current thread name. Threads named `legacy-{id}` or
-/// `taproot-{id}` get their own log file under `{log_dir}/maker-{id}.log`.
+/// based on the current thread name. Threads named `maker-{id}` get their own
+/// log file under `{log_dir}/maker-{id}.log`.
 /// All other threads write to stdout.
 #[derive(Clone)]
 pub struct MakerLogWriter {
@@ -58,14 +58,11 @@ impl MakerLogWriter {
         Self { log_dir }
     }
 
-    /// Extracts the maker id from thread names like `legacy-mymaker` or `taproot-mymaker`.
+    /// Extracts the maker id from thread names like `maker-mymaker`.
     fn extract_maker_id() -> Option<String> {
         std::thread::current()
             .name()
-            .and_then(|name| {
-                name.strip_prefix("legacy-")
-                    .or_else(|| name.strip_prefix("taproot-"))
-            })
+            .and_then(|name| name.strip_prefix("maker-"))
             .map(|id| id.to_string())
     }
 

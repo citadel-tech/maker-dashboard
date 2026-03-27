@@ -41,15 +41,14 @@ function bondCreated(logs: string[]): boolean {
 }
 
 function makerLive(logs: string[]): boolean {
-  return logs.some(
-    (line) =>
-      line.includes("Taproot swap liquidity ready") ||
-      line.includes("swap liquidity ready") ||
-      line.includes("Taproot maker setup completed") ||
-      line.includes("maker setup completed") ||
-      line.includes("Taproot maker server listening on port") ||
-      line.includes("maker server listening on port"),
-  );
+  return logs.some((line) => {
+    const normalized = line.toLowerCase();
+    return (
+      normalized.includes("swap liquidity ready") ||
+      normalized.includes("maker setup completed") ||
+      normalized.includes("maker server listening on port")
+    );
+  });
 }
 
 function hasConfirmedFidelityBond(confirmations: number[]): boolean {

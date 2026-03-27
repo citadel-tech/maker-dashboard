@@ -255,8 +255,7 @@ impl ApiClient {
                 "data_directory": data_dir.to_string_lossy(),
                 "network_port": network_port,
                 "wallet_name": wallet_name,
-                "rpc_port": rpc_port,
-                "taproot": false
+                "rpc_port": rpc_port
             }),
         );
         assert!(

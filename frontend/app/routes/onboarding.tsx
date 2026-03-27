@@ -457,7 +457,6 @@ function CreateStep({
     rpcPass: config.rpcPass,
     zmq: config.zmq,
     dataDir: "",
-    taproot: true,
     password: "",
     torAuth: "",
     socksPort: config.socksPort,
@@ -501,7 +500,6 @@ function CreateStep({
       rpc_user: form.rpcUser,
       rpc_password: form.rpcPass,
       wallet_name: form.id || undefined,
-      taproot: form.taproot,
       data_directory: form.dataDir || undefined,
       password: form.password || undefined,
       tor_auth: form.torAuth || undefined,
@@ -780,26 +778,6 @@ function CreateStep({
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* Taproot */}
-        <div
-          className="bg-gray-900 border border-gray-800 rounded-xl p-5 flex items-center justify-between cursor-pointer"
-          onClick={() => set("taproot", !form.taproot)}
-        >
-          <div>
-            <div className="font-semibold text-gray-100">Enable Taproot</div>
-            <div className="text-sm text-gray-500">
-              Use Taproot addresses for better privacy and lower fees
-            </div>
-          </div>
-          <div
-            className={`relative w-11 h-6 rounded-full transition-colors ml-4 shrink-0 ${form.taproot ? "bg-orange-500" : "bg-gray-600"}`}
-          >
-            <span
-              className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${form.taproot ? "translate-x-5" : "translate-x-0"}`}
-            />
           </div>
         </div>
       </div>

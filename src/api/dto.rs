@@ -20,8 +20,6 @@ pub struct CreateMakerRequest {
     pub tor_auth: Option<String>,
     #[schema(example = "maker1")]
     pub wallet_name: Option<String>,
-    #[schema(example = false)]
-    pub taproot: Option<bool>,
     pub password: Option<String>,
     pub data_directory: Option<String>,
     #[schema(example = 6102)]
@@ -34,14 +32,19 @@ pub struct CreateMakerRequest {
     pub control_port: Option<u16>,
     #[schema(example = 10000)]
     pub min_swap_amount: Option<u64>,
-    #[schema(example = 50000)]
+    #[schema(example = 10000)]
     pub fidelity_amount: Option<u64>,
-    #[schema(example = 13104)]
+    #[schema(example = 15000)]
     pub fidelity_timelock: Option<u32>,
-    #[schema(example = 100)]
+    #[schema(example = 1)]
+    pub required_confirms: Option<u32>,
+    #[schema(example = 1000)]
     pub base_fee: Option<u64>,
-    #[schema(example = 0.1)]
+    #[schema(example = 0.025)]
     pub amount_relative_fee_pct: Option<f64>,
+    #[schema(example = 0.001)]
+    pub time_relative_fee_pct: Option<f64>,
+    pub nostr_relays: Option<Vec<String>>,
 }
 
 /// Request body for `PUT /api/makers/{id}/config`
@@ -58,8 +61,6 @@ pub struct UpdateMakerConfigRequest {
     pub tor_auth: Option<String>,
     #[schema(example = "maker1")]
     pub wallet_name: Option<String>,
-    #[schema(example = false)]
-    pub taproot: Option<bool>,
     pub password: Option<String>,
     pub data_directory: Option<String>,
     #[schema(example = 6102)]
@@ -72,14 +73,19 @@ pub struct UpdateMakerConfigRequest {
     pub control_port: Option<u16>,
     #[schema(example = 10000)]
     pub min_swap_amount: Option<u64>,
-    #[schema(example = 50000)]
+    #[schema(example = 10000)]
     pub fidelity_amount: Option<u64>,
-    #[schema(example = 13104)]
+    #[schema(example = 15000)]
     pub fidelity_timelock: Option<u32>,
-    #[schema(example = 100)]
+    #[schema(example = 1)]
+    pub required_confirms: Option<u32>,
+    #[schema(example = 1000)]
     pub base_fee: Option<u64>,
-    #[schema(example = 0.1)]
+    #[schema(example = 0.025)]
     pub amount_relative_fee_pct: Option<f64>,
+    #[schema(example = 0.001)]
+    pub time_relative_fee_pct: Option<f64>,
+    pub nostr_relays: Option<Vec<String>>,
 }
 
 impl UpdateMakerConfigRequest {
@@ -98,7 +104,6 @@ impl UpdateMakerConfigRequest {
             },
             tor_auth: self.tor_auth.or(base.tor_auth),
             wallet_name: self.wallet_name.or(base.wallet_name),
-            taproot: self.taproot.unwrap_or(base.taproot),
             password: self.password.or(base.password),
             network_port: self.network_port.unwrap_or(base.network_port),
             rpc_port: self.rpc_port.unwrap_or(base.rpc_port),
@@ -107,10 +112,15 @@ impl UpdateMakerConfigRequest {
             min_swap_amount: self.min_swap_amount.unwrap_or(base.min_swap_amount),
             fidelity_amount: self.fidelity_amount.unwrap_or(base.fidelity_amount),
             fidelity_timelock: self.fidelity_timelock.unwrap_or(base.fidelity_timelock),
+            required_confirms: self.required_confirms.unwrap_or(base.required_confirms),
             base_fee: self.base_fee.unwrap_or(base.base_fee),
             amount_relative_fee_pct: self
                 .amount_relative_fee_pct
                 .unwrap_or(base.amount_relative_fee_pct),
+            time_relative_fee_pct: self
+                .time_relative_fee_pct
+                .unwrap_or(base.time_relative_fee_pct),
+            nostr_relays: self.nostr_relays.unwrap_or(base.nostr_relays),
         }
     }
 }
@@ -183,7 +193,6 @@ pub struct MakerInfoDetailed {
     pub rpc: String,
     pub zmq: String,
     pub wallet_name: Option<String>,
-    pub taproot: bool,
     pub data_directory: Option<String>,
     pub network_port: u16,
     pub rpc_port: u16,
@@ -192,8 +201,11 @@ pub struct MakerInfoDetailed {
     pub min_swap_amount: u64,
     pub fidelity_amount: u64,
     pub fidelity_timelock: u32,
+    pub required_confirms: u32,
     pub base_fee: u64,
     pub amount_relative_fee_pct: f64,
+    pub time_relative_fee_pct: f64,
+    pub nostr_relays: Vec<String>,
 }
 
 impl From<ManagerMakerInfo> for MakerInfoDetailed {
@@ -204,7 +216,6 @@ impl From<ManagerMakerInfo> for MakerInfoDetailed {
             rpc: info.config.rpc,
             zmq: info.config.zmq,
             wallet_name: info.config.wallet_name,
-            taproot: info.config.taproot,
             data_directory: info.config.data_directory.and_then(|d| {
                 if let Ok(path) = d.canonicalize() {
                     return path.to_str().map(str::to_string);
@@ -218,8 +229,11 @@ impl From<ManagerMakerInfo> for MakerInfoDetailed {
             min_swap_amount: info.config.min_swap_amount,
             fidelity_amount: info.config.fidelity_amount,
             fidelity_timelock: info.config.fidelity_timelock,
+            required_confirms: info.config.required_confirms,
             base_fee: info.config.base_fee,
             amount_relative_fee_pct: info.config.amount_relative_fee_pct,
+            time_relative_fee_pct: info.config.time_relative_fee_pct,
+            nostr_relays: info.config.nostr_relays,
         }
     }
 }
@@ -251,11 +265,23 @@ pub struct SwapHistoryDto {
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct MakerFeeInfoDto {
+    pub maker_index: usize,
+    pub maker_address: String,
+    pub base_fee: f64,
+    pub amount_relative_fee: f64,
+    pub time_relative_fee: f64,
+    pub total_fee: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct SwapReportDto {
     pub swap_id: String,
     pub role: String,
     pub status: String,
     pub swap_duration_seconds: f64,
+    #[serde(default)]
+    pub recovery_duration_seconds: f64,
     pub start_timestamp: u64,
     pub end_timestamp: u64,
     pub network: String,
@@ -265,18 +291,28 @@ pub struct SwapReportDto {
     pub fee_paid_or_earned: i64,
     pub incoming_contract_txid: Option<String>,
     pub outgoing_contract_txid: Option<String>,
+    #[serde(default)]
     pub funding_txids: Vec<Vec<String>>,
-    pub recovery_txid: Option<String>,
+    #[serde(default)]
+    pub recovery_txids: Option<Vec<String>>,
     pub timelock: u16,
     pub makers_count: Option<usize>,
+    #[serde(default)]
     pub maker_addresses: Vec<String>,
+    #[serde(default)]
+    pub maker_fee_info: Vec<MakerFeeInfoDto>,
     pub total_maker_fees: u64,
     pub mining_fee: u64,
     pub fee_percentage: f64,
+    #[serde(default)]
     pub input_utxos: Vec<u64>,
+    #[serde(default)]
     pub output_change_amounts: Vec<u64>,
+    #[serde(default)]
     pub output_swap_amounts: Vec<u64>,
+    #[serde(default)]
     pub output_change_utxos: Vec<(u64, String)>,
+    #[serde(default)]
     pub output_swap_utxos: Vec<(u64, String)>,
 }
 

@@ -35,6 +35,12 @@ fn default_base_fee() -> u64 {
 fn default_amount_relative_fee_pct() -> f64 {
     0.025
 }
+fn default_time_relative_fee_pct() -> f64 {
+    0.001
+}
+fn default_required_confirms() -> u32 {
+    1
+}
 /// On-disk representation of a single maker's config.
 #[derive(Debug, Serialize, Deserialize)]
 struct StoredMakerConfig {
@@ -45,7 +51,6 @@ struct StoredMakerConfig {
     rpc_password: Option<String>,
     tor_auth: Option<String>,
     wallet_name: Option<String>,
-    taproot: bool,
     password: Option<String>,
     #[serde(default = "default_network_port")]
     network_port: u16,
@@ -65,6 +70,12 @@ struct StoredMakerConfig {
     base_fee: u64,
     #[serde(default = "default_amount_relative_fee_pct")]
     amount_relative_fee_pct: f64,
+    #[serde(default = "default_time_relative_fee_pct")]
+    time_relative_fee_pct: f64,
+    #[serde(default)]
+    nostr_relays: Vec<String>,
+    #[serde(default = "default_required_confirms")]
+    required_confirms: u32,
 }
 
 impl From<&MakerConfig> for StoredMakerConfig {
@@ -81,7 +92,6 @@ impl From<&MakerConfig> for StoredMakerConfig {
             rpc_password,
             tor_auth: c.tor_auth.clone(),
             wallet_name: c.wallet_name.clone(),
-            taproot: c.taproot,
             password: c.password.clone(),
             network_port: c.network_port,
             rpc_port: c.rpc_port,
@@ -92,6 +102,9 @@ impl From<&MakerConfig> for StoredMakerConfig {
             fidelity_timelock: c.fidelity_timelock,
             base_fee: c.base_fee,
             amount_relative_fee_pct: c.amount_relative_fee_pct,
+            time_relative_fee_pct: c.time_relative_fee_pct,
+            nostr_relays: c.nostr_relays.clone(),
+            required_confirms: c.required_confirms,
         }
     }
 }
@@ -108,7 +121,6 @@ impl From<StoredMakerConfig> for MakerConfig {
             },
             tor_auth: s.tor_auth,
             wallet_name: s.wallet_name,
-            taproot: s.taproot,
             password: s.password,
             network_port: s.network_port,
             rpc_port: s.rpc_port,
@@ -119,6 +131,9 @@ impl From<StoredMakerConfig> for MakerConfig {
             fidelity_timelock: s.fidelity_timelock,
             base_fee: s.base_fee,
             amount_relative_fee_pct: s.amount_relative_fee_pct,
+            time_relative_fee_pct: s.time_relative_fee_pct,
+            nostr_relays: s.nostr_relays,
+            required_confirms: s.required_confirms,
         }
     }
 }

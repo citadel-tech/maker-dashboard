@@ -10,7 +10,7 @@ type Level = "ALL" | "INFO" | "WARN" | "ERROR" | "DEBUG" | "TRACE";
 
 const LEVELS: Level[] = ["ALL", "INFO", "WARN", "ERROR", "DEBUG", "TRACE"];
 
-// Strips tracing span context like `maker_server{maker_id=946 kind="taproot"}: `
+// Strips tracing span context like `maker_server{maker_id=946 kind="maker"}: `
 const SPAN_CONTEXT_RE = / \w+\{[^}]*\}:/g;
 
 interface ParsedLine {
@@ -20,7 +20,7 @@ interface ParsedLine {
   message: string;
 }
 
-// Parses: `2026-03-19T17:04:23.045147Z  INFO          taproot-947 message…`
+// Parses: `2026-03-19T17:04:23.045147Z  INFO          maker-947 message…`
 const LINE_RE =
   /^(\d{4}-\d{2}-\d{2}T(\d{2}:\d{2}:\d{2})\.\d+Z)\s+(INFO|WARN|ERROR|DEBUG|TRACE)\s+(\S+)\s+(.*)/s;
 

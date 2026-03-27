@@ -22,7 +22,6 @@ export interface MakerInfoDetailed {
   rpc: string;
   zmq: string;
   wallet_name?: string;
-  taproot: boolean;
   data_directory?: string;
   network_port: number;
   rpc_port: number;
@@ -31,8 +30,11 @@ export interface MakerInfoDetailed {
   min_swap_amount: number;
   fidelity_amount: number;
   fidelity_timelock: number;
+  required_confirms: number;
   base_fee: number;
   amount_relative_fee_pct: number;
+  time_relative_fee_pct: number;
+  nostr_relays: string[];
 }
 
 export interface BalanceInfo {
@@ -97,11 +99,21 @@ export interface SwapHistoryDto {
   completed: UtxoInfo[];
 }
 
+export interface MakerFeeInfo {
+  maker_index: number;
+  maker_address: string;
+  base_fee: number;
+  amount_relative_fee: number;
+  time_relative_fee: number;
+  total_fee: number;
+}
+
 export interface SwapReportDto {
   swap_id: string;
   role: string;
   status: string;
   swap_duration_seconds: number;
+  recovery_duration_seconds: number;
   start_timestamp: number;
   end_timestamp: number;
   network: string;
@@ -112,10 +124,11 @@ export interface SwapReportDto {
   incoming_contract_txid?: string | null;
   outgoing_contract_txid?: string | null;
   funding_txids: string[][];
-  recovery_txid?: string | null;
+  recovery_txids?: string[] | null;
   timelock: number;
   makers_count?: number | null;
   maker_addresses: string[];
+  maker_fee_info: MakerFeeInfo[];
   total_maker_fees: number;
   mining_fee: number;
   fee_percentage: number;
@@ -136,7 +149,6 @@ export interface CreateMakerRequest {
   rpc_password?: string;
   tor_auth?: string;
   wallet_name?: string;
-  taproot?: boolean;
   password?: string;
   data_directory?: string;
   network_port?: number;
@@ -146,8 +158,11 @@ export interface CreateMakerRequest {
   min_swap_amount?: number;
   fidelity_amount?: number;
   fidelity_timelock?: number;
+  required_confirms?: number;
   base_fee?: number;
   amount_relative_fee_pct?: number;
+  time_relative_fee_pct?: number;
+  nostr_relays?: string[];
 }
 
 export interface UpdateMakerConfigRequest {
@@ -157,7 +172,6 @@ export interface UpdateMakerConfigRequest {
   rpc_password?: string;
   tor_auth?: string;
   wallet_name?: string;
-  taproot?: boolean;
   password?: string;
   data_directory?: string;
   network_port?: number;
@@ -167,8 +181,11 @@ export interface UpdateMakerConfigRequest {
   min_swap_amount?: number;
   fidelity_amount?: number;
   fidelity_timelock?: number;
+  required_confirms?: number;
   base_fee?: number;
   amount_relative_fee_pct?: number;
+  time_relative_fee_pct?: number;
+  nostr_relays?: string[];
 }
 export interface SendToAddressRequest {
   address: string;
