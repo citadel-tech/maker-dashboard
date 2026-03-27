@@ -14,7 +14,8 @@
 use bitcoin::Amount;
 use bitcoind::{bitcoincore_rpc::RpcApi, BitcoinD};
 use coinswap::{
-    taker::{SwapParams, Taker, TakerBehavior},
+    protocol::ProtocolVersion,
+    taker::{SwapParams, Taker, TakerInitConfig},
     wallet::{AddressType, RPCConfig},
 };
 use maker_dashboard::server::{Server, ServerConfig};
@@ -38,6 +39,7 @@ const MAKER_ALPHA_PORT: u16 = 16201;
 const MAKER_BETA_PORT: u16 = 16202;
 const MAKER_ALPHA_ID: &str = "alpha";
 const MAKER_BETA_ID: &str = "beta";
+const TEST_FIDELITY_AMOUNT: u64 = 5_000_000;
 // RPC ports are assigned dynamically at runtime (see test body).
 
 /// Balance tolerance: ±1 vbyte fee variance in satoshis.
@@ -76,6 +78,7 @@ fn init_bitcoind(base_dir: &Path) -> (BitcoinD, String, String, RpcCreds) {
 
     let mut conf = bitcoind::Conf::default();
     conf.args.push("-txindex=1");
+    conf.args.push("-rest=1");
     conf.args.push(Box::leak(zmq_rawtx.into_boxed_str()));
     conf.args.push(Box::leak(zmq_block.into_boxed_str()));
     conf.staticdir = Some(base_dir.join(".bitcoin"));
@@ -256,7 +259,7 @@ impl ApiClient {
                 "network_port": network_port,
                 "wallet_name": wallet_name,
                 "rpc_port": rpc_port,
-                "taproot": false
+                "fidelity_amount": TEST_FIDELITY_AMOUNT
             }),
         );
         assert!(
@@ -567,20 +570,16 @@ fn test_maker_manager_integration() {
         ..Default::default()
     };
 
-    let mut taker = Taker::init(
-        Some(taker_dir.clone()),
-        Some("taker".into()),
-        Some(rpc_config),
-        TakerBehavior::Normal,
-        None,
-        None,
-        zmq_addr.clone(),
-        None,
-    )
-    .expect("Taker::init");
+    let taker_config = TakerInitConfig::default()
+        .with_data_dir(taker_dir.clone())
+        .with_wallet_name("taker".into())
+        .with_rpc_config(rpc_config)
+        .with_zmq_addr(zmq_addr.clone());
+
+    let mut taker = Taker::init(taker_config).expect("Taker::init");
 
     {
-        let wallet = taker.get_wallet_mut();
+        let mut wallet = taker.get_wallet().write().unwrap();
         wallet.sync_and_save().unwrap();
         for _ in 0..3u32 {
             let addr = wallet
@@ -590,7 +589,7 @@ fn test_maker_manager_integration() {
         }
     }
     generate_blocks(&bitcoind, 1);
-    taker.get_wallet_mut().sync_and_save().unwrap();
+    taker.get_wallet().write().unwrap().sync_and_save().unwrap();
 
     // Start both makers and wait for their coinswap servers to be ready
     println!("[INFO] Starting makers");
@@ -613,7 +612,6 @@ fn test_maker_manager_integration() {
     client.sync_wallet(MAKER_BETA_ID);
 
     // Verify balances and UTXOs after fidelity bond creation
-    let fidelity_amount: u64 = 5_000_000;
     let (alpha_regular, alpha_swap, alpha_contract, alpha_fidelity, alpha_spendable) =
         client.get_balance(MAKER_ALPHA_ID);
     let (beta_regular, beta_swap, beta_contract, beta_fidelity, beta_spendable) =
@@ -627,8 +625,8 @@ fn test_maker_manager_integration() {
         beta_fidelity > 0,
         "beta fidelity should be non-zero after bond creation"
     );
-    assert_sat_approx("alpha fidelity", alpha_fidelity, fidelity_amount);
-    assert_sat_approx("beta fidelity", beta_fidelity, fidelity_amount);
+    assert_sat_approx("alpha fidelity", alpha_fidelity, TEST_FIDELITY_AMOUNT);
+    assert_sat_approx("beta fidelity", beta_fidelity, TEST_FIDELITY_AMOUNT);
     assert_eq!(alpha_swap, 0, "alpha unexpected swap balance");
     assert_eq!(beta_swap, 0, "beta unexpected swap balance");
     assert_eq!(alpha_contract, 0, "alpha unexpected contract balance");
@@ -674,7 +672,7 @@ fn test_maker_manager_integration() {
         "network_port changed unexpectedly"
     );
 
-    // Run coinswap — block-gen thread mines transactions during do_coinswap
+    // Run coinswap — block-gen thread mines transactions during execution
     println!("[INFO] Initiating coinswap");
     wait_for_maker_alive(&client, MAKER_BETA_ID, Duration::from_secs(30));
 
@@ -690,12 +688,17 @@ fn test_maker_manager_integration() {
         }
     });
 
+    let swap_summary = taker
+        .prepare_coinswap(
+            SwapParams::new(ProtocolVersion::Legacy, Amount::from_sat(500_000), 2)
+                .with_preferred_makers(vec![
+                    format!("127.0.0.1:{MAKER_ALPHA_PORT}"),
+                    format!("127.0.0.1:{MAKER_BETA_PORT}"),
+                ]),
+        )
+        .expect("prepare_coinswap failed");
     taker
-        .do_coinswap(SwapParams {
-            send_amount: Amount::from_sat(500_000),
-            maker_count: 2,
-            manually_selected_outpoints: None,
-        })
+        .start_coinswap(&swap_summary.swap_id)
         .expect("coinswap failed");
 
     shutdown_blocks.store(true, Ordering::Relaxed);

@@ -5,6 +5,10 @@ interface Props {
   core: MakerCoreData;
 }
 
+function formatPercent(value: number) {
+  return `${(value * 100).toFixed(2)}%`;
+}
+
 export default function Dashboard({ core }: Props) {
   const { info, balances, dataDir, loading, earningsSats, swapReportCount } =
     core;
@@ -55,11 +59,16 @@ export default function Dashboard({ core }: Props) {
         </div>
 
         <div className="bg-gray-900 p-4 sm:p-5 rounded-xl border border-gray-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-orange-500/5">
-          <div className="text-sm text-gray-400 mb-2">Taproot</div>
+          <div className="text-sm text-gray-400 mb-2">Fee Summary</div>
           <div className="text-2xl font-bold text-purple-500">
-            {info ? (info.taproot ? "Enabled" : "Disabled") : "—"}
+            {info ? `${info.base_fee} sats` : "—"}
           </div>
-          <div className="text-xs text-gray-500 mt-1">Wallet type</div>
+          <div className="text-xs text-gray-500 mt-1">
+            Amount fee{" "}
+            {info ? formatPercent(info.amount_relative_fee_pct) : "—"} · Time
+            fee {info ? formatPercent(info.time_relative_fee_pct) : "—"} ·
+            Fidelity {info ? `${info.fidelity_amount} sats` : "—"}
+          </div>
         </div>
 
         <div className="bg-gray-900 p-4 sm:p-5 rounded-xl border border-gray-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-orange-500/5">

@@ -7,10 +7,11 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
+use coinswap::bitcoin::Network;
 use coinswap::bitcoind::bitcoincore_rpc::Auth;
-use coinswap::maker::{Maker, MakerBehavior, TaprootMaker};
+use coinswap::maker::{MakerServer, MakerServerConfig};
 use coinswap::wallet::RPCConfig;
-use maker_pool::{MakerHandle as MakerInner, MakerId, MakerPool};
+use maker_pool::{MakerId, MakerPool};
 use message::{MessageRequest, MessageResponse};
 use persistence::PersistenceManager;
 
@@ -29,8 +30,6 @@ pub struct MakerConfig {
     pub tor_auth: Option<String>,
     /// Optional wallet name
     pub wallet_name: Option<String>,
-    /// Use experimental Taproot-based coinswap protocol
-    pub taproot: bool,
     /// Optional password for wallet encryption
     pub password: Option<String>,
     pub network_port: u16,
@@ -40,8 +39,11 @@ pub struct MakerConfig {
     pub min_swap_amount: u64,
     pub fidelity_amount: u64,
     pub fidelity_timelock: u32,
+    pub required_confirms: u32,
     pub base_fee: u64,
     pub amount_relative_fee_pct: f64,
+    pub time_relative_fee_pct: f64,
+    pub nostr_relays: Vec<String>,
 }
 
 impl Default for MakerConfig {
@@ -53,7 +55,6 @@ impl Default for MakerConfig {
             auth: Some(("user".to_string(), "password".to_string())),
             tor_auth: None,
             wallet_name: None,
-            taproot: false,
             password: None,
             network_port: 6102,
             rpc_port: 6103,
@@ -62,8 +63,11 @@ impl Default for MakerConfig {
             min_swap_amount: 10000,
             fidelity_amount: 10000,
             fidelity_timelock: 15000,
+            required_confirms: 1,
             base_fee: 1000,
             amount_relative_fee_pct: 0.025,
+            time_relative_fee_pct: 0.001,
+            nostr_relays: vec![],
         }
     }
 }
@@ -171,6 +175,26 @@ impl MakerManager {
         config
     }
 
+    fn infer_network(&self, rpc_url: &str) -> Network {
+        match self.bitcoind_network.as_deref() {
+            Some("regtest") => Network::Regtest,
+            Some("signet") => Network::Signet,
+            Some("testnet") => Network::Testnet,
+            Some("mainnet") => Network::Bitcoin,
+            _ => match rpc_url
+                .rsplit(':')
+                .next()
+                .and_then(|port| port.parse::<u16>().ok())
+            {
+                Some(18443) => Network::Regtest,
+                Some(38332) => Network::Signet,
+                Some(18332) => Network::Testnet,
+                Some(8332) => Network::Bitcoin,
+                _ => Network::Signet,
+            },
+        }
+    }
+
     /// Internal: initialise the maker and register it in the pool.
     /// Does NOT start the coinswap server.
     fn create_maker_internal(
@@ -196,46 +220,43 @@ impl MakerManager {
             wallet_name: config.wallet_name.clone().unwrap_or_else(|| id.clone()),
         };
 
-        if config.taproot {
-            let maker = Arc::new(
-                TaprootMaker::init(
-                    config.data_directory.clone(),
-                    config.wallet_name.clone(),
-                    Some(rpc_config),
-                    Some(config.network_port),
-                    Some(config.rpc_port),
-                    Some(config.control_port),
-                    config.tor_auth.clone(),
-                    Some(config.socks_port),
-                    config.zmq.clone(),
-                    config.password.clone(),
-                    #[cfg(feature = "integration-test")]
-                    None,
-                )
-                .map_err(|e| anyhow!("Failed to initialize taproot maker: {e:?}"))?,
-            );
-            self.pool
-                .spawn_maker(id.clone(), MakerInner::Taproot(maker), config.network_port)?;
-        } else {
-            let maker = Arc::new(
-                Maker::init(
-                    config.data_directory.clone(),
-                    config.wallet_name.clone(),
-                    Some(rpc_config),
-                    Some(config.network_port),
-                    Some(config.rpc_port),
-                    Some(config.control_port),
-                    config.tor_auth.clone(),
-                    Some(config.socks_port),
-                    MakerBehavior::Normal,
-                    config.zmq.clone(),
-                    config.password.clone(),
-                )
-                .map_err(|e| anyhow!("Failed to initialize maker: {e:?}"))?,
-            );
-            self.pool
-                .spawn_maker(id.clone(), MakerInner::Legacy(maker), config.network_port)?;
-        }
+        let data_dir = config
+            .data_directory
+            .clone()
+            .expect("maker data directory is initialized above");
+        let wallet_name = config.wallet_name.clone().unwrap_or_else(|| id.clone());
+        let network = self.infer_network(&config.rpc);
+        let maker = Arc::new(
+            MakerServer::init(MakerServerConfig {
+                data_dir,
+                network_port: config.network_port,
+                rpc_port: config.rpc_port,
+                base_fee: config.base_fee,
+                amount_relative_fee_pct: config.amount_relative_fee_pct,
+                time_relative_fee_pct: config.time_relative_fee_pct,
+                min_swap_amount: config.min_swap_amount,
+                required_confirms: config.required_confirms,
+                supported_protocols: MakerServerConfig::default().supported_protocols,
+                zmq_addr: config.zmq.clone(),
+                fidelity_amount: config.fidelity_amount,
+                fidelity_timelock: config.fidelity_timelock,
+                network,
+                wallet_name,
+                rpc_config,
+                control_port: config.control_port,
+                socks_port: config.socks_port,
+                tor_auth_password: config.tor_auth.clone().unwrap_or_default(),
+                password: config.password.clone(),
+                nostr_relays: if config.nostr_relays.is_empty() {
+                    MakerServerConfig::default().nostr_relays
+                } else {
+                    config.nostr_relays.clone()
+                },
+            })
+            .map_err(|e| anyhow!("Failed to initialize maker server: {e:?}"))?,
+        );
+        self.pool
+            .spawn_maker(id.clone(), maker, config.network_port)?;
 
         self.configs.insert(id, config);
         if persist {

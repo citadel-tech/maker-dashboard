@@ -16,13 +16,13 @@ export default function AddMaker() {
     bitcoinPassword: "password",
     zmq: "tcp://127.0.0.1:28332",
     dataDir: "",
-    taproot: true,
     password: "",
     torAuth: "",
     socksPort: "9050",
     controlPort: "9051",
     networkPort: "6102",
     makerRpcPort: "6103",
+    requiredConfirms: "1",
   });
 
   const [submitting, setSubmitting] = useState(false);
@@ -53,7 +53,6 @@ export default function AddMaker() {
       rpc_user: formData.bitcoinUser,
       rpc_password: formData.bitcoinPassword,
       wallet_name: formData.id || undefined,
-      taproot: formData.taproot,
       data_directory: formData.dataDir || undefined,
       password: formData.password || undefined,
       tor_auth: formData.torAuth || undefined,
@@ -66,6 +65,9 @@ export default function AddMaker() {
         : undefined,
       rpc_port: formData.makerRpcPort
         ? parseInt(formData.makerRpcPort)
+        : undefined,
+      required_confirms: formData.requiredConfirms
+        ? parseInt(formData.requiredConfirms)
         : undefined,
     };
 
@@ -508,27 +510,24 @@ export default function AddMaker() {
                   For maker-cli operations
                 </p>
               </div>
-            </div>
-          </div>
-
-          {/* Advanced Options */}
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
-            <h3 className="text-lg font-semibold mb-4">Advanced Options</h3>
-            <label className="flex items-start gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                name="taproot"
-                checked={formData.taproot}
-                onChange={handleChange}
-                className="mt-1 w-4 h-4 bg-gray-800 border-gray-700 rounded focus:ring-orange-500 focus:ring-2"
-              />
               <div>
-                <div className="font-medium text-gray-100">Enable Taproot</div>
-                <div className="text-sm text-gray-500">
-                  Use Taproot addresses for improved privacy and lower fees
-                </div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">
+                  Required Confirmations
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  name="requiredConfirms"
+                  value={formData.requiredConfirms}
+                  onChange={handleChange}
+                  placeholder="1"
+                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 placeholder-gray-500 font-mono text-sm"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Funding confirmations required before swaps continue
+                </p>
               </div>
-            </label>
+            </div>
           </div>
 
           {/* Actions */}

@@ -31,7 +31,28 @@ function TxRow({ label, txid }: { label: string; txid?: string | null }) {
   );
 }
 
+function TxList({ label, txids }: { label: string; txids?: string[] | null }) {
+  if (!txids || txids.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-xs uppercase tracking-wide text-gray-500">
+        {label}
+      </span>
+      <div className="space-y-1">
+        {txids.map((txid) => (
+          <code key={txid} className="block text-xs text-gray-300 break-all">
+            {txid}
+          </code>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function SwapCard({ report }: { report: SwapReportDto }) {
+  const recoveryTxids = report.recovery_txids ?? [];
+  const makerAddresses = report.maker_addresses ?? [];
+  const makerFeeInfo = report.maker_fee_info ?? [];
   const feeLabel =
     report.fee_paid_or_earned >= 0
       ? `+${satsToBtc(report.fee_paid_or_earned)} BTC`
@@ -113,7 +134,7 @@ function SwapCard({ report }: { report: SwapReportDto }) {
             label="Outgoing Contract Tx"
             txid={report.outgoing_contract_txid}
           />
-          <TxRow label="Recovery Tx" txid={report.recovery_txid} />
+          <TxList label="Recovery Txs" txids={recoveryTxids} />
         </div>
 
         <div className="space-y-3">
@@ -125,6 +146,16 @@ function SwapCard({ report }: { report: SwapReportDto }) {
               {report.timelock} blocks
             </div>
           </div>
+          {report.recovery_duration_seconds > 0 && (
+            <div>
+              <div className="text-xs uppercase tracking-wide text-gray-500 mb-1">
+                Recovery Duration
+              </div>
+              <div className="text-sm text-gray-200">
+                {formatDuration(report.recovery_duration_seconds)}
+              </div>
+            </div>
+          )}
           <div>
             <div className="text-xs uppercase tracking-wide text-gray-500 mb-1">
               Started
@@ -133,13 +164,13 @@ function SwapCard({ report }: { report: SwapReportDto }) {
               {formatDate(report.start_timestamp)}
             </div>
           </div>
-          {report.maker_addresses.length > 0 && (
+          {makerAddresses.length > 0 && (
             <div>
               <div className="text-xs uppercase tracking-wide text-gray-500 mb-1">
                 Maker Route
               </div>
               <div className="space-y-1">
-                {report.maker_addresses.map((address) => (
+                {makerAddresses.map((address) => (
                   <code
                     key={address}
                     className="block text-xs text-gray-300 break-all"
@@ -152,6 +183,32 @@ function SwapCard({ report }: { report: SwapReportDto }) {
           )}
         </div>
       </div>
+
+      {makerFeeInfo.length > 0 && (
+        <div className="mt-4">
+          <div className="text-xs uppercase tracking-wide text-gray-500 mb-2">
+            Maker Fee Breakdown
+          </div>
+          <div className="space-y-2">
+            {makerFeeInfo.map((fee) => (
+              <div
+                key={`${fee.maker_index}-${fee.maker_address}`}
+                className="rounded-lg border border-gray-800 bg-gray-950/60 px-3 py-2 text-sm text-gray-300"
+              >
+                <div className="font-medium text-gray-200">
+                  Maker {fee.maker_index + 1}
+                </div>
+                <code className="block text-xs text-gray-400 break-all mt-1">
+                  {fee.maker_address}
+                </code>
+                <div className="mt-1 text-xs text-gray-400">
+                  Total {satsToBtc(Math.round(fee.total_fee))} BTC
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

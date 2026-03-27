@@ -2,14 +2,12 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use std::str::FromStr;
-use std::sync::atomic::Ordering::Relaxed;
 use std::sync::{Arc, RwLock};
 use std::thread::{self, JoinHandle};
 
 use anyhow::{anyhow, Result};
 use coinswap::bitcoin::{Address, Amount};
-use coinswap::maker::{start_maker_server, start_maker_server_taproot};
-use coinswap::maker::{Maker, TaprootMaker};
+use coinswap::maker::{start_server, MakerServer};
 use coinswap::utill::UTXO;
 use coinswap::wallet::{AddressType, Destination, Wallet};
 use tokio::{runtime::Runtime, sync::Mutex};
@@ -27,23 +25,9 @@ pub trait MakerWalletAccess: Send + Sync + 'static {
     fn data_dir(&self) -> &std::path::Path;
 }
 
-impl MakerWalletAccess for Maker {
+impl MakerWalletAccess for MakerServer {
     fn wallet(&self) -> &RwLock<Wallet> {
-        self.get_wallet()
-    }
-
-    fn default_address_type(&self) -> AddressType {
-        AddressType::P2WPKH
-    }
-
-    fn data_dir(&self) -> &std::path::Path {
-        self.get_data_dir()
-    }
-}
-
-impl MakerWalletAccess for TaprootMaker {
-    fn wallet(&self) -> &RwLock<Wallet> {
-        self.wallet()
+        self.wallet.as_ref()
     }
 
     fn default_address_type(&self) -> AddressType {
@@ -51,7 +35,7 @@ impl MakerWalletAccess for TaprootMaker {
     }
 
     fn data_dir(&self) -> &std::path::Path {
-        self.data_dir()
+        &self.data_dir
     }
 }
 
@@ -149,7 +133,7 @@ fn handle_request(
                 change_address_type: addr_type,
             };
             let coins_to_send = match maker.wallet().read() {
-                Ok(wallet) => match wallet.coin_select(amount, feerate, None) {
+                Ok(wallet) => match wallet.coin_select(amount, feerate, None, None) {
                     Ok(coins) => coins,
                     Err(e) => {
                         return Ok(MessageResponse::ServerError(format!(
@@ -243,48 +227,9 @@ fn handle_request(
     })
 }
 
-/// Wrapper enum to hold either a legacy or taproot maker
-pub enum MakerHandle {
-    Legacy(Arc<Maker>),
-    Taproot(Arc<TaprootMaker>),
-}
-
-impl MakerHandle {
-    fn as_wallet_access(&self) -> &dyn MakerWalletAccess {
-        match self {
-            MakerHandle::Legacy(m) => m.as_ref(),
-            MakerHandle::Taproot(m) => m.as_ref(),
-        }
-    }
-
-    /// Sets the shutdown flag to false, allowing the server to run
-    fn reset_shutdown(&self) {
-        match self {
-            MakerHandle::Legacy(m) => m.shutdown.store(false, Relaxed),
-            MakerHandle::Taproot(m) => m.shutdown.store(false, Relaxed),
-        }
-    }
-
-    /// Sets the shutdown flag to true, signaling the server to stop
-    fn signal_shutdown(&self) {
-        match self {
-            MakerHandle::Legacy(m) => m.shutdown.store(true, Relaxed),
-            MakerHandle::Taproot(m) => m.shutdown.store(true, Relaxed),
-        }
-    }
-
-    /// Clones the inner Arc for spawning the server thread
-    fn clone_inner(&self) -> MakerHandle {
-        match self {
-            MakerHandle::Legacy(m) => MakerHandle::Legacy(m.clone()),
-            MakerHandle::Taproot(m) => MakerHandle::Taproot(m.clone()),
-        }
-    }
-}
-
 /// Entry representing a single maker running in its own thread
 struct MakerEntry {
-    inner: MakerHandle,
+    inner: Arc<MakerServer>,
     network_port: u16,
     responder: Responder<MessageRequest, MessageResponse>,
 }
@@ -292,7 +237,7 @@ struct MakerEntry {
 impl MakerEntry {
     /// Creates a new MakerEntry and returns the requester handle for communication
     fn new(
-        inner: MakerHandle,
+        inner: Arc<MakerServer>,
         network_port: u16,
     ) -> (Self, Requester<MessageRequest, MessageResponse>) {
         let (requester, responder) = channel::<MessageRequest, MessageResponse>(100);
@@ -309,7 +254,7 @@ impl MakerEntry {
     /// Starts handling incoming requests in a loop
     async fn run(mut self) {
         while let Some(req) = self.responder.recv().await {
-            let resp = handle_request(self.inner.as_wallet_access(), self.network_port, req)
+            let resp = handle_request(self.inner.as_ref(), self.network_port, req)
                 .unwrap_or_else(|e| MessageResponse::ServerError(e.to_string()));
             if self.responder.send(resp).await.is_err() {
                 break;
@@ -320,13 +265,13 @@ impl MakerEntry {
 
 /// Internal handle for a registered maker
 struct MakerPoolEntry {
-    /// The maker handle (Arc<Maker> or Arc<TaprootMaker>) — persists across start/stop
-    maker_handle: MakerHandle,
+    /// The maker handle — persists across start/stop
+    maker_handle: Arc<MakerServer>,
     /// Requester for sending wallet queries via the message loop
     requester: Mutex<Requester<MessageRequest, MessageResponse>>,
     /// Thread running the message loop (always alive while maker is registered)
     message_thread: Option<JoinHandle<()>>,
-    /// Thread running start_maker_server (only when "started")
+    /// Thread running start_server (only when "started")
     server_thread: Option<JoinHandle<()>>,
 }
 
@@ -348,15 +293,14 @@ impl MakerPool {
     pub fn spawn_maker(
         &mut self,
         id: MakerId,
-        maker: MakerHandle,
+        maker: Arc<MakerServer>,
         network_port: u16,
     ) -> Result<()> {
         if self.makers.contains_key(&id) {
             return Err(anyhow!("Maker with id '{id}' already exists"));
         }
 
-        let message_maker = maker.clone_inner();
-        let (entry, requester) = MakerEntry::new(message_maker, network_port);
+        let (entry, requester) = MakerEntry::new(maker.clone(), network_port);
 
         let message_thread = thread::spawn(move || {
             let rt = Runtime::new().expect("Failed to create tokio runtime");
@@ -377,7 +321,7 @@ impl MakerPool {
     }
 
     /// Starts the coinswap server for a registered maker.
-    /// Spawns `start_maker_server` / `start_maker_server_taproot` in a new thread.
+    /// Spawns `start_server` in a new thread.
     pub fn start_server(&mut self, id: &MakerId) -> Result<()> {
         let entry = self
             .makers
@@ -388,30 +332,20 @@ impl MakerPool {
             return Err(anyhow!("Maker '{id}' server is already running"));
         }
 
-        entry.maker_handle.reset_shutdown();
+        entry
+            .maker_handle
+            .shutdown
+            .store(false, std::sync::atomic::Ordering::Relaxed);
 
-        let server_handle = match &entry.maker_handle {
-            MakerHandle::Legacy(maker) => {
-                let maker = maker.clone();
-                thread::Builder::new()
-                    .name(format!("legacy-{id}"))
-                    .spawn(move || {
-                        if let Err(e) = start_maker_server(maker) {
-                            tracing::error!("Maker server error: {:?}", e);
-                        }
-                    })?
-            }
-            MakerHandle::Taproot(maker) => {
-                let maker = maker.clone();
-                thread::Builder::new()
-                    .name(format!("taproot-{id}"))
-                    .spawn(move || {
-                        if let Err(e) = start_maker_server_taproot(maker) {
-                            tracing::error!("Taproot maker server error: {:?}", e);
-                        }
-                    })?
-            }
-        };
+        let maker = entry.maker_handle.clone();
+        let server_handle =
+            thread::Builder::new()
+                .name(format!("maker-{id}"))
+                .spawn(move || {
+                    if let Err(e) = start_server(maker) {
+                        tracing::error!("Maker server error: {:?}", e);
+                    }
+                })?;
 
         entry.server_thread = Some(server_handle);
         Ok(())
@@ -431,7 +365,10 @@ impl MakerPool {
             .take()
             .ok_or_else(|| anyhow!("Maker '{id}' server is not running"))?;
 
-        entry.maker_handle.signal_shutdown();
+        entry
+            .maker_handle
+            .shutdown
+            .store(true, std::sync::atomic::Ordering::Relaxed);
 
         server_thread
             .join()
@@ -486,7 +423,10 @@ impl MakerPool {
     pub fn remove_maker(&mut self, id: &MakerId) {
         if let Some(mut entry) = self.makers.remove(id) {
             if entry.server_thread.is_some() {
-                entry.maker_handle.signal_shutdown();
+                entry
+                    .maker_handle
+                    .shutdown
+                    .store(true, std::sync::atomic::Ordering::Relaxed);
                 if let Some(handle) = entry.server_thread.take() {
                     let _ = handle.join();
                 }

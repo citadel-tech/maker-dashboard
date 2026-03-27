@@ -61,7 +61,6 @@ export default function Settings({ id, onSaved }: Props) {
   const [zmq, setZmq] = useState("");
   const [rpcUser, setRpcUser] = useState("");
   const [rpcPassword, setRpcPassword] = useState("");
-  const [taproot, setTaproot] = useState(false);
   const [dataDir, setDataDir] = useState("");
 
   // ── Tor ───────────────────────────────────────────────────────────────────
@@ -75,8 +74,10 @@ export default function Settings({ id, onSaved }: Props) {
 
   // ── Swap & Fidelity ───────────────────────────────────────────────────────
   const [minSwapAmount, setMinSwapAmount] = useState(10000);
+  const [requiredConfirms, setRequiredConfirms] = useState(1);
   const [baseFee, setBaseFee] = useState(1000);
   const [amountRelativeFeePct, setAmountRelativeFeePct] = useState(0.025);
+  const [timeRelativeFeePct, setTimeRelativeFeePct] = useState(0.001);
   const [fidelityAmount, setFidelityAmount] = useState(10000);
   const [fidelityTimelock, setFidelityTimelock] = useState(15000);
 
@@ -102,15 +103,16 @@ export default function Settings({ id, onSaved }: Props) {
       .then((info: MakerInfoDetailed) => {
         setRpc(info.rpc ?? "");
         setZmq(info.zmq ?? "");
-        setTaproot(info.taproot ?? false);
         setDataDir(info.data_directory ?? "");
         setNetworkPort(info.network_port ?? 6102);
         setRpcPort(info.rpc_port ?? 6103);
         setSocksPort(info.socks_port ?? 9050);
         setControlPort(info.control_port ?? 9051);
         setMinSwapAmount(info.min_swap_amount ?? 10000);
+        setRequiredConfirms(info.required_confirms ?? 1);
         setBaseFee(info.base_fee ?? 1000);
         setAmountRelativeFeePct(info.amount_relative_fee_pct ?? 0.025);
+        setTimeRelativeFeePct(info.time_relative_fee_pct ?? 0.001);
         setFidelityAmount(info.fidelity_amount ?? 10000);
         setFidelityTimelock(info.fidelity_timelock ?? 15000);
         // passwords / ports not returned by API — keep defaults
@@ -132,6 +134,8 @@ export default function Settings({ id, onSaved }: Props) {
       return "Fidelity timelock must be between 12960 and 25920 blocks";
     if (minSwapAmount === 0)
       return "Minimum swap amount must be greater than 0";
+    if (!Number.isInteger(requiredConfirms) || requiredConfirms < 0)
+      return "Required confirmations must be an integer 0 or greater";
     if (fidelityAmount === 0) return "Fidelity amount must be greater than 0";
     return null;
   }
@@ -152,7 +156,6 @@ export default function Settings({ id, onSaved }: Props) {
         rpc_user: rpcUser || undefined,
         rpc_password: rpcPassword || undefined,
         tor_auth: torAuth || undefined,
-        taproot,
         data_directory: dataDir || undefined,
         network_port: networkPort,
         rpc_port: rpcPort,
@@ -161,8 +164,10 @@ export default function Settings({ id, onSaved }: Props) {
         min_swap_amount: minSwapAmount,
         fidelity_amount: fidelityAmount,
         fidelity_timelock: fidelityTimelock,
+        required_confirms: requiredConfirms,
         base_fee: baseFee,
         amount_relative_fee_pct: amountRelativeFeePct,
+        time_relative_fee_pct: timeRelativeFeePct,
       });
 
       setSaveResult({
@@ -296,20 +301,12 @@ export default function Settings({ id, onSaved }: Props) {
           <div className="flex items-end">
             <div className="flex items-center justify-between bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 w-full">
               <div>
-                <div className="text-sm text-gray-200">Taproot</div>
+                <div className="text-sm text-gray-200">Unified Protocol</div>
                 <div className="text-xs text-gray-500">
-                  Use taproot wallet type
+                  Unified maker server
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setTaproot(!taproot)}
-                className={`relative w-11 h-6 rounded-full transition-colors duration-200 ml-4 shrink-0 ${taproot ? "bg-orange-500" : "bg-gray-600"}`}
-              >
-                <span
-                  className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${taproot ? "translate-x-5" : "translate-x-0"}`}
-                />
-              </button>
+              <div className="text-xs text-gray-500 font-medium">Always on</div>
             </div>
           </div>
         </div>
@@ -597,12 +594,33 @@ export default function Settings({ id, onSaved }: Props) {
               htmlFor="baseFee"
               className="block text-sm text-gray-400 mb-2"
             >
+              Required Confirmations
+            </label>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={requiredConfirms}
+              onChange={(e) => setRequiredConfirms(Number(e.target.value))}
+              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Enter a whole number of funding confirmations required before
+              progressing a swap
+            </p>
+          </div>
+          <div>
+            <label
+              htmlFor="baseFee"
+              className="block text-sm text-gray-400 mb-2"
+            >
               Base Fee (sats)
             </label>
             <input
               type="number"
               min={0}
               value={baseFee}
+              placeholder="1000"
               onChange={(e) => setBaseFee(Number(e.target.value))}
               className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
             />
@@ -612,17 +630,42 @@ export default function Settings({ id, onSaved }: Props) {
               htmlFor="amountRelativeFeePct"
               className="block text-sm text-gray-400 mb-2"
             >
-              Amount Relative Fee (%)
+              Amount Relative Fee (decimal)
             </label>
             <input
               type="number"
               min={0}
-              max={100}
-              step="0.01"
+              max={1}
+              step="0.001"
               value={amountRelativeFeePct}
+              placeholder="0.025"
               onChange={(e) => setAmountRelativeFeePct(Number(e.target.value))}
               className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
             />
+            <p className="text-xs text-gray-500 mt-1">
+              Enter a decimal from 0 to 1. Example: `0.025` = `2.5%`
+            </p>
+          </div>
+          <div>
+            <label
+              htmlFor="timeRelativeFeePct"
+              className="block text-sm text-gray-400 mb-2"
+            >
+              Time Relative Fee (decimal)
+            </label>
+            <input
+              type="number"
+              min={0}
+              max={1}
+              step="0.001"
+              value={timeRelativeFeePct}
+              placeholder="0.001"
+              onChange={(e) => setTimeRelativeFeePct(Number(e.target.value))}
+              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Enter a decimal from 0 to 1. Example: `0.001` = `0.1%`
+            </p>
           </div>
           <div>
             <label
@@ -635,6 +678,7 @@ export default function Settings({ id, onSaved }: Props) {
               type="number"
               min={1}
               value={fidelityAmount}
+              placeholder="10000"
               onChange={(e) => setFidelityAmount(Number(e.target.value))}
               className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
             />
@@ -651,6 +695,7 @@ export default function Settings({ id, onSaved }: Props) {
               min={12960}
               max={25920}
               value={fidelityTimelock}
+              placeholder="15000"
               onChange={(e) => setFidelityTimelock(Number(e.target.value))}
               className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
             />
