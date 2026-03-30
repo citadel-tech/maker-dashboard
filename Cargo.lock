@@ -1537,7 +1537,7 @@ dependencies = [
 
 [[package]]
 name = "maker-dashboard"
-version = "0.1.0-alpha"
+version = "0.2.1"
 dependencies = [
  "anyhow",
  "axum",
