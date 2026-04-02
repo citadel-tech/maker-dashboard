@@ -7,6 +7,7 @@ import {
   makers,
   wallet,
   monitoring,
+  streamLogs,
   satsToBtc,
   type MakerInfoDetailed,
   type BalanceInfo,
@@ -31,6 +32,7 @@ interface MakerRow {
 }
 
 const SWAP_HISTORY_REFRESH_MS = 60_000;
+const TRANSIENT_SWAP_SIGNAL_MS = 30_000;
 type MakerFilter = "all" | "running";
 
 function swapKey(
@@ -47,6 +49,13 @@ function truncateMiddle(value: string, start = 18, end = 14) {
   return `${value.slice(0, start)}...${value.slice(-end)}`;
 }
 
+const SWAP_LOG_KEYWORDS = ["new connection from"];
+
+function isSwapLogLine(line: string): boolean {
+  const lower = line.toLowerCase();
+  return SWAP_LOG_KEYWORDS.some((kw) => lower.includes(kw));
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function Home() {
@@ -55,6 +64,10 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<Set<string>>(new Set());
+  const [logSwapSeenAt, setLogSwapSeenAt] = useState<Record<string, number>>(
+    {},
+  );
+  const [swapBannerDismissed, setSwapBannerDismissed] = useState(false);
   const swapHistoryCache = useRef<Record<string, UtxoInfo[]>>({});
   const swapReportCache = useRef<Record<string, SwapReportDto[]>>({});
   const lastSwapRefreshAt = useRef(0);
@@ -148,6 +161,52 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    const runningIds = new Set(
+      makerRows
+        .filter((maker) => maker.state === "running")
+        .map((maker) => maker.id),
+    );
+
+    setLogSwapSeenAt((prev) => {
+      const next = Object.fromEntries(
+        Object.entries(prev).filter(([id]) => runningIds.has(id)),
+      );
+      return Object.keys(next).length === Object.keys(prev).length
+        ? prev
+        : next;
+    });
+
+    const stops = Array.from(runningIds).map((id) =>
+      streamLogs(id, (line) => {
+        if (!isSwapLogLine(line)) return;
+        setSwapBannerDismissed(false);
+        setLogSwapSeenAt((prev) => {
+          return { ...prev, [id]: Date.now() };
+        });
+      }),
+    );
+
+    const pruneInterval = setInterval(() => {
+      setLogSwapSeenAt((prev) => {
+        const cutoff = Date.now() - TRANSIENT_SWAP_SIGNAL_MS;
+        const next = Object.fromEntries(
+          Object.entries(prev).filter(
+            ([id, seenAt]) => runningIds.has(id) && seenAt >= cutoff,
+          ),
+        );
+        return Object.keys(next).length === Object.keys(prev).length
+          ? prev
+          : next;
+      });
+    }, 5_000);
+
+    return () => {
+      clearInterval(pruneInterval);
+      for (const stop of stops) stop();
+    };
+  }, [makerRows]);
+
   async function toggleMaker(id: string, currentState: MakerState) {
     setPending((prev) => new Set(prev).add(id));
     try {
@@ -201,11 +260,40 @@ export default function Home() {
     makerFilter === "running"
       ? makerRows.filter((m) => m.state === "running")
       : makerRows;
+  const swapSignalCutoff = Date.now() - TRANSIENT_SWAP_SIGNAL_MS;
+
+  const anySwapping = makerRows.some(
+    (m) =>
+      m.swapActive.length > 0 ||
+      (m.state === "running" && (logSwapSeenAt[m.id] ?? 0) >= swapSignalCutoff),
+  );
+  const showSwapBanner = anySwapping && !swapBannerDismissed;
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100">
       <Nav />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 animate-slide-in-up">
+        {showSwapBanner && (
+          <div className="mb-6 px-4 py-3 bg-orange-950/60 border border-orange-500 rounded-lg text-sm text-orange-200 flex justify-between items-center gap-3 sticky top-4 z-10 backdrop-blur-sm shadow-lg shadow-orange-500/10">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-orange-400 animate-pulse shrink-0" />
+              <span>
+                <strong>
+                  One or more makers are currently in an active swap.
+                </strong>{" "}
+                Do not reload the page or remove a maker until the swap
+                completes.
+              </span>
+            </div>
+            <button
+              onClick={() => setSwapBannerDismissed(true)}
+              className="shrink-0 text-orange-400 hover:text-orange-200 transition-colors"
+              aria-label="Dismiss swap warning"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
         {error && (
           <div className="mb-6 px-4 py-3 bg-red-900/40 border border-red-700 rounded-lg text-sm text-red-300 flex justify-between items-center">
             <span>{error}</span>
@@ -319,7 +407,10 @@ export default function Home() {
               {visibleMakerRows.map((maker) => {
                 const isRunning = maker.state === "running";
                 const isPending = pending.has(maker.id);
-                const isSwapping = maker.swapActive.length > 0;
+                const isSwapping =
+                  maker.swapActive.length > 0 ||
+                  (maker.state === "running" &&
+                    (logSwapSeenAt[maker.id] ?? 0) >= swapSignalCutoff);
                 return (
                   <div
                     key={maker.id}
@@ -332,7 +423,7 @@ export default function Home() {
                     <div className="flex items-center justify-between mb-3 sm:mb-4">
                       <div className="flex items-center gap-2">
                         <span
-                          className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
+                          className={`w-2.5 h-2.5 rounded-full shrink-0 ${
                             maker.alive
                               ? "bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)] animate-pulse"
                               : "bg-gray-600"

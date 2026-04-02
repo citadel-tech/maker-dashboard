@@ -113,6 +113,11 @@ export interface MakerFeeInfo {
   total_fee: number;
 }
 
+export interface CombinedLogLine {
+  maker_id: string;
+  line: string;
+}
+
 export interface SwapReportDto {
   swap_id: string;
   role: string;
@@ -354,6 +359,8 @@ export const monitoring = {
   /** Tests connectivity to the maker's configured Bitcoin Core RPC endpoint */
   rpcStatus: (id: string): Promise<RpcStatusInfo> =>
     get(`/makers/${id}/rpc-status`),
+  combinedLogs: (lines?: number): Promise<CombinedLogLine[]> =>
+    get(`/logs/combined${lines !== undefined ? `?lines=${lines}` : ""}`),
 };
 
 // ─── Bitcoind ─────────────────────────────────────────────────────────────────

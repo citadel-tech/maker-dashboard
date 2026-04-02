@@ -20,7 +20,10 @@ use crate::maker_manager::message::MessageResponse;
 use crate::utils::log_writer::read_last_n_lines;
 
 use super::{
-    dto::{ApiResponse, MakerStatus, RpcStatusInfo, SwapHistoryDto, SwapReportDto, UtxoInfo},
+    dto::{
+        ApiResponse, CombinedLogLine, MakerStatus, RpcStatusInfo, SwapHistoryDto, SwapReportDto,
+        UtxoInfo,
+    },
     AppState,
 };
 
@@ -35,6 +38,7 @@ pub fn routes() -> Router<AppState> {
         .route("/makers/{id}/tor-address", get(get_tor_address))
         .route("/makers/{id}/data-dir", get(get_data_dir))
         .route("/makers/{id}/rpc-status", get(get_rpc_status))
+        .route("/logs/combined", get(get_combined_logs))
 }
 
 /// Get operational status of a maker
@@ -481,6 +485,45 @@ async fn get_rpc_status(
             Json(ApiResponse::err(e.to_string())),
         ),
     }
+}
+
+/// Get combined log lines from all makers, each tagged with maker_id.
+#[utoipa::path(
+    get,
+    path = "/api/logs/combined",
+    tag = "monitoring",
+    params(
+        ("lines" = Option<usize>, Query, description = "Number of tail lines per maker (default 100)")
+    ),
+    responses(
+        (status = 200, description = "Combined log lines", body = ApiResponse<Vec<CombinedLogLine>>)
+    )
+)]
+async fn get_combined_logs(
+    State(state): State<AppState>,
+    Query(query): Query<LogsQuery>,
+) -> (StatusCode, Json<ApiResponse<Vec<CombinedLogLine>>>) {
+    let n = query.lines.unwrap_or(100);
+    let maker_paths: Vec<(String, std::path::PathBuf)> = {
+        let manager = state.lock().await;
+        manager
+            .list_makers()
+            .into_iter()
+            .map(|id| (id.clone(), manager.log_file_path(id)))
+            .collect()
+    };
+    let mut all_lines: Vec<CombinedLogLine> = Vec::new();
+    for (maker_id, path) in maker_paths {
+        match read_last_n_lines(&path, n) {
+            Ok(lines) => all_lines.extend(lines.into_iter().map(|line| CombinedLogLine {
+                maker_id: maker_id.clone(),
+                line,
+            })),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => warn!("Failed to read logs for maker '{maker_id}': {e}"),
+        }
+    }
+    (StatusCode::OK, Json(ApiResponse::ok(all_lines)))
 }
 
 #[derive(Deserialize)]

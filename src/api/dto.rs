@@ -388,6 +388,13 @@ pub struct StartBitcoindRequest {
     pub network: String,
 }
 
+/// A single log line tagged with the maker it came from.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct CombinedLogLine {
+    pub maker_id: String,
+    pub line: String,
+}
+
 /// Status of the dashboard-managed bitcoind process
 #[derive(Debug, Serialize, ToSchema)]
 pub struct BitcoindStatusInfo {

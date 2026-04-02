@@ -49,6 +49,7 @@ pub type AppState = Arc<Mutex<MakerManager>>;
         monitoring::get_tor_address,
         monitoring::get_data_dir,
         monitoring::get_rpc_status,
+        monitoring::get_combined_logs,
         bitcoind::get_status,
         bitcoind::start,
         bitcoind::stop,
@@ -73,6 +74,7 @@ pub type AppState = Arc<Mutex<MakerManager>>;
         dto::StartupCheckResponse,
         dto::StartBitcoindRequest,
         dto::BitcoindStatusInfo,
+        dto::CombinedLogLine,
     )),
     tags(
         (name = "makers", description = "Maker management"),
