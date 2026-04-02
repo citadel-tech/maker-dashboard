@@ -75,6 +75,20 @@ body {
   animation: shimmer 1.8s ease-in-out infinite;
 }
 
+@keyframes swap-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 10px 2px rgba(249, 115, 22, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 22px 6px rgba(249, 115, 22, 0.55);
+  }
+}
+
+@utility animate-swap-glow {
+  animation: swap-glow 2s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

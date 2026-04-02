@@ -26,6 +26,7 @@ interface MakerRow {
   dataDir: string | null;
   earningsSats: number | null;
   swapReportCount: number | null;
+  swapActive: UtxoInfo[];
   swapCompleted: UtxoInfo[];
 }
 
@@ -98,6 +99,8 @@ export default function Home() {
               : null;
           const swapReports =
             reports.status === "fulfilled" ? reports.value : null;
+          const swapActive =
+            swaps.status === "fulfilled" ? swaps.value.active : [];
           const swapCompleted =
             swaps.status === "fulfilled" ? swaps.value.completed : [];
           const earningsSats =
@@ -121,6 +124,7 @@ export default function Home() {
             dataDir,
             earningsSats,
             swapReportCount,
+            swapActive,
             swapCompleted,
           };
         }),
@@ -315,10 +319,15 @@ export default function Home() {
               {visibleMakerRows.map((maker) => {
                 const isRunning = maker.state === "running";
                 const isPending = pending.has(maker.id);
+                const isSwapping = maker.swapActive.length > 0;
                 return (
                   <div
                     key={maker.id}
-                    className="group bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-5 hover:border-orange-500 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-orange-500/10 transition-all duration-200"
+                    className={`group bg-gray-900 border rounded-xl p-4 sm:p-5 hover:-translate-y-0.5 transition-all duration-200 ${
+                      isSwapping
+                        ? "border-orange-500 animate-swap-glow hover:shadow-xl hover:shadow-orange-500/20"
+                        : "border-gray-800 hover:border-orange-500 hover:shadow-lg hover:shadow-orange-500/10"
+                    }`}
                   >
                     <div className="flex items-center justify-between mb-3 sm:mb-4">
                       <div className="flex items-center gap-2">
@@ -333,15 +342,23 @@ export default function Home() {
                           {maker.id}
                         </h3>
                       </div>
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                          isRunning
-                            ? "bg-emerald-900/50 text-emerald-400"
-                            : "bg-gray-800 text-gray-500"
-                        }`}
-                      >
-                        {isRunning ? "Running" : "Stopped"}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {isSwapping && (
+                          <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-orange-900/50 text-orange-400 animate-pulse">
+                            <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
+                            Swap Active
+                          </span>
+                        )}
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                            isRunning
+                              ? "bg-emerald-900/50 text-emerald-400"
+                              : "bg-gray-800 text-gray-500"
+                          }`}
+                        >
+                          {isRunning ? "Running" : "Stopped"}
+                        </span>
+                      </div>
                     </div>
 
                     {maker.torAddress && (
