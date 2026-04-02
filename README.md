@@ -144,6 +144,33 @@ If you run multiple makers on one machine, make sure each maker uses unique netw
 
 On first setup, the maker may need funds to create a fidelity bond. You can use the wallet screen to generate an address, fund it, and then continue setup once the wallet has enough coins.
 
+## Docker
+
+Run the full stack (bitcoind, tor, dashboard) with Docker Compose:
+
+```sh
+cd docker
+docker compose up --build -d
+```
+
+This starts a custom signet bitcoind, a Tor daemon, and the maker dashboard — all sharing the same network namespace. The dashboard is available at `http://localhost:3000`.
+
+When creating a maker, use:
+- RPC: `127.0.0.1:38332`, ZMQ: `tcp://127.0.0.1:28332`
+- RPC credentials: `user` / `password`
+- Tor auth: `coinswap`
+- SOCKS port: `9050`, Control port: `9051`
+
+Other useful commands:
+
+```sh
+docker compose ps              # status
+docker compose logs -f web     # dashboard logs
+docker compose down -v         # stop and wipe all data
+```
+
+Host-exposed ports: `3000` (dashboard), `38332` (RPC), `28332` (ZMQ), `19050` (Tor SOCKS), `19051` (Tor control).
+
 ## Development Commands
 
 Backend:
