@@ -1,0 +1,89 @@
+services:
+  bitcoind:
+    image: ${BITCOIN_IMAGE:-bitcoin/bitcoin:28.1}
+    container_name: maker-dashboard-bitcoind
+    network_mode: "service:tor"
+    depends_on:
+      tor:
+        condition: service_healthy
+    volumes:
+      - bitcoin-data:/home/bitcoin/.bitcoin
+      - ./bitcoin.conf:/home/bitcoin/.bitcoin/bitcoin.conf
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "bitcoin-cli",
+          "-rpcuser=${BITCOIN_RPC_USER:-user}",
+          "-rpcpassword=${BITCOIN_RPC_PASSWORD:-password}",
+          "-rpcport=${BITCOIN_RPC_PORT:-38332}",
+          "getblockchaininfo",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  tor:
+    image: osminogin/tor-simple
+    container_name: maker-dashboard-tor
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        HASH=$$(tor --hash-password "coinswap" | grep "^16:")
+
+        cat > /tmp/torrc << EOF
+        SocksPort 0.0.0.0:9050
+        ControlPort 0.0.0.0:9051
+        DataDirectory /var/lib/tor
+        HashedControlPassword $$HASH
+        EOF
+
+        echo "Starting Tor..."
+        exec tor -f /tmp/torrc
+    volumes:
+      - tor-data:/var/lib/tor
+    ports:
+      - "19050:9050"
+      - "19051:9051"
+      - "${DASHBOARD_PORT:-3000}:${DASHBOARD_PORT:-3000}"
+      - "${BITCOIN_RPC_PORT:-38332}:${BITCOIN_RPC_PORT:-38332}"
+      - "${BITCOIN_ZMQ_PORT:-28332}:${BITCOIN_ZMQ_PORT:-28332}"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 9050 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build: ..
+    image: coinswap/maker-dashboard:latest
+    container_name: maker-dashboard-web
+    network_mode: "service:tor"
+    depends_on:
+      bitcoind:
+        condition: service_healthy
+      tor:
+        condition: service_healthy
+    volumes:
+      - dashboard-config:/root/.config/maker-dashboard
+      - coinswap-data:/root/.coinswap
+    environment:
+      - DASHBOARD_HOST=0.0.0.0
+      - DASHBOARD_PORT=${DASHBOARD_PORT:-3000}
+      - DASHBOARD_ALLOW_REMOTE=true
+      - DASHBOARD_LOG_FILTER=${DASHBOARD_LOG_FILTER:-tower_http=debug,info}
+      - DASHBOARD_NO_COLOR=true
+    restart: unless-stopped
+
+volumes:
+  bitcoin-data:
+    driver: local
+  tor-data:
+    driver: local
+  dashboard-config:
+    driver: local
+  coinswap-data:
+    driver: local
