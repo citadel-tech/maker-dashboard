@@ -51,6 +51,18 @@ export default function MakerDetails() {
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [walletRefreshToken, setWalletRefreshToken] = useState(0);
+  const [copiedTor, setCopiedTor] = useState(false);
+
+  function copyTorAddress() {
+    if (!torAddress) return;
+    navigator.clipboard
+      .writeText(torAddress)
+      .then(() => {
+        setCopiedTor(true);
+        setTimeout(() => setCopiedTor(false), 2000);
+      })
+      .catch(() => {});
+  }
 
   const loadCore = useCallback(async () => {
     if (!id) return;
@@ -249,13 +261,24 @@ export default function MakerDetails() {
                 </div>
               </div>
             </div>
-            <div className="sm:max-w-xs">
+            <div className="sm:max-w-xs flex flex-col items-start min-w-0">
               <div className="text-sm text-orange-100 mb-1">Tor Hostname</div>
-              <div
-                className="text-xs sm:text-sm font-mono text-white bg-white/10 px-3 py-2 rounded-lg break-all"
-                title={torAddress ?? undefined}
-              >
-                {torAddress ? truncateMiddle(torAddress) : "—"}
+              <div className="flex items-center gap-2 w-full">
+                <div
+                  className="text-xs sm:text-sm font-mono text-white bg-white/10 px-3 py-2 rounded-lg break-all flex-1"
+                  title={torAddress ?? undefined}
+                >
+                  {torAddress ? truncateMiddle(torAddress) : "—"}
+                </div>
+                {torAddress && (
+                  <button
+                    type="button"
+                    onClick={copyTorAddress}
+                    className="shrink-0 text-xs px-3 py-1.5 bg-black/20 hover:bg-black/30 text-white rounded-lg transition-all"
+                  >
+                    {copiedTor ? "Copied!" : "Copy"}
+                  </button>
+                )}
               </div>
             </div>
           </div>
