@@ -49,6 +49,12 @@ fn log_paths() -> &'static Mutex<HashMap<String, PathBuf>> {
     LOG_PATHS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
+impl Default for MakerLogWriter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MakerLogWriter {
     pub fn new() -> Self {
         Self
