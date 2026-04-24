@@ -226,6 +226,25 @@ impl ApiClient {
             .unwrap_or_else(|e| panic!("JSON decode POST {path}: {e}"))
     }
 
+    /// Like `post_json` but returns the response body as `Value` even on non-2xx,
+    /// so callers can inspect `resp["success"]` without panicking on transient errors.
+    /// Only panics on transport-level failures (no connection, timeout, etc.).
+    fn post_json_allow_status(&self, path: &str, body: &Value) -> Value {
+        match self
+            .agent
+            .post(&format!("{}{path}", self.base))
+            .send_json(body)
+        {
+            Ok(resp) => resp
+                .into_json()
+                .unwrap_or_else(|e| panic!("JSON decode POST {path}: {e}")),
+            Err(ureq::Error::Status(_, resp)) => resp
+                .into_json()
+                .unwrap_or(serde_json::json!({"success": false})),
+            Err(e) => panic!("POST {path} transport error: {e}"),
+        }
+    }
+
     fn put_json<T: DeserializeOwned>(&self, path: &str, body: &Value) -> T {
         self.agent
             .put(&format!("{}{path}", self.base))
@@ -297,11 +316,17 @@ impl ApiClient {
     }
 
     fn sync_wallet(&self, id: &str) {
-        let resp: Value = self.post_json(&format!("/makers/{id}/sync"), &serde_json::json!({}));
-        assert!(
-            resp["success"].as_bool().unwrap_or(false),
-            "sync '{id}': {resp}"
-        );
+        let deadline = std::time::Instant::now() + Duration::from_secs(180);
+        loop {
+            let resp = self.post_json_allow_status(&format!("/makers/{id}/sync"), &serde_json::json!({}));
+            if resp["success"].as_bool().unwrap_or(false) {
+                return;
+            }
+            if std::time::Instant::now() >= deadline {
+                panic!("sync '{id}' failed after 3-minute deadline: {resp}");
+            }
+            thread::sleep(Duration::from_secs(5));
+        }
     }
 
     /// Returns (regular, swap, contract, fidelity, spendable) in satoshis.

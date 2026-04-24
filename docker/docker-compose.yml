@@ -58,7 +58,6 @@ services:
       retries: 5
 
   web:
-    build: ..
     image: coinswap/maker-dashboard:latest
     container_name: maker-dashboard-web
     network_mode: "service:tor"
