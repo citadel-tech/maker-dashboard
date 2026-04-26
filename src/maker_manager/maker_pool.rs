@@ -207,13 +207,30 @@ fn handle_request(
             },
             Err(e) => MessageResponse::ServerError(e.to_string()),
         },
-        MessageRequest::SyncWallet => match maker.wallet().write() {
-            Ok(mut wallet) => match wallet.sync_and_save() {
-                Ok(_) => MessageResponse::Pong,
-                Err(e) => MessageResponse::ServerError(e.to_string()),
-            },
-            Err(e) => MessageResponse::ServerError(e.to_string()),
-        },
+        MessageRequest::SyncWallet => {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+            loop {
+                match maker.wallet().try_write() {
+                    Ok(mut wallet) => {
+                        break match wallet.sync_and_save() {
+                            Ok(_) => MessageResponse::Pong,
+                            Err(e) => MessageResponse::ServerError(e.to_string()),
+                        }
+                    }
+                    Err(std::sync::TryLockError::Poisoned(e)) => {
+                        break MessageResponse::ServerError(e.to_string());
+                    }
+                    Err(std::sync::TryLockError::WouldBlock) => {
+                        if std::time::Instant::now() >= deadline {
+                            break MessageResponse::ServerError(
+                                "Wallet is busy, try again".to_string(),
+                            );
+                        }
+                        thread::sleep(std::time::Duration::from_millis(200));
+                    }
+                }
+            }
+        }
         MessageRequest::SweptSwapUtxo => match maker.wallet().read() {
             Ok(wallet) => MessageResponse::SweptSwapUtxoResp {
                 utxos: wallet

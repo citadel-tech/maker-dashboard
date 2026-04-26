@@ -226,6 +226,25 @@ impl ApiClient {
             .unwrap_or_else(|e| panic!("JSON decode POST {path}: {e}"))
     }
 
+    /// Like `post_json` but returns the response body as `Value` even on non-2xx,
+    /// so callers can inspect `resp["success"]` without panicking on transient errors.
+    /// Only panics on transport-level failures (no connection, timeout, etc.).
+    fn post_json_allow_status(&self, path: &str, body: &Value) -> Value {
+        match self
+            .agent
+            .post(&format!("{}{path}", self.base))
+            .send_json(body)
+        {
+            Ok(resp) => resp
+                .into_json()
+                .unwrap_or_else(|e| panic!("JSON decode POST {path}: {e}")),
+            Err(ureq::Error::Status(_, resp)) => resp
+                .into_json()
+                .unwrap_or(serde_json::json!({"success": false})),
+            Err(e) => panic!("POST {path} transport error: {e}"),
+        }
+    }
+
     fn put_json<T: DeserializeOwned>(&self, path: &str, body: &Value) -> T {
         self.agent
             .put(&format!("{}{path}", self.base))
@@ -297,11 +316,18 @@ impl ApiClient {
     }
 
     fn sync_wallet(&self, id: &str) {
-        let resp: Value = self.post_json(&format!("/makers/{id}/sync"), &serde_json::json!({}));
-        assert!(
-            resp["success"].as_bool().unwrap_or(false),
-            "sync '{id}': {resp}"
-        );
+        let deadline = std::time::Instant::now() + Duration::from_secs(180);
+        loop {
+            let resp =
+                self.post_json_allow_status(&format!("/makers/{id}/sync"), &serde_json::json!({}));
+            if resp["success"].as_bool().unwrap_or(false) {
+                return;
+            }
+            if std::time::Instant::now() >= deadline {
+                panic!("sync '{id}' failed after 3-minute deadline: {resp}");
+            }
+            thread::sleep(Duration::from_secs(5));
+        }
     }
 
     /// Returns (regular, swap, contract, fidelity, spendable) in satoshis.
@@ -596,6 +622,24 @@ fn test_maker_manager_integration() {
     client.start_maker(MAKER_ALPHA_ID);
     client.start_maker(MAKER_BETA_ID);
 
+    // Start a continuous block generator. Makers broadcast fidelity bonds and
+    // settlement transactions asynchronously and then enter an internal sync
+    // loop that holds the wallet write lock with growing backoff (10s, 20s,
+    // 30s, ...) while waiting for confirmations. Without ongoing block
+    // production those transactions never confirm, the lock is never
+    // released, and any external wallet operation hangs indefinitely.
+    let shutdown_blocks = Arc::new(AtomicBool::new(false));
+    let shutdown_blocks2 = shutdown_blocks.clone();
+    let bitcoind_for_blocks = bitcoind.clone();
+    let block_gen_thread = thread::spawn(move || {
+        while !shutdown_blocks2.load(Ordering::Relaxed) {
+            thread::sleep(Duration::from_secs(2));
+            if !shutdown_blocks2.load(Ordering::Relaxed) {
+                generate_blocks(&bitcoind_for_blocks, 1);
+            }
+        }
+    });
+
     wait_for_maker_alive(&client, MAKER_ALPHA_ID, Duration::from_secs(60));
     wait_for_maker_alive(&client, MAKER_BETA_ID, Duration::from_secs(60));
 
@@ -672,21 +716,9 @@ fn test_maker_manager_integration() {
         "network_port changed unexpectedly"
     );
 
-    // Run coinswap — block-gen thread mines transactions during execution
+    // Run coinswap — block-gen thread (started earlier) keeps mining during execution
     println!("[INFO] Initiating coinswap");
     wait_for_maker_alive(&client, MAKER_BETA_ID, Duration::from_secs(30));
-
-    let shutdown_blocks = Arc::new(AtomicBool::new(false));
-    let shutdown_blocks2 = shutdown_blocks.clone();
-    let bitcoind_for_blocks = bitcoind.clone();
-    let block_gen_thread = thread::spawn(move || {
-        while !shutdown_blocks2.load(Ordering::Relaxed) {
-            thread::sleep(Duration::from_secs(3));
-            if !shutdown_blocks2.load(Ordering::Relaxed) {
-                generate_blocks(&bitcoind_for_blocks, 10);
-            }
-        }
-    });
 
     let swap_summary = taker
         .prepare_coinswap(
@@ -701,11 +733,8 @@ fn test_maker_manager_integration() {
         .start_coinswap(&swap_summary.swap_id)
         .expect("coinswap failed");
 
-    shutdown_blocks.store(true, Ordering::Relaxed);
-    block_gen_thread.join().expect("block gen thread panicked");
     println!("[INFO] Coinswap completed");
 
-    generate_blocks(&bitcoind, 1);
     client.sync_wallet(MAKER_ALPHA_ID);
     client.sync_wallet(MAKER_BETA_ID);
 
@@ -853,4 +882,7 @@ fn test_maker_manager_integration() {
     println!(
         "[INFO] All checks passed — alpha: {post_alpha_spendable} sats, beta: {post_beta_spendable} sats"
     );
+
+    shutdown_blocks.store(true, Ordering::Relaxed);
+    block_gen_thread.join().expect("block gen thread panicked");
 }
