@@ -318,7 +318,8 @@ impl ApiClient {
     fn sync_wallet(&self, id: &str) {
         let deadline = std::time::Instant::now() + Duration::from_secs(180);
         loop {
-            let resp = self.post_json_allow_status(&format!("/makers/{id}/sync"), &serde_json::json!({}));
+            let resp =
+                self.post_json_allow_status(&format!("/makers/{id}/sync"), &serde_json::json!({}));
             if resp["success"].as_bool().unwrap_or(false) {
                 return;
             }
