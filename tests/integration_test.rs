@@ -140,6 +140,7 @@ impl DashboardGuard {
                         spa_index: PathBuf::from("frontend/build/client/index.html"),
                         localhost_only: true,
                         config_dir,
+                        password: "integration-test-password".to_string(),
                     };
                     let server = Server::new(cfg).expect("Server::new");
                     let addr = server.addr();
@@ -199,13 +200,22 @@ struct ApiClient {
 
 impl ApiClient {
     fn new(port: u16, creds: RpcCreds) -> Self {
-        Self {
+        let agent = ureq::AgentBuilder::new()
+            .timeout(Duration::from_secs(120))
+            .cookie_store(cookie_store::CookieStore::default())
+            .build();
+        let client = Self {
             base: format!("http://127.0.0.1:{port}/api"),
-            agent: ureq::AgentBuilder::new()
-                .timeout(Duration::from_secs(120))
-                .build(),
+            agent,
             creds,
-        }
+        };
+        // Log in to obtain session cookie
+        client
+            .agent
+            .post(&format!("http://127.0.0.1:{port}/api/auth/login"))
+            .send_json(serde_json::json!({ "password": "integration-test-password" }))
+            .expect("dashboard login failed");
+        client
     }
 
     fn get<T: DeserializeOwned>(&self, path: &str) -> T {

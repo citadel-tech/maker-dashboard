@@ -75,9 +75,35 @@ cd frontend && npm run build
 
 By default the server listens on `http://127.0.0.1:3000`. Open that in your browser to use the dashboard. Swagger UI is available at `http://127.0.0.1:3000/swagger-ui/`.
 
+## Authentication
+
+The dashboard requires a password. Set it via environment variable before starting:
+
+```sh
+DASHBOARD_PASSWORD=yourpassword make run
+```
+
+On the first start the password is hashed with argon2id and stored in
+`~/.config/maker-dashboard/auth.json`. Maker configs are encrypted at rest using a key
+derived from the same password. On every subsequent start the supplied password is
+verified against the stored hash; a wrong password causes an immediate exit.
+
+For Docker or systemd deployments you can point at a secrets file instead:
+
+```sh
+DASHBOARD_PASSWORD_FILE=/run/secrets/dashboard_password maker-dashboard
+```
+
+See [SECURITY.md](SECURITY.md) for the full security model.
+
 ## First-Run Flow
 
-If there are no registered makers, the home page opens a guided onboarding flow instead of an empty dashboard. The onboarding wizard helps you:
+On first launch you will be prompted to log in with the password you set via
+`DASHBOARD_PASSWORD`. After a successful login the browser holds a session cookie valid
+for 24 hours.
+
+If there are no registered makers, the home page opens a guided onboarding flow. The
+onboarding wizard helps you:
 
 - Verify Bitcoin Core RPC connectivity
 - Verify Bitcoin Core REST availability
@@ -85,7 +111,8 @@ If there are no registered makers, the home page opens a guided onboarding flow 
 - Verify local Tor SOCKS and control ports
 - Create your first maker from the browser
 
-After a maker is created, the UI takes you to a setup screen that tails live logs while the maker initializes and waits for the fidelity bond flow to complete.
+After a maker is created, the UI takes you to a setup screen that tails live logs while
+the maker initializes and waits for the fidelity bond flow to complete.
 
 ## Managing Makers
 
@@ -116,12 +143,15 @@ Runtime options can be set with CLI flags or environment variables:
 | `--log-filter`    | `DASHBOARD_LOG_FILTER`    | `tower_http=debug,info`            | Tracing filter directive                   |
 | `--no-color`      | `DASHBOARD_NO_COLOR`      | `false`                            | Disable ANSI colors in logs                |
 | `--config-dir`    | `DASHBOARD_CONFIG_DIR`    | platform default                   | Dashboard config directory                 |
+| *(env only)*      | `DASHBOARD_PASSWORD`      | *(required)*                       | Dashboard password (never use as CLI flag) |
+| *(env only)*      | `DASHBOARD_PASSWORD_FILE` | —                                  | Path to a file containing the password     |
 
-By default the dashboard only accepts connections from the local machine. If you enable `--allow-remote`, put authentication and TLS in front of it with a reverse proxy.
+By default the dashboard only accepts connections from the local machine. If you enable `--allow-remote`, place a TLS-terminating reverse proxy in front — the built-in password auth is the only protection on the wire.
 
 Dashboard-managed files:
 
-- Registered maker configs: `~/.config/maker-dashboard/makers.json`
+- Auth config (argon2id hash + salts): `~/.config/maker-dashboard/auth.json`
+- Encrypted maker configs: `~/.config/maker-dashboard/makers.json`
 - Per-maker logs: `~/.coinswap/{id}/debug.log`
 
 Maker wallet and data directories are configured per maker and may differ from the dashboard config directory.
@@ -146,6 +176,13 @@ On first setup, the maker may need funds to create a fidelity bond. You can use 
 
 ## Docker
 
+Set a password before starting — the compose file will refuse to start without it:
+
+```sh
+export DASHBOARD_PASSWORD=yourpassword
+# or put it in docker/.env:  DASHBOARD_PASSWORD=yourpassword
+```
+
 Run the full stack (bitcoind, tor, dashboard) with Docker Compose:
 
 ```sh
@@ -153,7 +190,7 @@ cd docker
 docker compose up --build -d
 ```
 
-This starts a custom signet bitcoind, a Tor daemon, and the maker dashboard — all sharing the same network namespace. The dashboard is available at `http://localhost:3000`.
+This starts a custom signet bitcoind, a Tor daemon, and the maker dashboard — all sharing the same network namespace. The dashboard is available at `http://localhost:3000`. You will be prompted to log in with the password you set.
 
 When creating a maker, use:
 - RPC: `127.0.0.1:38332`, ZMQ: `tcp://127.0.0.1:28332`
