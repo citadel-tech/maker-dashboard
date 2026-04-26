@@ -1,6 +1,9 @@
-use axum::{extract::State, http::StatusCode, routing::get, routing::post, Json, Router};
+use std::sync::Arc;
 
-use crate::maker_manager::MakerConfig;
+use axum::{extract::State, http::StatusCode, routing::get, routing::post, Json, Router};
+use tokio::sync::Mutex;
+
+use crate::maker_manager::{MakerConfig, MakerManager};
 
 use super::{
     dto::{ApiResponse, BitcoindStatusInfo, StartBitcoindRequest},
@@ -39,7 +42,9 @@ fn probe_rpc(config: &MakerConfig) -> Option<String> {
         (status = 200, description = "Bitcoind connectivity status", body = ApiResponse<BitcoindStatusInfo>),
     )
 )]
-async fn get_status(State(state): State<AppState>) -> Json<ApiResponse<BitcoindStatusInfo>> {
+async fn get_status(
+    State(state): State<Arc<Mutex<MakerManager>>>,
+) -> Json<ApiResponse<BitcoindStatusInfo>> {
     // Collect maker configs (drop lock before blocking work)
     let configs: Vec<MakerConfig> = {
         let mgr = state.lock().await;
@@ -93,7 +98,7 @@ async fn get_status(State(state): State<AppState>) -> Json<ApiResponse<BitcoindS
     )
 )]
 async fn start(
-    State(state): State<AppState>,
+    State(state): State<Arc<Mutex<MakerManager>>>,
     Json(body): Json<StartBitcoindRequest>,
 ) -> (StatusCode, Json<ApiResponse<BitcoindStatusInfo>>) {
     let network = body.network.clone();
@@ -124,7 +129,7 @@ async fn start(
     )
 )]
 async fn stop(
-    State(state): State<AppState>,
+    State(state): State<Arc<Mutex<MakerManager>>>,
 ) -> (StatusCode, Json<ApiResponse<BitcoindStatusInfo>>) {
     // Take the child handle while holding the lock, then release it before blocking.
     let child = state.lock().await.take_bitcoind();

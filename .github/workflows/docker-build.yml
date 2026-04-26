@@ -45,6 +45,7 @@ jobs:
         run: |
           docker run -d --rm --name test-container -p 3000:3000 \
             -e DASHBOARD_HOST=0.0.0.0 -e DASHBOARD_ALLOW_REMOTE=true \
+            -e DASHBOARD_PASSWORD=ci-smoke-test \
             maker-dashboard:test
           # Wait for the server to be ready
           for i in $(seq 1 30); do
@@ -59,6 +60,6 @@ jobs:
             fi
             sleep 1
           done
-          # Verify API responds
-          curl -sf http://localhost:3000/api/makers | jq .
+          # Verify API responds (use an unauthenticated endpoint for the smoke test)
+          curl -sf http://localhost:3000/api/auth/status | jq .
           docker stop test-container || true

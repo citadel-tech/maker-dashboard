@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use axum::{
     extract::{Path, State},
@@ -6,6 +7,7 @@ use axum::{
     routing::{delete, get, post, put},
     Json, Router,
 };
+use tokio::sync::Mutex;
 
 use super::{
     dto::{
@@ -14,7 +16,7 @@ use super::{
     },
     AppState,
 };
-use crate::maker_manager::{MakerConfig, MakerManagerError};
+use crate::maker_manager::{MakerConfig, MakerManager, MakerManagerError};
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -36,7 +38,9 @@ pub fn routes() -> Router<AppState> {
     get, path = "/api/makers", tag = "makers",
     responses((status = 200, description = "List of all makers", body = ApiResponse<Vec<MakerInfo>>))
 )]
-async fn list_makers(State(state): State<AppState>) -> Json<ApiResponse<Vec<MakerInfo>>> {
+async fn list_makers(
+    State(state): State<Arc<Mutex<MakerManager>>>,
+) -> Json<ApiResponse<Vec<MakerInfo>>> {
     let mgr = state.lock().await;
     let makers: Vec<MakerInfo> = mgr
         .list_makers()
@@ -55,7 +59,7 @@ async fn list_makers(State(state): State<AppState>) -> Json<ApiResponse<Vec<Make
     )
 )]
 async fn get_suggested_ports(
-    State(state): State<AppState>,
+    State(state): State<Arc<Mutex<MakerManager>>>,
 ) -> (StatusCode, Json<ApiResponse<SuggestedMakerPorts>>) {
     let mgr = state.lock().await;
     match mgr.assign_available_maker_ports(6102, 6103, 9050, 9051, None) {
@@ -132,7 +136,7 @@ fn validate_maker_config(config: &MakerConfig) -> Result<(), String> {
     )
 )]
 async fn create_maker(
-    State(state): State<AppState>,
+    State(state): State<Arc<Mutex<MakerManager>>>,
     Json(body): Json<CreateMakerRequest>,
 ) -> (StatusCode, Json<ApiResponse<MakerInfo>>) {
     let mut mgr = state.lock().await;
@@ -229,7 +233,7 @@ async fn create_maker(
     )
 )]
 async fn get_maker(
-    State(state): State<AppState>,
+    State(state): State<Arc<Mutex<MakerManager>>>,
     Path(id): Path<String>,
 ) -> (StatusCode, Json<ApiResponse<MakerInfoDetailed>>) {
     let mgr = state.lock().await;
@@ -256,7 +260,7 @@ async fn get_maker(
     )
 )]
 async fn delete_maker(
-    State(state): State<AppState>,
+    State(state): State<Arc<Mutex<MakerManager>>>,
     Path(id): Path<String>,
 ) -> (StatusCode, Json<ApiResponse<String>>) {
     let mut mgr = state.lock().await;
@@ -285,7 +289,7 @@ async fn delete_maker(
     )
 )]
 async fn update_config(
-    State(state): State<AppState>,
+    State(state): State<Arc<Mutex<MakerManager>>>,
     Path(id): Path<String>,
     Json(body): Json<UpdateMakerConfigRequest>,
 ) -> (StatusCode, Json<ApiResponse<String>>) {
@@ -347,7 +351,7 @@ async fn update_config(
     )
 )]
 async fn get_maker_info(
-    State(state): State<AppState>,
+    State(state): State<Arc<Mutex<MakerManager>>>,
     Path(id): Path<String>,
 ) -> (StatusCode, Json<ApiResponse<MakerInfoDetailed>>) {
     let mgr = state.lock().await;
@@ -365,7 +369,9 @@ async fn get_maker_info(
     get, path = "/api/makers/count", tag = "makers",
     responses((status = 200, description = "Total maker count", body = ApiResponse<usize>))
 )]
-async fn get_maker_count(State(state): State<AppState>) -> Json<ApiResponse<usize>> {
+async fn get_maker_count(
+    State(state): State<Arc<Mutex<MakerManager>>>,
+) -> Json<ApiResponse<usize>> {
     let mgr = state.lock().await;
     Json(ApiResponse::ok(mgr.maker_count()))
 }
@@ -382,7 +388,7 @@ async fn get_maker_count(State(state): State<AppState>) -> Json<ApiResponse<usiz
     )
 )]
 async fn start_maker(
-    State(state): State<AppState>,
+    State(state): State<Arc<Mutex<MakerManager>>>,
     Path(id): Path<String>,
 ) -> (StatusCode, Json<ApiResponse<String>>) {
     let mut mgr = state.lock().await;
@@ -418,7 +424,7 @@ async fn start_maker(
     )
 )]
 async fn stop_maker(
-    State(state): State<AppState>,
+    State(state): State<Arc<Mutex<MakerManager>>>,
     Path(id): Path<String>,
 ) -> (StatusCode, Json<ApiResponse<String>>) {
     let mut mgr = state.lock().await;
@@ -453,7 +459,7 @@ async fn stop_maker(
     )
 )]
 async fn restart_maker(
-    State(state): State<AppState>,
+    State(state): State<Arc<Mutex<MakerManager>>>,
     Path(id): Path<String>,
 ) -> (StatusCode, Json<ApiResponse<String>>) {
     let mut mgr = state.lock().await;

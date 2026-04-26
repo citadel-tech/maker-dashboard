@@ -26,13 +26,19 @@ thiserror = "2.0.18"
 futures = "0.3.32"
 clap = { version = "4.5.60", features = ["derive", "env"] }
 dirs = "6.0.0"
+argon2 = "0.5"
+aes-gcm = "0.10"
+rand = { version = "0.8", features = ["getrandom"] }
+base64 = "0.22"
+hex = "0.4"
 
 [[test]]
 name = "api"
 path = "tests/api/mod.rs"
 
 [dev-dependencies]
-ureq = { version = "2", features = ["json"] }
+ureq = { version = "2", features = ["json", "cookies"] }
+cookie_store = "0.21"
 bitcoind = { version = "0.36", features = [] }
 bitcoin = { version = "0.32" }
 log = "0.4"
