@@ -193,6 +193,13 @@ function PrereqsStep({
   ];
 
   const allChecked = prereqs.every((p) => checks[p.id]?.status === "success");
+  const isRunningAll = Object.values(checks).some(
+    (c) => c.status === "loading",
+  );
+
+  async function runAllChecks() {
+    await Promise.all(prereqs.map((p) => runCheck(p.id)));
+  }
 
   async function runCheck(check: StartupCheckKind) {
     setChecks((prev) => ({
@@ -244,8 +251,7 @@ function PrereqsStep({
     <div className="max-w-2xl mx-auto">
       <h2 className="text-2xl font-bold mb-2 text-center">Before you begin</h2>
       <p className="text-gray-400 text-center mb-8">
-        Click each item to run a live check against your local Bitcoin Core and
-        Tor setup.
+        Run all checks at once to verify your local Bitcoin Core and Tor setup.
       </p>
 
       <div className="mb-8 rounded-xl border border-gray-800 bg-gray-900 p-5">
@@ -332,6 +338,22 @@ function PrereqsStep({
         </div>
       </div>
 
+      <button
+        type="button"
+        onClick={() => void runAllChecks()}
+        disabled={isRunningAll}
+        className="mb-6 w-full px-4 py-3 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 disabled:cursor-wait text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2"
+      >
+        {isRunningAll ? (
+          <>
+            <LoaderCircle className="w-4 h-4 animate-spin" />
+            Checking...
+          </>
+        ) : (
+          "Run All Checks"
+        )}
+      </button>
+
       <div className="space-y-4 mb-8">
         {prereqs.map((p) => {
           const state = checks[p.id] ?? { status: "idle" as const };
@@ -340,24 +362,21 @@ function PrereqsStep({
           const isError = state.status === "error";
 
           return (
-            <button
+            <div
               key={p.id}
-              type="button"
-              onClick={() => void runCheck(p.id)}
-              disabled={isLoading}
               className={`w-full rounded-xl border p-4 text-left transition-all ${
                 isSuccess
-                  ? "border-orange-500/60 bg-orange-950/20"
+                  ? "border-emerald-500/70 bg-emerald-950/20"
                   : isError
                     ? "border-red-700/70 bg-red-950/20"
                     : "border-gray-700 bg-gray-900 hover:border-gray-600"
-              } ${isLoading ? "cursor-wait" : "cursor-pointer"}`}
+              }`}
             >
               <div className="flex items-start gap-4">
                 <div
                   className={`mt-0.5 w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
                     isSuccess
-                      ? "border-orange-500 bg-orange-500"
+                      ? "border-emerald-500 bg-emerald-500"
                       : isError
                         ? "border-red-500 bg-red-500/20"
                         : isLoading
@@ -383,7 +402,7 @@ function PrereqsStep({
                           ? "Passed"
                           : isError
                             ? "Failed"
-                            : "Click to test"}
+                            : "Not checked"}
                     </span>
                   </div>
                   <p className="text-sm text-gray-400 mb-2">{p.desc}</p>
@@ -394,7 +413,7 @@ function PrereqsStep({
                     <p
                       className={`mt-3 text-sm ${
                         isSuccess
-                          ? "text-orange-300"
+                          ? "text-emerald-300"
                           : isError
                             ? "text-red-300"
                             : "text-gray-400"
@@ -410,7 +429,7 @@ function PrereqsStep({
                   )}
                 </div>
               </div>
-            </button>
+            </div>
           );
         })}
       </div>

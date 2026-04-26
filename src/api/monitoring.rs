@@ -215,7 +215,7 @@ fn load_swap_reports(
         }
     }
 
-    reports.sort_by_key(|r| r.end_timestamp);
+    reports.sort_by_key(|b| std::cmp::Reverse(b.end_timestamp));
     Ok(reports)
 }
 

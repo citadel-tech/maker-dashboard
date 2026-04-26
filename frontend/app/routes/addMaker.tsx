@@ -109,6 +109,18 @@ export default function AddMaker() {
     }));
   };
 
+  async function runAllChecks() {
+    await Promise.all(
+      (["bitcoin", "rpc", "rest", "zmq", "tor"] as const).map((c) =>
+        runCheck(c),
+      ),
+    );
+  }
+
+  const isRunningAll = Object.values(checks).some(
+    (c) => c.status === "loading",
+  );
+
   async function runCheck(check: "bitcoin" | "rpc" | "rest" | "zmq" | "tor") {
     setChecks((prev) => ({
       ...prev,
@@ -704,9 +716,24 @@ export default function AddMaker() {
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
             <h3 className="text-lg font-semibold mb-2">Pre-checks</h3>
             <p className="text-sm text-gray-400 mb-6">
-              Click each item to run a live check against your current Bitcoin
-              Core and Tor settings.
+              Run all checks at once to verify your Bitcoin Core and Tor setup.
             </p>
+
+            <button
+              type="button"
+              onClick={() => void runAllChecks()}
+              disabled={isRunningAll}
+              className="mb-6 w-full px-4 py-3 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 disabled:cursor-wait text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2"
+            >
+              {isRunningAll ? (
+                <>
+                  <LoaderCircle className="w-4 h-4 animate-spin" />
+                  Checking...
+                </>
+              ) : (
+                "Run All Checks"
+              )}
+            </button>
 
             <div className="space-y-4">
               {prereqs.map((prereq) => {
@@ -716,18 +743,15 @@ export default function AddMaker() {
                 const isError = state.status === "error";
 
                 return (
-                  <button
+                  <div
                     key={prereq.id}
-                    type="button"
-                    onClick={() => void runCheck(prereq.id)}
-                    disabled={isLoading}
                     className={`w-full rounded-xl border p-4 text-left transition-all ${
                       isSuccess
                         ? "border-emerald-500/70 bg-emerald-950/20"
                         : isError
                           ? "border-red-700/70 bg-red-950/20"
-                          : "border-gray-700 bg-gray-900 hover:border-gray-600"
-                    } ${isLoading ? "cursor-wait" : "cursor-pointer"}`}
+                          : "border-gray-700 bg-gray-900"
+                    }`}
                   >
                     <div className="flex items-start gap-4">
                       <div
@@ -761,7 +785,7 @@ export default function AddMaker() {
                                 ? "Passed"
                                 : isError
                                   ? "Failed"
-                                  : "Click to test"}
+                                  : "Not checked"}
                           </span>
                         </div>
                         <p className="text-sm text-gray-400 mb-2">
@@ -790,7 +814,7 @@ export default function AddMaker() {
                         )}
                       </div>
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
