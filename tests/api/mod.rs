@@ -17,7 +17,11 @@ use serde_json::Value;
 use tokio::sync::Mutex;
 use tower::ServiceExt;
 
-use maker_dashboard::{api::api_router, maker_manager::MakerManager};
+use maker_dashboard::{
+    api::{api_router, AppState},
+    auth::{AuthConfig, SessionStore},
+    maker_manager::MakerManager,
+};
 
 mod fidelity;
 mod makers;
@@ -35,8 +39,14 @@ pub fn test_app() -> Router {
         std::fs::remove_dir_all(&config_dir).unwrap();
     }
     std::fs::create_dir_all(&config_dir).unwrap();
-    let manager = MakerManager::new(config_dir).expect("MakerManager::new");
-    let state = Arc::new(Mutex::new(manager));
+    let manager = MakerManager::new(config_dir.clone(), None).expect("MakerManager::new");
+    let auth_config = AuthConfig::new("test-password").expect("AuthConfig::new");
+    let state = AppState {
+        makers: Arc::new(Mutex::new(manager)),
+        sessions: Arc::new(Mutex::new(SessionStore::new())),
+        auth: Arc::new(std::sync::RwLock::new(auth_config)),
+        config_dir: Arc::new(config_dir),
+    };
     api_router().with_state(state)
 }
 

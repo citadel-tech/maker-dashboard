@@ -108,8 +108,8 @@ impl MakerManager {
 
     /// Creates a new MakerManager with persistence at the given config directory.
     /// Loads any previously saved maker configs and re-initializes them (but does NOT start servers).
-    pub fn new(config_dir: PathBuf) -> Result<Self> {
-        let persistence = PersistenceManager::new(config_dir.clone())?;
+    pub fn new(config_dir: PathBuf, enc_key: Option<[u8; 32]>) -> Result<Self> {
+        let persistence = PersistenceManager::new(config_dir.clone(), enc_key)?;
         let saved_configs = persistence.load()?;
 
         let mut mgr = Self {
@@ -284,6 +284,13 @@ impl MakerManager {
         if let Err(e) = self.persistence.save(&self.configs) {
             tracing::error!("Failed to persist maker configs: {}", e);
         }
+    }
+
+    /// Re-encrypts all maker configs with `new_key` and saves to disk.
+    /// Call after rotating the dashboard password so makers.json uses the new key.
+    pub fn rotate_enc_key(&mut self, new_key: Option<[u8; 32]>) -> anyhow::Result<()> {
+        self.persistence.update_enc_key(new_key);
+        self.persistence.save(&self.configs)
     }
 
     pub fn is_port_in_use(&self, port: u16, exclude_id: Option<&str>) -> bool {
@@ -710,7 +717,7 @@ mod tests {
         }
         std::fs::create_dir_all(&config_dir).unwrap();
 
-        let manager = MakerManager::new(config_dir).unwrap();
+        let manager = MakerManager::new(config_dir, None).unwrap();
         let network_listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let rpc_listener = TcpListener::bind("127.0.0.1:0").unwrap();
 

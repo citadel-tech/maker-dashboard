@@ -1,4 +1,5 @@
 mod api;
+mod auth;
 mod cli;
 mod maker_manager;
 mod middlewares;
@@ -33,6 +34,33 @@ async fn main() {
         .with(tracing_subscriber::EnvFilter::new(&args.log_filter))
         .init();
 
+    let password = match std::env::var("DASHBOARD_PASSWORD") {
+        Ok(p) if !p.is_empty() => p,
+        _ => match std::env::var("DASHBOARD_PASSWORD_FILE") {
+            Ok(path) => match std::fs::read_to_string(&path) {
+                Ok(contents) => {
+                    let p = contents.trim().to_string();
+                    if p.is_empty() {
+                        tracing::error!("DASHBOARD_PASSWORD_FILE is empty: {path}");
+                        std::process::exit(1);
+                    }
+                    p
+                }
+                Err(e) => {
+                    tracing::error!("Failed to read DASHBOARD_PASSWORD_FILE ({path}): {e}");
+                    std::process::exit(1);
+                }
+            },
+            Err(_) => {
+                tracing::error!(
+                    "No password set. Set DASHBOARD_PASSWORD or DASHBOARD_PASSWORD_FILE."
+                );
+                tracing::error!("Example: DASHBOARD_PASSWORD=mysecretpass maker-dashboard");
+                std::process::exit(1);
+            }
+        },
+    };
+
     tracing::info!("Using config directory: {}", config_dir.display());
     let config = ServerConfig {
         host: args.host,
@@ -41,6 +69,7 @@ async fn main() {
         spa_index: args.spa_index,
         localhost_only: !args.allow_remote,
         config_dir,
+        password,
     };
 
     match Server::new(config) {

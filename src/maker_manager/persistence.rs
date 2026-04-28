@@ -3,6 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
+use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use serde::{Deserialize, Serialize};
 
 use super::maker_pool::MakerId;
@@ -150,11 +151,12 @@ struct StoredState {
 /// Maker wallet/data directories live under `~/.coinswap/` and are managed by coinswap itself.
 pub struct PersistenceManager {
     pub config_dir: PathBuf,
+    enc_key: Option<[u8; 32]>,
 }
 
 impl PersistenceManager {
     /// Creates a new PersistenceManager, ensuring the dashboard config directory exists.
-    pub fn new(config_dir: PathBuf) -> Result<Self> {
+    pub fn new(config_dir: PathBuf, enc_key: Option<[u8; 32]>) -> Result<Self> {
         fs::create_dir_all(&config_dir).with_context(|| {
             format!(
                 "Failed to create dashboard config directory: {}",
@@ -162,7 +164,10 @@ impl PersistenceManager {
             )
         })?;
 
-        Ok(Self { config_dir })
+        Ok(Self {
+            config_dir,
+            enc_key,
+        })
     }
 
     /// Returns the path to the state file
@@ -182,11 +187,58 @@ impl PersistenceManager {
         let json =
             serde_json::to_string_pretty(&stored).context("Failed to serialize maker configs")?;
 
+        let payload: Vec<u8> = if let Some(key) = &self.enc_key {
+            let raw = crate::auth::aes_encrypt(key, json.as_bytes())
+                .context("Failed to encrypt maker configs")?;
+            let b64 = B64.encode(&raw);
+            let envelope = serde_json::json!({ "v": 1, "data": b64 });
+            serde_json::to_vec(&envelope).context("Failed to serialize encrypted envelope")?
+        } else {
+            json.into_bytes()
+        };
+
         let path = self.state_file();
-        fs::write(&path, json)
-            .with_context(|| format!("Failed to write state file: {}", path.display()))?;
+        let tmp_path = path.with_extension("tmp");
+
+        // Write to a sibling temp file with restrictive perms applied at
+        // creation, fsync, then atomically rename. This avoids both a
+        // corrupted file on crash mid-write and a permission window where
+        // the file is briefly world-readable.
+        let _ = fs::remove_file(&tmp_path);
+        {
+            use std::io::Write as _;
+            let mut opts = fs::OpenOptions::new();
+            opts.write(true).create_new(true);
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::OpenOptionsExt;
+                opts.mode(0o600);
+            }
+            let mut file = opts.open(&tmp_path).with_context(|| {
+                format!("Failed to open temp state file: {}", tmp_path.display())
+            })?;
+            file.write_all(&payload)
+                .with_context(|| format!("Failed to write state file: {}", path.display()))?;
+            file.sync_all()
+                .with_context(|| format!("Failed to fsync state file: {}", tmp_path.display()))?;
+        }
+
+        fs::rename(&tmp_path, &path).with_context(|| {
+            format!(
+                "Failed to atomically rename {} -> {}",
+                tmp_path.display(),
+                path.display()
+            )
+        })?;
 
         Ok(())
+    }
+
+    /// Replaces the in-memory encryption key used for subsequent `save()` calls.
+    /// Call this after rotating the dashboard password so the next save re-encrypts
+    /// makers.json with the new key.
+    pub fn update_enc_key(&mut self, new_key: Option<[u8; 32]>) {
+        self.enc_key = new_key;
     }
 
     /// Loads all maker configs from disk. Returns empty map if file doesn't exist.
@@ -196,16 +248,48 @@ impl PersistenceManager {
             return Ok(HashMap::new());
         }
 
-        let json = fs::read_to_string(&path)
+        let raw_bytes = fs::read(&path)
             .with_context(|| format!("Failed to read state file: {}", path.display()))?;
 
-        let stored: StoredState = serde_json::from_str(&json)
+        let value: serde_json::Value = serde_json::from_slice(&raw_bytes)
             .with_context(|| format!("Failed to parse state file: {}", path.display()))?;
 
-        Ok(stored
-            .makers
-            .into_iter()
-            .map(|(id, cfg)| (id, MakerConfig::from(cfg)))
-            .collect())
+        if value.get("v") == Some(&serde_json::json!(1)) && value.get("data").is_some() {
+            // Encrypted envelope: { "v": 1, "data": "<base64>" }
+            let b64_str = value["data"]
+                .as_str()
+                .ok_or_else(|| anyhow::anyhow!("makers.json: \"data\" field is not a string"))?;
+            let raw = B64
+                .decode(b64_str)
+                .context("makers.json: failed to base64-decode encrypted data")?;
+            let key = self.enc_key.as_ref().ok_or_else(|| {
+                anyhow::anyhow!("makers.json is encrypted but no password was provided")
+            })?;
+            let plaintext =
+                crate::auth::aes_decrypt(key, &raw).context("makers.json: decryption failed")?;
+            let stored: StoredState = serde_json::from_slice(&plaintext)
+                .context("makers.json: failed to parse decrypted content")?;
+            Ok(stored
+                .makers
+                .into_iter()
+                .map(|(id, cfg)| (id, MakerConfig::from(cfg)))
+                .collect())
+        } else if value.get("makers").is_some() {
+            // Legacy plaintext format: { "makers": { ... } }
+            let stored: StoredState = serde_json::from_value(value)
+                .context("makers.json: failed to parse legacy plaintext content")?;
+            let configs: HashMap<MakerId, MakerConfig> = stored
+                .makers
+                .into_iter()
+                .map(|(id, cfg)| (id, MakerConfig::from(cfg)))
+                .collect();
+            if self.enc_key.is_some() {
+                self.save(&configs)?;
+                tracing::info!("Migrated makers.json to encrypted format");
+            }
+            Ok(configs)
+        } else {
+            anyhow::bail!("unrecognized makers.json format")
+        }
     }
 }

@@ -2,7 +2,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use axum::{middleware::from_fn, Router};
+use axum::{middleware::from_fn, middleware::from_fn_with_state, Router};
 use tokio::sync::Mutex;
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
@@ -11,7 +11,6 @@ use utoipa_axum::router::OpenApiRouter;
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::api::{api_router, ApiDoc, AppState};
-use crate::maker_manager::MakerManager;
 use crate::middlewares;
 use crate::utils::default_config_dir;
 
@@ -29,6 +28,8 @@ pub struct ServerConfig {
     pub localhost_only: bool,
     /// Application config/data directory (e.g. ~/.config/maker-dashboard)
     pub config_dir: PathBuf,
+    /// Password for dashboard authentication and data encryption
+    pub password: String,
 }
 
 impl Default for ServerConfig {
@@ -40,6 +41,7 @@ impl Default for ServerConfig {
             spa_index: PathBuf::from("frontend/build/client/index.html"),
             localhost_only: true,
             config_dir: default_config_dir(),
+            password: String::new(),
         }
     }
 }
@@ -54,8 +56,48 @@ impl Server {
     /// Creates a new server with the given config and a fresh MakerManager.
     /// Loads any previously persisted maker registrations.
     pub fn new(config: ServerConfig) -> anyhow::Result<Self> {
-        let manager = MakerManager::new(config.config_dir.clone())?;
-        let state: AppState = Arc::new(Mutex::new(manager));
+        use crate::auth::{AuthConfig, SessionStore};
+
+        std::fs::create_dir_all(&config.config_dir).map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to create config directory {}: {e}",
+                config.config_dir.display()
+            )
+        })?;
+
+        // Load or create auth config
+        let auth_config = match AuthConfig::load(&config.config_dir)? {
+            Some(cfg) => {
+                if !cfg.verify(&config.password)? {
+                    anyhow::bail!(
+                        "Incorrect password — does not match the stored hash in auth.json"
+                    );
+                }
+                cfg
+            }
+            None => {
+                let cfg = AuthConfig::new(&config.password)?;
+                cfg.save(&config.config_dir)?;
+                tracing::info!(
+                    "Initialized new auth config at {}",
+                    config.config_dir.display()
+                );
+                cfg
+            }
+        };
+
+        let enc_key = auth_config.derive_key(&config.password)?;
+
+        let manager =
+            crate::maker_manager::MakerManager::new(config.config_dir.clone(), Some(enc_key))?;
+
+        let state = AppState {
+            makers: Arc::new(Mutex::new(manager)),
+            sessions: Arc::new(Mutex::new(SessionStore::new())),
+            auth: Arc::new(std::sync::RwLock::new(auth_config)),
+            config_dir: Arc::new(config.config_dir.clone()),
+        };
+
         Ok(Self { config, state })
     }
 
@@ -76,6 +118,10 @@ impl Server {
         let mut app = router
             .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", api))
             .with_state(self.state.clone())
+            .layer(from_fn_with_state(
+                self.state.clone(),
+                middlewares::auth_middleware,
+            ))
             .layer(TraceLayer::new_for_http());
 
         if self.config.localhost_only {

@@ -56,6 +56,7 @@ impl Default for MakerLogWriter {
 }
 
 impl MakerLogWriter {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self
     }
