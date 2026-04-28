@@ -286,6 +286,13 @@ impl MakerManager {
         }
     }
 
+    /// Re-encrypts all maker configs with `new_key` and saves to disk.
+    /// Call after rotating the dashboard password so makers.json uses the new key.
+    pub fn rotate_enc_key(&mut self, new_key: Option<[u8; 32]>) -> anyhow::Result<()> {
+        self.persistence.update_enc_key(new_key);
+        self.persistence.save(&self.configs)
+    }
+
     pub fn is_port_in_use(&self, port: u16, exclude_id: Option<&str>) -> bool {
         self.configs.iter().any(|(id, cfg)| {
             if let Some(excl) = exclude_id {

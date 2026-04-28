@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use axum::{
     extract::State,
@@ -18,11 +18,18 @@ pub fn routes() -> axum::Router<super::AppState> {
         .route("/auth/login", post(login))
         .route("/auth/logout", post(logout))
         .route("/auth/status", get(status))
+        .route("/auth/rotate-password", post(rotate_password))
 }
 
 #[derive(Deserialize)]
 struct LoginRequest {
     password: String,
+}
+
+#[derive(Deserialize)]
+struct RotatePasswordRequest {
+    old_password: String,
+    new_password: String,
 }
 
 #[derive(Serialize)]
@@ -31,11 +38,12 @@ struct AuthStatus {
 }
 
 async fn login(
-    State(auth): State<Arc<AuthConfig>>,
+    State(auth): State<Arc<RwLock<AuthConfig>>>,
     State(sessions): State<Arc<Mutex<SessionStore>>>,
     Json(body): Json<LoginRequest>,
 ) -> impl IntoResponse {
-    match auth.verify(&body.password) {
+    let result = auth.read().unwrap().verify(&body.password);
+    match result {
         Ok(true) => {
             let token = sessions.lock().await.create();
             let cookie = format!(
@@ -59,6 +67,109 @@ async fn login(
         )
             .into_response(),
     }
+}
+
+async fn rotate_password(
+    State(auth): State<Arc<RwLock<AuthConfig>>>,
+    State(sessions): State<Arc<Mutex<SessionStore>>>,
+    State(makers): State<Arc<Mutex<crate::maker_manager::MakerManager>>>,
+    State(config_dir): State<Arc<std::path::PathBuf>>,
+    Json(body): Json<RotatePasswordRequest>,
+) -> impl IntoResponse {
+    // Validate inputs up front
+    if body.new_password.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<()>::err("New password must not be empty")),
+        )
+            .into_response();
+    }
+    if body.new_password == body.old_password {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<()>::err(
+                "New password must differ from current password",
+            )),
+        )
+            .into_response();
+    }
+
+    // Verify old password against the stored hash
+    let verified = {
+        let guard = auth.read().unwrap();
+        match guard.verify(&body.old_password) {
+            Ok(v) => v,
+            Err(e) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ApiResponse::<()>::err(e.to_string())),
+                )
+                    .into_response()
+            }
+        }
+    };
+    if !verified {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(ApiResponse::<()>::err("Incorrect current password")),
+        )
+            .into_response();
+    }
+
+    // Build new AuthConfig (new argon2id hash + new enc_salt)
+    let new_auth = match AuthConfig::new(&body.new_password) {
+        Ok(a) => a,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<()>::err(e.to_string())),
+            )
+                .into_response()
+        }
+    };
+
+    // Derive the new AES key from the new password + new enc_salt
+    let new_key = match new_auth.derive_key(&body.new_password) {
+        Ok(k) => k,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<()>::err(e.to_string())),
+            )
+                .into_response()
+        }
+    };
+
+    // Re-encrypt makers.json with the new key
+    if let Err(e) = makers.lock().await.rotate_enc_key(Some(new_key)) {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<()>::err(format!(
+                "Failed to re-encrypt makers config: {e}"
+            ))),
+        )
+            .into_response();
+    }
+
+    // Atomically write the new auth.json; on failure roll back makers.json
+    if let Err(e) = new_auth.save(&config_dir) {
+        // Best-effort rollback: restore the old enc key so makers.json stays consistent
+        let old_key = auth.read().unwrap().derive_key(&body.old_password).ok();
+        let _ = makers.lock().await.rotate_enc_key(old_key);
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<()>::err(format!(
+                "Failed to save auth config: {e}"
+            ))),
+        )
+            .into_response();
+    }
+
+    // Commit: update in-memory auth config and invalidate all existing sessions
+    *auth.write().unwrap() = new_auth;
+    *sessions.lock().await = SessionStore::new();
+
+    (StatusCode::OK, Json(ApiResponse::<()>::ok(()))).into_response()
 }
 
 async fn logout(

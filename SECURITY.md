@@ -24,8 +24,9 @@ chmod 600 /run/secrets/dashboard_password
 DASHBOARD_PASSWORD_FILE=/run/secrets/dashboard_password maker-dashboard
 ```
 
-Once logged in, the browser holds a session cookie (`HttpOnly`, `SameSite=Strict`,
-24 h expiry). All `/api/*` routes reject requests without a valid session with HTTP 401.
+Once logged in, the browser holds a session cookie (`HttpOnly`, `Secure`,
+`SameSite=Strict`, 24 h expiry). All `/api/*` routes reject requests without a
+valid session with HTTP 401.
 
 ## Encrypted storage
 
@@ -37,9 +38,11 @@ file is opaque without the password. The file is written with mode `0600`.
 `~/.config/maker-dashboard/auth.json` stores only the argon2id password hash and the
 two key-derivation salts, no plaintext credentials of any kind.
 
-If you change your password the makers.json file must be re-encrypted. This is not yet
-automated; decrypt with the old password, re-encrypt with the new one, or delete
-makers.json and re-register your makers.
+To change your password, use the **Change password** button in the dashboard nav bar.
+The `POST /api/auth/rotate-password` endpoint atomically re-encrypts `makers.json` with
+the new key and updates `auth.json` in a single operation. After rotating, update your
+`DASHBOARD_PASSWORD` environment variable (or password file) before restarting — the
+dashboard verifies the env var against `auth.json` on startup.
 
 ## Localhost-only access
 

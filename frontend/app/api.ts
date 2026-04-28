@@ -408,6 +408,8 @@ export const auth = {
   login: (password: string): Promise<void> => post("/auth/login", { password }),
   logout: (): Promise<void> => post("/auth/logout"),
   status: (): Promise<AuthStatus> => get("/auth/status"),
+  rotatePassword: (old_password: string, new_password: string): Promise<void> =>
+    post("/auth/rotate-password", { old_password, new_password }),
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

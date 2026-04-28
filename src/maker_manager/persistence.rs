@@ -234,6 +234,13 @@ impl PersistenceManager {
         Ok(())
     }
 
+    /// Replaces the in-memory encryption key used for subsequent `save()` calls.
+    /// Call this after rotating the dashboard password so the next save re-encrypts
+    /// makers.json with the new key.
+    pub fn update_enc_key(&mut self, new_key: Option<[u8; 32]>) {
+        self.enc_key = new_key;
+    }
+
     /// Loads all maker configs from disk. Returns empty map if file doesn't exist.
     pub fn load(&self) -> Result<HashMap<MakerId, MakerConfig>> {
         let path = self.state_file();

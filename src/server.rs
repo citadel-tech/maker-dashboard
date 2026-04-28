@@ -94,7 +94,8 @@ impl Server {
         let state = AppState {
             makers: Arc::new(Mutex::new(manager)),
             sessions: Arc::new(Mutex::new(SessionStore::new())),
-            auth: Arc::new(auth_config),
+            auth: Arc::new(std::sync::RwLock::new(auth_config)),
+            config_dir: Arc::new(config.config_dir.clone()),
         };
 
         Ok(Self { config, state })

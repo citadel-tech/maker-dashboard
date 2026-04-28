@@ -7,7 +7,7 @@ pub mod monitoring;
 pub mod onboarding;
 pub mod wallet;
 
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use axum::{
     extract::{FromRef, State},
@@ -29,7 +29,8 @@ use dto::{ApiResponse, HealthResponse};
 pub struct AppState {
     pub makers: Arc<Mutex<MakerManager>>,
     pub sessions: Arc<Mutex<SessionStore>>,
-    pub auth: Arc<AuthConfig>,
+    pub auth: Arc<RwLock<AuthConfig>>,
+    pub config_dir: Arc<std::path::PathBuf>,
 }
 
 impl FromRef<AppState> for Arc<Mutex<MakerManager>> {
@@ -44,9 +45,15 @@ impl FromRef<AppState> for Arc<Mutex<SessionStore>> {
     }
 }
 
-impl FromRef<AppState> for Arc<AuthConfig> {
+impl FromRef<AppState> for Arc<RwLock<AuthConfig>> {
     fn from_ref(state: &AppState) -> Self {
         state.auth.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<std::path::PathBuf> {
+    fn from_ref(state: &AppState) -> Self {
+        state.config_dir.clone()
     }
 }
 

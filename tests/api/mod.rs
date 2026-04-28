@@ -44,7 +44,8 @@ pub fn test_app() -> Router {
     let state = AppState {
         makers: Arc::new(Mutex::new(manager)),
         sessions: Arc::new(Mutex::new(SessionStore::new())),
-        auth: Arc::new(auth_config),
+        auth: Arc::new(std::sync::RwLock::new(auth_config)),
+        config_dir: Arc::new(config_dir),
     };
     api_router().with_state(state)
 }
