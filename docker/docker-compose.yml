@@ -31,13 +31,11 @@ services:
     command:
       - -c
       - |
-        HASH=$$(tor --hash-password "coinswap" | grep "^16:")
-
         cat > /tmp/torrc << EOF
         SocksPort 0.0.0.0:9050
         ControlPort 0.0.0.0:9051
         DataDirectory /var/lib/tor
-        HashedControlPassword $$HASH
+        CookieAuthentication 0
         EOF
 
         echo "Starting Tor..."

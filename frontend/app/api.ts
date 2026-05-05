@@ -393,6 +393,19 @@ export const onboarding = {
     post("/onboarding/startup-check", body),
 };
 
+// ─── Tor ──────────────────────────────────────────────────────────────────────
+
+export type TorSource = "system" | "host" | "docker";
+
+export interface TorStatusInfo {
+  source: TorSource;
+  managed: boolean;
+}
+
+export async function getTorStatus(): Promise<TorStatusInfo> {
+  return get<TorStatusInfo>("/tor/status");
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Convert satoshis to a BTC string (8 decimal places) */

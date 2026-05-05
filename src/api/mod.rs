@@ -54,6 +54,7 @@ pub type AppState = Arc<Mutex<MakerManager>>;
         bitcoind::start,
         bitcoind::stop,
         onboarding::run_startup_check,
+        monitoring::get_tor_status,
         health_check,
     ),
     components(schemas(
@@ -75,6 +76,7 @@ pub type AppState = Arc<Mutex<MakerManager>>;
         dto::StartBitcoindRequest,
         dto::BitcoindStatusInfo,
         dto::CombinedLogLine,
+        dto::TorStatusInfo,
     )),
     tags(
         (name = "makers", description = "Maker management"),

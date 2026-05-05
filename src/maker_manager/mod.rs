@@ -7,6 +7,7 @@ use std::net::TcpListener;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use crate::tor_manager::TorManager;
 use crate::utils::log_writer::MakerLogWriter;
 use anyhow::{anyhow, Result};
 use coinswap::bitcoin::Network;
@@ -100,6 +101,8 @@ pub struct MakerManager {
     bitcoind_process: Option<std::process::Child>,
     /// Network bitcoind was started on (e.g. "regtest", "signet")
     bitcoind_network: Option<String>,
+    #[allow(dead_code)]
+    tor_manager: TorManager,
 }
 
 impl MakerManager {
@@ -109,6 +112,7 @@ impl MakerManager {
     /// Creates a new MakerManager with persistence at the given config directory.
     /// Loads any previously saved maker configs and re-initializes them (but does NOT start servers).
     pub fn new(config_dir: PathBuf) -> Result<Self> {
+        let tor_manager = TorManager::detect_or_start(&config_dir)?;
         let persistence = PersistenceManager::new(config_dir.clone())?;
         let saved_configs = persistence.load()?;
 
@@ -118,6 +122,7 @@ impl MakerManager {
             persistence,
             bitcoind_process: None,
             bitcoind_network: None,
+            tor_manager,
         };
 
         // Restore previously registered makers (init only, not started)
@@ -633,6 +638,11 @@ impl MakerManager {
         let child = self.bitcoind_process.take()?;
         self.bitcoind_network = None;
         Some(child)
+    }
+
+    /// Returns how Tor was obtained: "system", "host", or "docker"
+    pub fn tor_source(&self) -> &'static str {
+        self.tor_manager.source_label()
     }
 
     /// Returns `(running, network)` for the dashboard-managed bitcoind process.

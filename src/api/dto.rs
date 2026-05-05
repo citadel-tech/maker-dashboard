@@ -403,3 +403,12 @@ pub struct BitcoindStatusInfo {
     /// True only when bitcoind was started by the dashboard (and can be stopped via /stop)
     pub managed: bool,
 }
+
+/// Tor connectivity status reported at startup
+#[derive(Debug, Serialize, ToSchema)]
+pub struct TorStatusInfo {
+    /// How tor was obtained: "system", "host", or "docker"
+    pub source: &'static str,
+    /// Whether the dashboard started/manages the tor process
+    pub managed: bool,
+}
