@@ -22,6 +22,16 @@ pub struct TorManager {
 }
 
 impl TorManager {
+    /// Creates a no-op TorManager that assumes Tor is already managed externally.
+    /// Use this in tests to avoid starting Tor processes or Docker containers.
+    pub fn noop() -> Self {
+        TorManager {
+            source: TorSource::System,
+            process: None,
+            container_id: None,
+        }
+    }
+
     pub fn detect_or_start(config_dir: &Path) -> anyhow::Result<Self> {
         if port_reachable(SOCKS_PORT) {
             tracing::info!(

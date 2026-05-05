@@ -113,6 +113,15 @@ impl MakerManager {
     /// Loads any previously saved maker configs and re-initializes them (but does NOT start servers).
     pub fn new(config_dir: PathBuf) -> Result<Self> {
         let tor_manager = TorManager::detect_or_start(&config_dir)?;
+        Self::new_with_tor(config_dir, tor_manager)
+    }
+
+    /// Creates a MakerManager without starting or detecting Tor. Use in tests only.
+    pub fn new_for_testing(config_dir: PathBuf) -> Result<Self> {
+        Self::new_with_tor(config_dir, TorManager::noop())
+    }
+
+    fn new_with_tor(config_dir: PathBuf, tor_manager: TorManager) -> Result<Self> {
         let persistence = PersistenceManager::new(config_dir.clone())?;
         let saved_configs = persistence.load()?;
 
@@ -720,7 +729,7 @@ mod tests {
         }
         std::fs::create_dir_all(&config_dir).unwrap();
 
-        let manager = MakerManager::new(config_dir).unwrap();
+        let manager = MakerManager::new_for_testing(config_dir).unwrap();
         let network_listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let rpc_listener = TcpListener::bind("127.0.0.1:0").unwrap();
 
