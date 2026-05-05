@@ -112,11 +112,18 @@ impl MakerManager {
     /// Creates a new MakerManager with persistence at the given config directory.
     /// Loads any previously saved maker configs and re-initializes them (but does NOT start servers).
     pub fn new(config_dir: PathBuf) -> Result<Self> {
-        let tor_manager = TorManager::detect_or_start(&config_dir)?;
+        let tor_manager = TorManager::detect_or_start(&config_dir).unwrap_or_else(|e| {
+            tracing::warn!(
+                "Tor could not be started: {}. Tor-dependent makers will fail to start.",
+                e
+            );
+            TorManager::noop()
+        });
         Self::new_with_tor(config_dir, tor_manager)
     }
 
     /// Creates a MakerManager without starting or detecting Tor. Use in tests only.
+    #[allow(dead_code)]
     pub fn new_for_testing(config_dir: PathBuf) -> Result<Self> {
         Self::new_with_tor(config_dir, TorManager::noop())
     }

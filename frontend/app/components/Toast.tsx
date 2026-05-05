@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 
 interface ToastProps {
   message: string;
@@ -8,15 +8,16 @@ interface ToastProps {
 
 export function Toast({ message, durationMs = 5000, onDismiss }: ToastProps) {
   const [visible, setVisible] = useState(true);
+  const onDismissEvent = useEffectEvent(() => onDismiss());
 
   useEffect(() => {
     const hide = setTimeout(() => setVisible(false), durationMs - 400);
-    const dismiss = setTimeout(onDismiss, durationMs);
+    const dismiss = setTimeout(onDismissEvent, durationMs);
     return () => {
       clearTimeout(hide);
       clearTimeout(dismiss);
     };
-  }, [durationMs, onDismiss]);
+  }, [durationMs]);
 
   if (!visible) return null;
 

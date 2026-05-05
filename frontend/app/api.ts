@@ -346,6 +346,13 @@ export const fidelity = {
 
 // ─── Monitoring ───────────────────────────────────────────────────────────────
 
+export type TorSource = "system" | "host" | "docker";
+
+export interface TorStatusInfo {
+  source: TorSource;
+  managed: boolean;
+}
+
 export const monitoring = {
   status: (id: string): Promise<MakerStatus> => get(`/makers/${id}/status`),
   torAddress: (id: string): Promise<string> => get(`/makers/${id}/tor-address`),
@@ -361,6 +368,7 @@ export const monitoring = {
     get(`/makers/${id}/rpc-status`),
   combinedLogs: (lines?: number): Promise<CombinedLogLine[]> =>
     get(`/logs/combined${lines !== undefined ? `?lines=${lines}` : ""}`),
+  getTorStatus: (): Promise<TorStatusInfo> => get<TorStatusInfo>("/tor/status"),
 };
 
 // ─── Bitcoind ─────────────────────────────────────────────────────────────────
@@ -392,19 +400,6 @@ export const onboarding = {
   startupCheck: (body: StartupCheckRequest): Promise<StartupCheckResponse> =>
     post("/onboarding/startup-check", body),
 };
-
-// ─── Tor ──────────────────────────────────────────────────────────────────────
-
-export type TorSource = "system" | "host" | "docker";
-
-export interface TorStatusInfo {
-  source: TorSource;
-  managed: boolean;
-}
-
-export async function getTorStatus(): Promise<TorStatusInfo> {
-  return get<TorStatusInfo>("/tor/status");
-}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

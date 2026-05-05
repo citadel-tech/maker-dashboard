@@ -8,14 +8,15 @@ import MakerDetails from "./routes/makerDetails";
 import AddMaker from "./routes/addMaker";
 import MakerSetup from "./routes/makersetup";
 import { Toast } from "./components/Toast";
-import { getTorStatus } from "./api";
+import { monitoring } from "./api";
 
 function App() {
   const [torToast, setTorToast] = useState<string | null>(null);
 
   useEffect(() => {
     if (sessionStorage.getItem("tor-toast-shown")) return;
-    getTorStatus()
+    monitoring
+      .getTorStatus()
       .then(({ managed, source }) => {
         if (managed) {
           const label = source === "docker" ? "Docker" : "host binary";

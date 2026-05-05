@@ -24,6 +24,7 @@ pub struct TorManager {
 impl TorManager {
     /// Creates a no-op TorManager that assumes Tor is already managed externally.
     /// Use this in tests to avoid starting Tor processes or Docker containers.
+    #[allow(dead_code)]
     pub fn noop() -> Self {
         TorManager {
             source: TorSource::System,
@@ -34,15 +35,23 @@ impl TorManager {
 
     pub fn detect_or_start(config_dir: &Path) -> anyhow::Result<Self> {
         if port_reachable(SOCKS_PORT) {
-            tracing::info!(
-                "Tor already running on port {}, using system instance",
-                SOCKS_PORT
+            if port_reachable(CONTROL_PORT) {
+                tracing::info!(
+                    "Tor already running on SOCKS port {} and control port {}, using system instance",
+                    SOCKS_PORT, CONTROL_PORT
+                );
+                return Ok(TorManager {
+                    source: TorSource::System,
+                    process: None,
+                    container_id: None,
+                });
+            }
+            tracing::warn!(
+                "Tor SOCKS port {} is reachable but control port {} is not; \
+                falling through to start a managed instance",
+                SOCKS_PORT,
+                CONTROL_PORT
             );
-            return Ok(TorManager {
-                source: TorSource::System,
-                process: None,
-                container_id: None,
-            });
         }
 
         if let Some(binary) = find_binary("tor") {
@@ -148,7 +157,7 @@ fn spawn_host_process(binary: &Path, config_dir: &Path) -> anyhow::Result<std::p
 
     let torrc_path = tor_dir.join("torrc");
     let torrc_content = format!(
-        "SocksPort 0.0.0.0:{SOCKS_PORT}\nControlPort 0.0.0.0:{CONTROL_PORT}\nCookieAuthentication 0\nDataDirectory {}\n",
+        "SocksPort 127.0.0.1:{SOCKS_PORT}\nControlPort 127.0.0.1:{CONTROL_PORT}\nCookieAuthentication 0\nDataDirectory {}\n",
         data_dir.display()
     );
     std::fs::write(&torrc_path, torrc_content)?;
@@ -178,9 +187,9 @@ fn spawn_docker() -> anyhow::Result<String> {
             "-d",
             "--rm",
             "-p",
-            "9050:9050",
+            "127.0.0.1:9050:9050",
             "-p",
-            "9051:9051",
+            "127.0.0.1:9051:9051",
             "--entrypoint",
             "/bin/sh",
             "osminogin/tor-simple",

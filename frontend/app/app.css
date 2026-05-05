@@ -47,7 +47,7 @@ body {
   }
 }
 
-@keyframes slideInRight {
+@keyframes slide-in-right {
   from {
     opacity: 0;
     transform: translateX(24px);
@@ -76,7 +76,7 @@ body {
 }
 
 @utility animate-slide-in-right {
-  animation: slideInRight 0.35s ease-out both;
+  animation: slide-in-right 0.35s ease-out both;
 }
 
 @utility animate-shimmer {
