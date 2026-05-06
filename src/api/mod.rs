@@ -29,7 +29,13 @@ use dto::{ApiResponse, HealthResponse};
 pub struct AppState {
     pub makers: Arc<Mutex<MakerManager>>,
     pub sessions: Arc<Mutex<SessionStore>>,
-    pub auth: Arc<RwLock<AuthConfig>>,
+    /// `Some` once the dashboard is initialized (auth.json exists or has been
+    /// created via `/auth/setup`). `None` means first-run setup is required.
+    pub auth: Arc<RwLock<Option<AuthConfig>>>,
+    /// Serializes concurrent `/auth/setup` calls to prevent TOCTOU races.
+    /// Carries no payload — the setup endpoint validates against on-disk state
+    /// while holding this lock.
+    pub setup_lock: Arc<Mutex<()>>,
     pub config_dir: Arc<std::path::PathBuf>,
 }
 
@@ -45,9 +51,15 @@ impl FromRef<AppState> for Arc<Mutex<SessionStore>> {
     }
 }
 
-impl FromRef<AppState> for Arc<RwLock<AuthConfig>> {
+impl FromRef<AppState> for Arc<RwLock<Option<AuthConfig>>> {
     fn from_ref(state: &AppState) -> Self {
         state.auth.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<Mutex<()>> {
+    fn from_ref(state: &AppState) -> Self {
+        state.setup_lock.clone()
     }
 }
 

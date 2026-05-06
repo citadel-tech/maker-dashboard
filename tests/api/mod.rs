@@ -31,6 +31,10 @@ mod wallet;
 static COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// Builds a fresh Router backed by an empty MakerManager in an isolated temp dir.
+///
+/// Mirrors the post-login state: an `AuthConfig` is pre-created, the AES key
+/// is derived, and `MakerManager::unlock` is called so handlers see an
+/// initialized + unlocked dashboard.
 pub fn test_app() -> Router {
     let n = COUNTER.fetch_add(1, Ordering::Relaxed);
     let config_dir =
@@ -39,23 +43,29 @@ pub fn test_app() -> Router {
         std::fs::remove_dir_all(&config_dir).unwrap();
     }
     std::fs::create_dir_all(&config_dir).unwrap();
-    let manager = MakerManager::new(config_dir.clone(), None).expect("MakerManager::new");
+
     let auth_config = AuthConfig::new("test-password").expect("AuthConfig::new");
+    let enc_key = auth_config.derive_key("test-password").expect("derive_key");
+
+    let mut manager = MakerManager::new(config_dir.clone(), None).expect("MakerManager::new");
+    manager.unlock(enc_key).expect("MakerManager::unlock");
+
     let state = AppState {
         makers: Arc::new(Mutex::new(manager)),
         sessions: Arc::new(Mutex::new(SessionStore::new())),
-        auth: Arc::new(std::sync::RwLock::new(auth_config)),
+        auth: Arc::new(std::sync::RwLock::new(Some(auth_config))),
+        setup_lock: Arc::new(Mutex::new(())),
         config_dir: Arc::new(config_dir),
     };
     api_router().with_state(state)
 }
 
-/// GET request → (status, response JSON).
+/// GET request => (status, response JSON).
 pub async fn get(app: Router, uri: &str) -> (StatusCode, Value) {
     send(app, Request::get(uri).body(Body::empty()).unwrap()).await
 }
 
-/// POST request with a JSON body → (status, response JSON).
+/// POST request with a JSON body => (status, response JSON).
 pub async fn post(app: Router, uri: &str, body: Value) -> (StatusCode, Value) {
     send(
         app,
@@ -67,7 +77,7 @@ pub async fn post(app: Router, uri: &str, body: Value) -> (StatusCode, Value) {
     .await
 }
 
-/// PUT request with a JSON body → (status, response JSON).
+/// PUT request with a JSON body => (status, response JSON).
 pub async fn put(app: Router, uri: &str, body: Value) -> (StatusCode, Value) {
     send(
         app,
@@ -79,7 +89,7 @@ pub async fn put(app: Router, uri: &str, body: Value) -> (StatusCode, Value) {
     .await
 }
 
-/// DELETE request → (status, response JSON).
+/// DELETE request => (status, response JSON).
 pub async fn delete(app: Router, uri: &str) -> (StatusCode, Value) {
     send(app, Request::delete(uri).body(Body::empty()).unwrap()).await
 }

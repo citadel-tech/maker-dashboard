@@ -6,9 +6,9 @@ Coinswap Maker Dashboard packaged for the [Umbrel app store](https://github.com/
 
 The app runs three containers:
 
-- **tor** — Tor proxy providing SOCKS (9050) and control (9051) ports
-- **web** — The maker-dashboard binary, sharing Tor's network via `network_mode: "service:tor"` so the coinswap library can reach Tor at `127.0.0.1`
-- **app_proxy** — Umbrel's auth proxy, routes traffic to the web container through the Tor container's hostname
+- **tor:** Tor proxy providing SOCKS (9050) and control (9051) ports
+- **web:** The maker-dashboard binary, sharing Tor's network via `network_mode: "service:tor"` so the coinswap library can reach Tor at `127.0.0.1`
+- **app_proxy:** Umbrel's auth proxy, routes traffic to the web container through the Tor container's hostname
 
 ## Files
 

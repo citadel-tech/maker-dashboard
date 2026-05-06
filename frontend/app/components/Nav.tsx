@@ -61,7 +61,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
     setLoading(true);
     try {
       await auth.rotatePassword(oldPassword, newPassword);
-      navigate("/login", { state: { passwordChanged: true } });
+      navigate("/login");
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         setError("Current password is incorrect");

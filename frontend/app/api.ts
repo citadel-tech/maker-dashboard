@@ -401,6 +401,7 @@ export const onboarding = {
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export interface AuthStatus {
+  initialized: boolean;
   authenticated: boolean;
 }
 
@@ -408,6 +409,7 @@ export const auth = {
   login: (password: string): Promise<void> => post("/auth/login", { password }),
   logout: (): Promise<void> => post("/auth/logout"),
   status: (): Promise<AuthStatus> => get("/auth/status"),
+  setup: (password: string): Promise<void> => post("/auth/setup", { password }),
   rotatePassword: (old_password: string, new_password: string): Promise<void> =>
     post("/auth/rotate-password", { old_password, new_password }),
 };

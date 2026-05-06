@@ -23,6 +23,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+      start_period: 5m
 
   tor:
     image: osminogin/tor-simple
@@ -76,9 +77,6 @@ services:
       - DASHBOARD_ALLOW_REMOTE=true
       - DASHBOARD_LOG_FILTER=${DASHBOARD_LOG_FILTER:-tower_http=debug,info}
       - DASHBOARD_NO_COLOR=true
-      # Required: set in a .env file or export in your shell before running.
-      # Example .env entry:  DASHBOARD_PASSWORD=yourpassword
-      - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD:?Set DASHBOARD_PiASSWORD in a .env file or your shell environment}
     restart: unless-stopped
 
 volumes:

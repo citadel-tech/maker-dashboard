@@ -28,8 +28,6 @@ pub struct ServerConfig {
     pub localhost_only: bool,
     /// Application config/data directory (e.g. ~/.config/maker-dashboard)
     pub config_dir: PathBuf,
-    /// Password for dashboard authentication and data encryption
-    pub password: String,
 }
 
 impl Default for ServerConfig {
@@ -41,7 +39,6 @@ impl Default for ServerConfig {
             spa_index: PathBuf::from("frontend/build/client/index.html"),
             localhost_only: true,
             config_dir: default_config_dir(),
-            password: String::new(),
         }
     }
 }
@@ -54,7 +51,13 @@ pub struct Server {
 
 impl Server {
     /// Creates a new server with the given config and a fresh MakerManager.
-    /// Loads any previously persisted maker registrations.
+    ///
+    /// Bootstrap flow:
+    /// - If `auth.json` exists, the dashboard is already initialized. The
+    ///   maker manager starts in the "locked" state — no AES key is held until
+    ///   the user logs in via `POST /api/auth/login`.
+    /// - If `auth.json` does NOT exist, the dashboard waits for
+    ///   `POST /api/auth/setup` to complete first-run setup.
     pub fn new(config: ServerConfig) -> anyhow::Result<Self> {
         use crate::auth::{AuthConfig, SessionStore};
 
@@ -65,36 +68,26 @@ impl Server {
             )
         })?;
 
-        // Load or create auth config
-        let auth_config = match AuthConfig::load(&config.config_dir)? {
-            Some(cfg) => {
-                if !cfg.verify(&config.password)? {
-                    anyhow::bail!(
-                        "Incorrect password — does not match the stored hash in auth.json"
-                    );
-                }
-                cfg
-            }
-            None => {
-                let cfg = AuthConfig::new(&config.password)?;
-                cfg.save(&config.config_dir)?;
-                tracing::info!(
-                    "Initialized new auth config at {}",
-                    config.config_dir.display()
-                );
-                cfg
-            }
-        };
+        let auth_config = AuthConfig::load(&config.config_dir)?;
 
-        let enc_key = auth_config.derive_key(&config.password)?;
+        // The maker manager always starts WITHOUT a key. If makers.json is
+        // encrypted, the load is deferred until login. If makers.json is
+        // missing or legacy plaintext, the deferred-load path is a no-op.
+        let manager = crate::maker_manager::MakerManager::new(config.config_dir.clone(), None)?;
 
-        let manager =
-            crate::maker_manager::MakerManager::new(config.config_dir.clone(), Some(enc_key))?;
+        if auth_config.is_none() {
+            tracing::info!(
+                "First-run setup required. Visit http://{}:{}/setup to initialize.",
+                config.host,
+                config.port
+            );
+        }
 
         let state = AppState {
             makers: Arc::new(Mutex::new(manager)),
             sessions: Arc::new(Mutex::new(SessionStore::new())),
             auth: Arc::new(std::sync::RwLock::new(auth_config)),
+            setup_lock: Arc::new(Mutex::new(())),
             config_dir: Arc::new(config.config_dir.clone()),
         };
 

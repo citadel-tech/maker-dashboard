@@ -77,30 +77,26 @@ By default the server listens on `http://127.0.0.1:3000`. Open that in your brow
 
 ## Authentication
 
-The dashboard requires a password. Set it via environment variable before starting:
+On first start (no `auth.json` present), visit `/setup` in your browser and choose a
+password. The password is hashed with argon2id and stored in
+`~/.config/maker-dashboard/auth.json`, and maker configs are encrypted at rest with an
+AES-256-GCM key derived from it.
 
-```sh
-DASHBOARD_PASSWORD=yourpassword make run
-```
+On subsequent starts the dashboard goes straight to the login screen. After a successful
+login the browser holds a session cookie valid for 24 hours.
 
-On the first start the password is hashed with argon2id and stored in
-`~/.config/maker-dashboard/auth.json`. Maker configs are encrypted at rest using a key
-derived from the same password. On every subsequent start the supplied password is
-verified against the stored hash; a wrong password causes an immediate exit.
-
-For Docker or systemd deployments you can point at a secrets file instead:
-
-```sh
-DASHBOARD_PASSWORD_FILE=/run/secrets/dashboard_password maker-dashboard
-```
-
-See [SECURITY.md](SECURITY.md) for the full security model.
+See [SECURITY.md](SECURITY.md) for the full security model, including the threat model
+around the unauthenticated setup window.
 
 ## First-Run Flow
 
-On first launch you will be prompted to log in with the password you set via
-`DASHBOARD_PASSWORD`. After a successful login the browser holds a session cookie valid
-for 24 hours.
+On first launch the server logs:
+
+```text
+First-run setup required. Visit http://127.0.0.1:3000/setup to initialize.
+```
+
+Open the URL, choose a password, and you'll be logged in.
 
 If there are no registered makers, the home page opens a guided onboarding flow. The
 onboarding wizard helps you:
@@ -143,10 +139,8 @@ Runtime options can be set with CLI flags or environment variables:
 | `--log-filter`    | `DASHBOARD_LOG_FILTER`    | `tower_http=debug,info`            | Tracing filter directive                   |
 | `--no-color`      | `DASHBOARD_NO_COLOR`      | `false`                            | Disable ANSI colors in logs                |
 | `--config-dir`    | `DASHBOARD_CONFIG_DIR`    | platform default                   | Dashboard config directory                 |
-| *(env only)*      | `DASHBOARD_PASSWORD`      | *(required)*                       | Dashboard password (never use as CLI flag) |
-| *(env only)*      | `DASHBOARD_PASSWORD_FILE` | —                                  | Path to a file containing the password     |
 
-By default the dashboard only accepts connections from the local machine. If you enable `--allow-remote`, place a TLS-terminating reverse proxy in front — the built-in password auth is the only protection on the wire.
+By default the dashboard only accepts connections from the local machine. If you enable `--allow-remote`, place a TLS-terminating reverse proxy in front. the built-in password auth is the only protection on the wire.
 
 Dashboard-managed files:
 
@@ -176,13 +170,6 @@ On first setup, the maker may need funds to create a fidelity bond. You can use 
 
 ## Docker
 
-Set a password before starting — the compose file will refuse to start without it:
-
-```sh
-export DASHBOARD_PASSWORD=yourpassword
-# or put it in docker/.env:  DASHBOARD_PASSWORD=yourpassword
-```
-
 Run the full stack (bitcoind, tor, dashboard) with Docker Compose:
 
 ```sh
@@ -190,9 +177,12 @@ cd docker
 docker compose up --build -d
 ```
 
-This starts a custom signet bitcoind, a Tor daemon, and the maker dashboard — all sharing the same network namespace. The dashboard is available at `http://localhost:3000`. You will be prompted to log in with the password you set.
+This starts a custom signet bitcoind, a Tor daemon, and the maker dashboard, all sharing the same network namespace. The dashboard is available at `http://localhost:3000`.
+
+On first run, visit `http://localhost:3000/setup` and choose a password. On subsequent runs, log in normally.
 
 When creating a maker, use:
+
 - RPC: `127.0.0.1:38332`, ZMQ: `tcp://127.0.0.1:28332`
 - RPC credentials: `user` / `password`
 - Tor auth: `coinswap`

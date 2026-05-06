@@ -175,6 +175,12 @@ impl PersistenceManager {
         self.config_dir.join("makers.json")
     }
 
+    /// Returns true if `makers.json` already exists on disk.
+    /// Used by the first-run setup handler to refuse overwriting existing state.
+    pub fn state_file_exists(&self) -> bool {
+        self.state_file().exists()
+    }
+
     /// Saves all maker configs to disk
     pub fn save(&self, configs: &HashMap<MakerId, MakerConfig>) -> Result<()> {
         let stored = StoredState {

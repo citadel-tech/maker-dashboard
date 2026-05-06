@@ -2,31 +2,33 @@
 
 ## Authentication
 
-The dashboard requires a password on every startup. On the first run the password is
-hashed with **argon2id** and stored in `~/.config/maker-dashboard/auth.json`. On
-subsequent runs the supplied password is verified against the stored hash; a wrong
-password causes an immediate exit.
-
-Set the password via environment variable:
-
-```sh
-DASHBOARD_PASSWORD=yourpassword maker-dashboard
-```
-
-For Docker or systemd, use a secrets file:
-
-```sh
-# write the password once
-echo "yourpassword" > /run/secrets/dashboard_password
-chmod 600 /run/secrets/dashboard_password
-
-# point the dashboard at it
-DASHBOARD_PASSWORD_FILE=/run/secrets/dashboard_password maker-dashboard
-```
+The dashboard is protected by a password that you choose on first run. The password is
+hashed with **Argon2id** and stored in `~/.config/maker-dashboard/auth.json`. On
+subsequent starts you log in via the browser; a valid session is required for every
+`/api/*` route.
 
 Once logged in, the browser holds a session cookie (`HttpOnly`, `Secure`,
 `SameSite=Strict`, 24 h expiry). All `/api/*` routes reject requests without a
 valid session with HTTP 401.
+
+### First-run setup
+
+On a fresh install (no `auth.json` present), `/setup` is reachable and accepts a
+password to initialize the dashboard. The chosen password is hashed with Argon2id and
+the AES-256-GCM key for `makers.json` is derived from it using a separate Argon2id-
+derived 32-byte salt. Once `auth.json` exists, `/setup` returns 409, only `/login` works.
+
+`/setup` also refuses if `makers.json` is already on disk: that combination (no
+`auth.json` but encrypted `makers.json` present) means the operator's encryption key
+has been lost and silently overwriting it would lock them out of existing data. Restore
+`auth.json` from backup, or explicitly delete `makers.json` to start fresh.
+
+There is intentionally no token gating `/setup`. Before initialization there is no user
+data to protect: if a hostile party on the network races the operator and completes
+setup first, the recovery is to stop the server, delete `auth.json`, and run setup
+again. To prevent races on multi-tenant or network-exposed hosts, restrict access to
+the dashboard port until setup is complete (e.g. keep `--allow-remote` off, or use a
+firewall rule).
 
 ## Encrypted storage
 
@@ -38,11 +40,11 @@ file is opaque without the password. The file is written with mode `0600`.
 `~/.config/maker-dashboard/auth.json` stores only the argon2id password hash and the
 two key-derivation salts, no plaintext credentials of any kind.
 
-To change your password, use the **Change password** button in the dashboard nav bar.
-The `POST /api/auth/rotate-password` endpoint atomically re-encrypts `makers.json` with
-the new key and updates `auth.json` in a single operation. After rotating, update your
-`DASHBOARD_PASSWORD` environment variable (or password file) before restarting — the
-dashboard verifies the env var against `auth.json` on startup.
+To change your password, use the **Change password** button in the dashboard nav bar,
+which calls `POST /api/auth/rotate-password`. The endpoint atomically re-encrypts
+`makers.json` with the new key and updates `auth.json` in a single operation. The
+new password takes effect immediately for the current session and on subsequent
+logins; no restart or env-var update is required.
 
 ## Localhost-only access
 

@@ -14,52 +14,71 @@ import MakerDetails from "./routes/makerDetails";
 import AddMaker from "./routes/addMaker";
 import MakerSetup from "./routes/makersetup";
 import Login from "./routes/login";
+import Setup from "./routes/setup";
 import { auth } from "@/api";
 
-// AuthLayout: checks auth status on mount, shows Outlet if authenticated
-function AuthLayout() {
+interface AuthState {
+  initialized: boolean;
+  authenticated: boolean;
+}
+
+function useAuthStatus(): { checking: boolean; state: AuthState } {
   const [checking, setChecking] = useState(true);
-  const [authenticated, setAuthenticated] = useState(false);
+  const [state, setState] = useState<AuthState>({
+    initialized: true,
+    authenticated: false,
+  });
 
   useEffect(() => {
     auth
       .status()
-      .then(({ authenticated }) => {
-        setAuthenticated(authenticated);
+      .then(({ initialized, authenticated }) => {
+        setState({ initialized, authenticated });
         setChecking(false);
       })
       .catch(() => {
-        setAuthenticated(false);
+        setState({ initialized: true, authenticated: false });
         setChecking(false);
       });
   }, []);
 
+  return { checking, state };
+}
+
+// AuthLayout: wraps authenticated routes.
+// - uninitialized => /setup
+// - initialized + not authed => /login
+// - initialized + authed => render
+function AuthLayout() {
+  const { checking, state } = useAuthStatus();
+
   if (checking) return null;
-  if (!authenticated) return <Navigate to="/login" replace />;
+  if (!state.initialized) return <Navigate to="/setup" replace />;
+  if (!state.authenticated) return <Navigate to="/login" replace />;
   return <Outlet />;
 }
 
-// GuestLayout: shows Outlet if unauthenticated, redirects to "/" otherwise.
-// Used to keep already-authenticated users out of /login.
+// GuestLayout: wraps /login.
+// - uninitialized => /setup
+// - initialized + authed => /
+// - initialized + not authed => render
 function GuestLayout() {
-  const [checking, setChecking] = useState(true);
-  const [authenticated, setAuthenticated] = useState(false);
-
-  useEffect(() => {
-    auth
-      .status()
-      .then(({ authenticated }) => {
-        setAuthenticated(authenticated);
-        setChecking(false);
-      })
-      .catch(() => {
-        setAuthenticated(false);
-        setChecking(false);
-      });
-  }, []);
+  const { checking, state } = useAuthStatus();
 
   if (checking) return null;
-  if (authenticated) return <Navigate to="/" replace />;
+  if (!state.initialized) return <Navigate to="/setup" replace />;
+  if (state.authenticated) return <Navigate to="/" replace />;
+  return <Outlet />;
+}
+
+// SetupLayout: wraps /setup.
+// - initialized => /login
+// - uninitialized => render
+function SetupLayout() {
+  const { checking, state } = useAuthStatus();
+
+  if (checking) return null;
+  if (state.initialized) return <Navigate to="/login" replace />;
   return <Outlet />;
 }
 
@@ -67,6 +86,9 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <BrowserRouter>
       <Routes>
+        <Route element={<SetupLayout />}>
+          <Route path="/setup" element={<Setup />} />
+        </Route>
         <Route element={<GuestLayout />}>
           <Route path="/login" element={<Login />} />
         </Route>
