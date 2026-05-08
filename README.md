@@ -158,7 +158,6 @@ This starts a custom signet bitcoind, a Tor daemon, and the maker dashboard — 
 When creating a maker, use:
 - RPC: `127.0.0.1:38332`, ZMQ: `tcp://127.0.0.1:28332`
 - RPC credentials: `user` / `password`
-- Tor auth: `coinswap`
 - SOCKS port: `9050`, Control port: `9051`
 
 Other useful commands:

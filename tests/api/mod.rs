@@ -35,7 +35,7 @@ pub fn test_app() -> Router {
         std::fs::remove_dir_all(&config_dir).unwrap();
     }
     std::fs::create_dir_all(&config_dir).unwrap();
-    let manager = MakerManager::new(config_dir).expect("MakerManager::new");
+    let manager = MakerManager::new_for_testing(config_dir).expect("MakerManager::new_for_testing");
     let state = Arc::new(Mutex::new(manager));
     api_router().with_state(state)
 }
