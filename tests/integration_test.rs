@@ -199,47 +199,52 @@ struct ApiClient {
 
 impl ApiClient {
     fn new(port: u16, creds: RpcCreds) -> Self {
+        let agent: ureq::Agent = ureq::Agent::config_builder()
+            .timeout_global(Some(Duration::from_secs(120)))
+            .http_status_as_error(false)
+            .build()
+            .into();
         Self {
             base: format!("http://127.0.0.1:{port}/api"),
-            agent: ureq::AgentBuilder::new()
-                .timeout(Duration::from_secs(120))
-                .build(),
+            agent,
             creds,
         }
     }
 
     fn get<T: DeserializeOwned>(&self, path: &str) -> T {
         self.agent
-            .get(&format!("{}{path}", self.base))
+            .get(format!("{}{path}", self.base))
             .call()
             .unwrap_or_else(|e| panic!("GET {path} failed: {e}"))
-            .into_json()
+            .into_body()
+            .read_json::<T>()
             .unwrap_or_else(|e| panic!("JSON decode GET {path}: {e}"))
     }
 
     fn post_json<T: DeserializeOwned>(&self, path: &str, body: &Value) -> T {
         self.agent
-            .post(&format!("{}{path}", self.base))
+            .post(format!("{}{path}", self.base))
             .send_json(body)
             .unwrap_or_else(|e| panic!("POST {path} failed: {e}"))
-            .into_json()
+            .into_body()
+            .read_json::<T>()
             .unwrap_or_else(|e| panic!("JSON decode POST {path}: {e}"))
     }
 
     /// Like `post_json` but returns the response body as `Value` even on non-2xx,
     /// so callers can inspect `resp["success"]` without panicking on transient errors.
     /// Only panics on transport-level failures (no connection, timeout, etc.).
+    /// Relies on the agent's `http_status_as_error(false)` config so non-2xx
+    /// responses are returned as `Ok` instead of stripped into an error.
     fn post_json_allow_status(&self, path: &str, body: &Value) -> Value {
         match self
             .agent
-            .post(&format!("{}{path}", self.base))
+            .post(format!("{}{path}", self.base))
             .send_json(body)
         {
             Ok(resp) => resp
-                .into_json()
-                .unwrap_or_else(|e| panic!("JSON decode POST {path}: {e}")),
-            Err(ureq::Error::Status(_, resp)) => resp
-                .into_json()
+                .into_body()
+                .read_json::<Value>()
                 .unwrap_or(serde_json::json!({"success": false})),
             Err(e) => panic!("POST {path} transport error: {e}"),
         }
@@ -247,10 +252,11 @@ impl ApiClient {
 
     fn put_json<T: DeserializeOwned>(&self, path: &str, body: &Value) -> T {
         self.agent
-            .put(&format!("{}{path}", self.base))
+            .put(format!("{}{path}", self.base))
             .send_json(body)
             .unwrap_or_else(|e| panic!("PUT {path} failed: {e}"))
-            .into_json()
+            .into_body()
+            .read_json::<T>()
             .unwrap_or_else(|e| panic!("JSON decode PUT {path}: {e}"))
     }
 
