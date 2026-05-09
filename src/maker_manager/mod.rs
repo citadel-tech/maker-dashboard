@@ -145,6 +145,19 @@ impl MakerManager {
             mgr.persist();
         }
 
+        // Auto-start all successfully restored makers
+        let restored_ids: Vec<MakerId> = mgr.configs.keys().cloned().collect();
+        for id in restored_ids {
+            if mgr.pool.contains(&id) {
+                match mgr.pool.start_server(&id) {
+                    Ok(()) => tracing::info!("Maker '{}' auto-started on dashboard startup", id),
+                    Err(e) => {
+                        tracing::warn!("Maker '{}' restored but failed to auto-start: {}", id, e)
+                    }
+                }
+            }
+        }
+
         Ok(mgr)
     }
 
