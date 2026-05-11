@@ -1,0 +1,126 @@
+name: Update coinswap dependency
+
+on:
+  schedule:
+    # Daily at 06:00 UTC
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    name: Check and update coinswap rev
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve current and upstream coinswap revs
+        id: revs
+        run: |
+          set -euo pipefail
+
+          current_full=$(grep -E '^coinswap\s*=\s*\{' Cargo.toml \
+            | sed -nE 's/.*rev\s*=\s*"([0-9a-f]+)".*/\1/p')
+          if [ -z "$current_full" ]; then
+            echo "::error::Could not parse current coinswap rev from Cargo.toml"
+            exit 1
+          fi
+
+          latest_full=$(git ls-remote https://github.com/citadel-tech/coinswap HEAD \
+            | awk '{print $1}')
+          if [ -z "$latest_full" ]; then
+            echo "::error::Could not resolve upstream HEAD via git ls-remote"
+            exit 1
+          fi
+
+          short_len=${#current_full}
+          latest_short=${latest_full:0:$short_len}
+
+          echo "current=$current_full"        >> "$GITHUB_OUTPUT"
+          echo "latest=$latest_full"          >> "$GITHUB_OUTPUT"
+          echo "latest_short=$latest_short"   >> "$GITHUB_OUTPUT"
+
+          if [ "$current_full" = "$latest_short" ] || [ "${latest_full:0:${#current_full}}" = "$current_full" ]; then
+            echo "up_to_date=true"  >> "$GITHUB_OUTPUT"
+          else
+            echo "up_to_date=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "Current pin: $current_full"
+          echo "Upstream HEAD: $latest_full"
+
+      - name: Skip if already up to date
+        if: steps.revs.outputs.up_to_date == 'true'
+        run: echo "coinswap is already pinned to the latest commit. Nothing to do."
+
+      - name: Install Rust toolchain
+        if: steps.revs.outputs.up_to_date == 'false'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        if: steps.revs.outputs.up_to_date == 'false'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-update-coinswap-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-update-coinswap-
+
+      - name: Bump rev in Cargo.toml and refresh Cargo.lock
+        if: steps.revs.outputs.up_to_date == 'false'
+        env:
+          CURRENT: ${{ steps.revs.outputs.current }}
+          LATEST_SHORT: ${{ steps.revs.outputs.latest_short }}
+        run: |
+          set -euo pipefail
+          sed -i -E "s/(coinswap\s*=\s*\{[^}]*rev\s*=\s*\")${CURRENT}(\")/\1${LATEST_SHORT}\2/" Cargo.toml
+          grep -E '^coinswap\s*=\s*\{' Cargo.toml
+          cargo update -p coinswap
+
+      - name: Read maintainers list
+        id: maintainers
+        if: steps.revs.outputs.up_to_date == 'false'
+        run: |
+          set -euo pipefail
+          if [ ! -f .github/MAINTAINERS ]; then
+            echo "::error::.github/MAINTAINERS not found"
+            exit 1
+          fi
+          # Strip comments and blank lines, then comma-join.
+          reviewers=$(grep -vE '^\s*(#|$)' .github/MAINTAINERS | tr -d ' \t' | paste -sd, -)
+          if [ -z "$reviewers" ]; then
+            echo "::warning::.github/MAINTAINERS is empty; PR will be opened without reviewers"
+          fi
+          echo "Reviewers resolved to: $reviewers"
+          echo "reviewers=$reviewers" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update pull request
+        if: steps.revs.outputs.up_to_date == 'false'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: automated/update-coinswap
+          base: main
+          commit-message: "chore(deps): bump coinswap to ${{ steps.revs.outputs.latest_short }}"
+          title: "chore(deps): bump coinswap to ${{ steps.revs.outputs.latest_short }}"
+          body: |
+            Automated dependency update.
+
+            Bumps the `coinswap` git dependency from `${{ steps.revs.outputs.current }}` to `${{ steps.revs.outputs.latest_short }}` (upstream HEAD: `${{ steps.revs.outputs.latest }}`).
+
+            **Diff:** https://github.com/citadel-tech/coinswap/compare/${{ steps.revs.outputs.current }}...${{ steps.revs.outputs.latest_short }}
+
+            Reviewers were requested from [`.github/MAINTAINERS`](../blob/main/.github/MAINTAINERS). Let CI run on this PR to surface any breakage from the upstream changes before merging.
+
+            > If this workflow ever fails to push the PR, ensure *Settings → Actions → General → Workflow permissions* has **Allow GitHub Actions to create and approve pull requests** enabled.
+          labels: |
+            dependencies
+            automated
+            auto-update
+          reviewers: ${{ steps.maintainers.outputs.reviewers }}
+          delete-branch: true
