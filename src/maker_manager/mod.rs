@@ -258,8 +258,13 @@ impl MakerManager {
     }
 
     pub fn set_auto_start_makers(&mut self, enabled: bool) -> Result<()> {
+        let old = self.settings.auto_start_makers;
         self.settings.auto_start_makers = enabled;
-        self.persistence.save_settings(&self.settings)
+        if let Err(err) = self.persistence.save_settings(&self.settings) {
+            self.settings.auto_start_makers = old;
+            return Err(err);
+        }
+        Ok(())
     }
 
     /// Returns the default coinswap data directory for a maker.

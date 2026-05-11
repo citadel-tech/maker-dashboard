@@ -433,6 +433,27 @@ impl ApiClient {
         )
     }
 
+    fn get_dashboard_auto_start(&self) -> bool {
+        let resp: Value = self.get("/makers/auto-start");
+        assert!(
+            resp["success"].as_bool().unwrap_or(false),
+            "get auto-start setting failed: {resp}"
+        );
+        resp["data"]["enabled"].as_bool().unwrap_or(false)
+    }
+
+    fn set_dashboard_auto_start(&self, enabled: bool) {
+        let resp: Value = self.put_json(
+            "/makers/auto-start",
+            &serde_json::json!({ "enabled": enabled }),
+        );
+        assert!(
+            resp["success"].as_bool().unwrap_or(false),
+            "set auto-start setting failed: {resp}"
+        );
+        assert_eq!(resp["data"]["enabled"].as_bool(), Some(enabled));
+    }
+
     fn health(&self) -> Value {
         self.get("/health")
     }
@@ -560,6 +581,9 @@ fn test_maker_manager_integration() {
     let health: Value = client.health();
     assert_eq!(health["data"]["status"].as_str(), Some("ok"));
 
+    client.set_dashboard_auto_start(true);
+    assert!(client.get_dashboard_auto_start());
+
     // Create two makers
     println!("[INFO] Creating makers");
     client.create_maker(
@@ -647,11 +671,7 @@ fn test_maker_manager_integration() {
     generate_blocks(&bitcoind, 1);
     taker.get_wallet().write().unwrap().sync_and_save().unwrap();
 
-    // Start both makers and wait for their coinswap servers to be ready
-    println!("[INFO] Starting makers");
-    client.start_maker(MAKER_ALPHA_ID);
-    client.start_maker(MAKER_BETA_ID);
-
+    // Makers were auto-started on creation; wait for their coinswap servers to be ready.
     // Start a continuous block generator. Makers broadcast fidelity bonds and
     // settlement transactions asynchronously and then enter an internal sync
     // loop that holds the wallet write lock with growing backoff (10s, 20s,

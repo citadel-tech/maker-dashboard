@@ -33,7 +33,6 @@ fn probe_rpc(config: &MakerConfig) -> Option<String> {
 }
 
 /// Try well-known default RPC ports for regtest and signet.
-/// Mainnet (8332) is excluded — the UI only surfaces regtest/signet.
 /// Returns the chain name on the first successful connection, or None if all fail.
 fn probe_standard_ports() -> Option<String> {
     use coinswap::bitcoind::bitcoincore_rpc::{Auth, Client, RpcApi};

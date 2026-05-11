@@ -321,8 +321,7 @@ export const makers = {
     get("/makers/auto-start"),
   updateAutoStartSettings: (
     enabled: boolean,
-  ): Promise<MakerAutoStartSettings> =>
-    put("/makers/auto-start", { enabled }),
+  ): Promise<MakerAutoStartSettings> => put("/makers/auto-start", { enabled }),
   get: (id: string): Promise<MakerInfoDetailed> => get(`/makers/${id}`),
   info: (id: string): Promise<MakerInfoDetailed> => get(`/makers/${id}/info`),
   create: (body: CreateMakerRequest): Promise<MakerInfo> =>
