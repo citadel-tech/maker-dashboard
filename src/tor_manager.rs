@@ -1,3 +1,4 @@
+use std::io::Read;
 use std::net::TcpStream;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -7,6 +8,10 @@ const CONTROL_PORT: u16 = 9051;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(30);
 const POLL_INTERVAL: Duration = Duration::from_millis(500);
+const DOWNLOAD_CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
+const DOWNLOAD_READ_TIMEOUT: Duration = Duration::from_secs(120);
+const MAX_ARCHIVE_BYTES: u64 = 200 * 1024 * 1024; // 200 MB
+const MAX_MANIFEST_BYTES: u64 = 1024 * 1024; // 1 MB
 
 // Update this when the Tor Project releases a new stable version.
 const TOR_VERSION: &str = "14.0.7";
@@ -65,7 +70,7 @@ impl TorManager {
         tracing::info!("Searching for tor binary on PATH and known locations");
         if let Some(binary) = find_binary("tor") {
             tracing::info!("Found system tor at {}", binary.display());
-            let child = spawn_host_process(&binary, None)?;
+            let child = spawn_host_process(&binary, None, &config_dir.join("tor"))?;
             wait_for_port(SOCKS_PORT)?;
             return Ok(TorManager {
                 source: TorSource::HostProcess,
@@ -81,7 +86,8 @@ impl TorManager {
         if bundle_binary.exists() {
             tracing::info!("Using cached Tor bundle");
             let lib_dir = bundle_binary.parent().map(Path::to_path_buf);
-            let child = spawn_host_process(&bundle_binary, lib_dir.as_deref())?;
+            let child =
+                spawn_host_process(&bundle_binary, lib_dir.as_deref(), &config_dir.join("tor"))?;
             wait_for_port(SOCKS_PORT)?;
             return Ok(TorManager {
                 source: TorSource::Downloaded,
@@ -100,7 +106,7 @@ impl TorManager {
         let binary = download_tor_bundle(&bundle_dir)
             .map_err(|e| anyhow::anyhow!("Failed to download Tor Expert Bundle: {}", e))?;
         let lib_dir = binary.parent().map(Path::to_path_buf);
-        let child = spawn_host_process(&binary, lib_dir.as_deref())?;
+        let child = spawn_host_process(&binary, lib_dir.as_deref(), &config_dir.join("tor"))?;
         wait_for_port(SOCKS_PORT)?;
         Ok(TorManager {
             source: TorSource::Downloaded,
@@ -157,18 +163,11 @@ fn find_binary(name: &str) -> Option<PathBuf> {
     None
 }
 
-fn coinswap_tor_dir() -> PathBuf {
-    dirs::home_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join(".coinswap")
-        .join("tor")
-}
-
 fn spawn_host_process(
     binary: &Path,
     lib_dir: Option<&Path>,
+    tor_dir: &Path,
 ) -> anyhow::Result<std::process::Child> {
-    let tor_dir = coinswap_tor_dir();
     let data_dir = tor_dir.join("data");
     std::fs::create_dir_all(&data_dir)?;
 
@@ -221,28 +220,38 @@ fn download_tor_bundle(bundle_dir: &Path) -> anyhow::Result<PathBuf> {
         "aarch64" => "aarch64",
         _ => "x86_64",
     };
-    let ext = if os == "windows" { "zip" } else { "tar.gz" };
+    let ext = "tar.gz";
     let filename = format!("tor-expert-bundle-{os}-{arch}-{TOR_VERSION}.{ext}");
     let url = format!("{TOR_ARCHIVE_BASE}/{TOR_VERSION}/{filename}");
 
     std::fs::create_dir_all(bundle_dir)?;
     let archive_path = bundle_dir.join(&filename);
 
+    let agent = ureq::AgentBuilder::new()
+        .timeout_connect(DOWNLOAD_CONNECT_TIMEOUT)
+        .timeout_read(DOWNLOAD_READ_TIMEOUT)
+        .build();
+
     tracing::info!("Downloading {}", url);
-    let response = ureq::get(&url)
+    let response = agent
+        .get(&url)
         .call()
         .map_err(|e| anyhow::anyhow!("Download failed: {}", e))?;
     {
         let mut file = std::fs::File::create(&archive_path)?;
-        let bytes = std::io::copy(&mut response.into_reader(), &mut file)?;
+        let bytes = std::io::copy(
+            &mut response.into_reader().take(MAX_ARCHIVE_BYTES),
+            &mut file,
+        )?;
         tracing::info!("Downloaded {:.1} MB", bytes as f64 / 1_048_576.0);
     }
 
     let checksum_url = format!("{TOR_ARCHIVE_BASE}/{TOR_VERSION}/sha256sums-unsigned-build.txt");
-    match verify_checksum_from_manifest(&checksum_url, &filename, &archive_path) {
-        Ok(()) => tracing::info!("SHA256 checksum verified"),
-        Err(e) => tracing::warn!("Checksum verification skipped: {}", e),
+    if let Err(e) = verify_checksum_from_manifest(&agent, &checksum_url, &filename, &archive_path) {
+        let _ = std::fs::remove_file(&archive_path);
+        return Err(anyhow::anyhow!("Checksum verification failed: {}", e));
     }
+    tracing::info!("SHA256 checksum verified");
 
     extract_archive(&archive_path, bundle_dir)?;
     let _ = std::fs::remove_file(&archive_path);
@@ -270,14 +279,21 @@ fn download_tor_bundle(bundle_dir: &Path) -> anyhow::Result<PathBuf> {
 }
 
 fn verify_checksum_from_manifest(
+    agent: &ureq::Agent,
     manifest_url: &str,
     filename: &str,
     file_path: &Path,
 ) -> anyhow::Result<()> {
-    let response = ureq::get(manifest_url)
+    let response = agent
+        .get(manifest_url)
         .call()
         .map_err(|e| anyhow::anyhow!("Could not fetch checksum manifest: {}", e))?;
-    let manifest = response.into_string()?;
+    let mut manifest = String::new();
+    response
+        .into_reader()
+        .take(MAX_MANIFEST_BYTES)
+        .read_to_string(&mut manifest)
+        .map_err(|e| anyhow::anyhow!("Failed to read checksum manifest: {}", e))?;
 
     let expected_hash = manifest
         .lines()
@@ -298,28 +314,18 @@ fn verify_checksum_from_manifest(
 }
 
 fn sha256_of_file(path: &Path) -> anyhow::Result<String> {
-    #[cfg(target_os = "macos")]
-    let output = std::process::Command::new("shasum")
-        .args(["-a", "256"])
-        .arg(path)
-        .output()?;
-
-    #[cfg(target_os = "linux")]
-    let output = std::process::Command::new("sha256sum").arg(path).output()?;
-
-    #[cfg(target_os = "windows")]
-    let output = std::process::Command::new("certutil")
-        .args(["-hashfile", path.to_str().unwrap_or(""), "SHA256"])
-        .output()?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    #[cfg(target_os = "windows")]
-    let hash = stdout.lines().nth(1).unwrap_or("").trim().to_string();
-    #[cfg(not(target_os = "windows"))]
-    let hash = stdout.split_whitespace().next().unwrap_or("").to_string();
-
-    Ok(hash)
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    let mut file = std::fs::File::open(path)?;
+    let mut buf = [0u8; 65536];
+    loop {
+        let n = file.read(&mut buf)?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buf[..n]);
+    }
+    Ok(hex::encode(hasher.finalize()))
 }
 
 fn extract_archive(archive: &Path, dest: &Path) -> anyhow::Result<()> {
