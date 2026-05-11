@@ -29,19 +29,30 @@ fn probe_rpc(config: &MakerConfig) -> Option<String> {
     Some(info.chain.to_string())
 }
 
-/// Try well-known default RPC ports for regtest, signet, and mainnet.
+/// Try well-known default RPC ports for regtest and signet.
+/// Mainnet (8332) is excluded — the UI only surfaces regtest/signet.
 /// Returns the chain name on the first successful connection, or None if all fail.
 fn probe_standard_ports() -> Option<String> {
     use coinswap::bitcoind::bitcoincore_rpc::{Auth, Client, RpcApi};
+    use std::net::TcpStream;
+    use std::time::Duration;
 
     let addresses = [
         "127.0.0.1:18443", // regtest
         "127.0.0.1:38332", // signet
-        "127.0.0.1:8332",  // mainnet
     ];
+    // Localhost-only fallback credentials; not suitable for remote hosts.
     let auth_methods = [Auth::UserPass("user".into(), "password".into()), Auth::None];
 
     for address in &addresses {
+        let Ok(socket_addr) = address.parse() else {
+            continue;
+        };
+        // Fast TCP check to avoid blocking on OS connect timeouts (~30 s) for
+        // ports that are not listening or behind a packet filter.
+        if TcpStream::connect_timeout(&socket_addr, Duration::from_millis(300)).is_err() {
+            continue;
+        }
         let url = format!("http://{}", address);
         for auth in auth_methods.clone() {
             if let Ok(client) = Client::new(&url, auth) {

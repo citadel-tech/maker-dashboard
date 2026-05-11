@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   bitcoind,
   onboarding,
@@ -54,7 +54,7 @@ export default function BitcoindWidget() {
     return null;
   }
 
-  async function fetchStatus() {
+  const fetchStatus = useCallback(async () => {
     try {
       const s = await bitcoind.status();
       if (s.running) {
@@ -72,19 +72,13 @@ export default function BitcoindWidget() {
     } catch {
       // silently ignore poll failures
     }
-  }
+  }, []);
 
   useEffect(() => {
     void fetchStatus();
     const interval = setInterval(fetchStatus, 5_000);
     return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    if (!status.running) {
-      void fetchStatus();
-    }
-  }, [network]);
+  }, [fetchStatus]);
 
   async function toggle() {
     setPending(true);
