@@ -29,6 +29,41 @@ fn probe_rpc(config: &MakerConfig) -> Option<String> {
     Some(info.chain.to_string())
 }
 
+/// Try well-known default RPC ports for regtest and signet.
+/// Returns the chain name on the first successful connection, or None if all fail.
+fn probe_standard_ports() -> Option<String> {
+    use coinswap::bitcoind::bitcoincore_rpc::{Auth, Client, RpcApi};
+    use std::net::TcpStream;
+    use std::time::Duration;
+
+    let addresses = [
+        "127.0.0.1:18443", // regtest
+        "127.0.0.1:38332", // signet
+    ];
+    // Localhost-only fallback credentials; not suitable for remote hosts.
+    let auth_methods = [Auth::UserPass("user".into(), "password".into()), Auth::None];
+
+    for address in &addresses {
+        let Ok(socket_addr) = address.parse() else {
+            continue;
+        };
+        // Fast TCP check to avoid blocking on OS connect timeouts (~30 s) for
+        // ports that are not listening or behind a packet filter.
+        if TcpStream::connect_timeout(&socket_addr, Duration::from_millis(300)).is_err() {
+            continue;
+        }
+        let url = format!("http://{}", address);
+        for auth in auth_methods.clone() {
+            if let Ok(client) = Client::new(&url, auth) {
+                if let Ok(info) = client.get_blockchain_info() {
+                    return Some(info.chain.to_string());
+                }
+            }
+        }
+    }
+    None
+}
+
 /// Get bitcoind status by probing RPC connectivity via any registered maker's config.
 /// Falls back to the dashboard-managed process state if no makers are configured.
 #[utoipa::path(
@@ -56,7 +91,7 @@ async fn get_status(State(state): State<AppState>) -> Json<ApiResponse<BitcoindS
                 return Some(network);
             }
         }
-        None
+        probe_standard_ports()
     })
     .await
     .unwrap_or(None);
