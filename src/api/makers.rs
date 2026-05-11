@@ -208,10 +208,19 @@ async fn create_maker(
     }
 
     match mgr.create_maker(body.id.clone(), config) {
-        Ok(()) => (
-            StatusCode::CREATED,
-            Json(ApiResponse::ok(MakerInfo { id: body.id })),
-        ),
+        Ok(()) => {
+            if let Err(e) = mgr.start_maker(&body.id) {
+                tracing::warn!(
+                    "Maker '{}' created but failed to auto-start: {}",
+                    body.id,
+                    e
+                );
+            }
+            (
+                StatusCode::CREATED,
+                Json(ApiResponse::ok(MakerInfo { id: body.id })),
+            )
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ApiResponse::err(e.to_string())),

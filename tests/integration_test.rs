@@ -623,11 +623,7 @@ fn test_maker_manager_integration() {
     generate_blocks(&bitcoind, 1);
     taker.get_wallet().write().unwrap().sync_and_save().unwrap();
 
-    // Start both makers and wait for their coinswap servers to be ready
-    println!("[INFO] Starting makers");
-    client.start_maker(MAKER_ALPHA_ID);
-    client.start_maker(MAKER_BETA_ID);
-
+    // Makers were auto-started on creation; wait for their coinswap servers to be ready.
     // Start a continuous block generator. Makers broadcast fidelity bonds and
     // settlement transactions asynchronously and then enter an internal sync
     // loop that holds the wallet write lock with growing backoff (10s, 20s,
