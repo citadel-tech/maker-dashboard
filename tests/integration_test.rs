@@ -140,7 +140,6 @@ impl DashboardGuard {
                         spa_index: PathBuf::from("frontend/build/client/index.html"),
                         localhost_only: true,
                         config_dir,
-                        password: "integration-test-password".to_string(),
                     };
                     let server = Server::new(cfg).expect("Server::new");
                     let addr = server.addr();
@@ -200,21 +199,39 @@ struct ApiClient {
 
 impl ApiClient {
     fn new(port: u16, creds: RpcCreds) -> Self {
-        let agent = ureq::AgentBuilder::new()
-            .timeout(Duration::from_secs(120))
-            .cookie_store(cookie_store::CookieStore::default())
-            .build();
+        let agent: ureq::Agent = ureq::Agent::config_builder()
+            .timeout_global(Some(Duration::from_secs(120)))
+            .http_status_as_error(false)
+            .build()
+            .into();
         let client = Self {
             base: format!("http://127.0.0.1:{port}/api"),
             agent,
             creds,
         };
-        // Log in to obtain session cookie
-        client
+        let body = serde_json::json!({ "password": "integration-test-password" });
+        // First-run setup: creates `auth.json` and unlocks the maker manager.
+        let setup_resp = client
             .agent
-            .post(&format!("http://127.0.0.1:{port}/api/auth/login"))
-            .send_json(serde_json::json!({ "password": "integration-test-password" }))
-            .expect("dashboard login failed");
+            .post(format!("http://127.0.0.1:{port}/api/auth/setup"))
+            .send_json(&body)
+            .expect("dashboard setup transport error");
+        assert!(
+            setup_resp.status().is_success(),
+            "auth/setup failed: HTTP {}",
+            setup_resp.status()
+        );
+        // Login: sets the session cookie (kept alive by the agent's cookie jar).
+        let login_resp = client
+            .agent
+            .post(format!("http://127.0.0.1:{port}/api/auth/login"))
+            .send_json(&body)
+            .expect("dashboard login transport error");
+        assert!(
+            login_resp.status().is_success(),
+            "auth/login failed: HTTP {}",
+            login_resp.status()
+        );
         client
     }
 

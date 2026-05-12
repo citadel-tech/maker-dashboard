@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowBigRight,
   Check,
   Coins,
   Globe,
@@ -61,12 +60,13 @@ function StepIndicator({ current }: { current: OnboardStep }) {
         <div key={s.key} className="flex items-center">
           <div className="flex flex-col items-center">
             <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-colors ${i < idx
-                ? "bg-orange-600 text-white"
-                : i === idx
-                  ? "bg-orange-500 text-white ring-4 ring-orange-500/30"
-                  : "bg-gray-800 text-gray-500"
-                }`}
+              className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-colors ${
+                i < idx
+                  ? "bg-orange-600 text-white"
+                  : i === idx
+                    ? "bg-orange-500 text-white ring-4 ring-orange-500/30"
+                    : "bg-gray-800 text-gray-500"
+              }`}
             >
               {i < idx ? <Check className="w-4 h-4" /> : i + 1}
             </div>
@@ -364,23 +364,25 @@ function PrereqsStep({
           return (
             <div
               key={p.id}
-              className={`w-full rounded-xl border p-4 text-left transition-all ${isSuccess
-                ? "border-emerald-500/70 bg-emerald-950/20"
-                : isError
-                  ? "border-red-700/70 bg-red-950/20"
-                  : "border-gray-700 bg-gray-900 hover:border-gray-600"
-                }`}
+              className={`w-full rounded-xl border p-4 text-left transition-all ${
+                isSuccess
+                  ? "border-emerald-500/70 bg-emerald-950/20"
+                  : isError
+                    ? "border-red-700/70 bg-red-950/20"
+                    : "border-gray-700 bg-gray-900 hover:border-gray-600"
+              }`}
             >
               <div className="flex items-start gap-4">
                 <div
-                  className={`mt-0.5 w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${isSuccess
-                    ? "border-emerald-500 bg-emerald-500"
-                    : isError
-                      ? "border-red-500 bg-red-500/20"
-                      : isLoading
-                        ? "border-orange-400 text-orange-400"
-                        : "border-gray-600"
-                    }`}
+                  className={`mt-0.5 w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                    isSuccess
+                      ? "border-emerald-500 bg-emerald-500"
+                      : isError
+                        ? "border-red-500 bg-red-500/20"
+                        : isLoading
+                          ? "border-orange-400 text-orange-400"
+                          : "border-gray-600"
+                  }`}
                 >
                   {isLoading ? (
                     <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
@@ -409,12 +411,13 @@ function PrereqsStep({
                   </div>
                   {state.message && (
                     <p
-                      className={`mt-3 text-sm ${isSuccess
-                        ? "text-emerald-300"
-                        : isError
-                          ? "text-red-300"
-                          : "text-gray-400"
-                        }`}
+                      className={`mt-3 text-sm ${
+                        isSuccess
+                          ? "text-emerald-300"
+                          : isError
+                            ? "text-red-300"
+                            : "text-gray-400"
+                      }`}
                     >
                       {state.message}
                     </p>

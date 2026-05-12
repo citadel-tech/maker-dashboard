@@ -37,8 +37,7 @@ name = "api"
 path = "tests/api/mod.rs"
 
 [dev-dependencies]
-cookie_store = "0.21"
-ureq = { version = "3", features = ["json"] }
+ureq = { version = "3", features = ["json", "cookies"] }
 bitcoind = { version = "0.36", features = [] }
 bitcoin = { version = "0.32" }
 log = "0.4"
