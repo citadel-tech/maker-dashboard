@@ -136,11 +136,13 @@ async fn setup(
     // Hold the setup lock for the entire critical section so two concurrent
     // /auth/setup calls cannot race past validation.
     let _guard = setup_lock.lock().await;
-
-    if body.password.is_empty() {
+    const MIN_PASSWORD_LEN: usize = 8;
+    if body.password.len() < MIN_PASSWORD_LEN {
         return (
             StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<()>::err("Password must not be empty")),
+            Json(ApiResponse::<()>::err(format!(
+                "Password must be at least {MIN_PASSWORD_LEN} characters"
+            ))),
         )
             .into_response();
     }
@@ -234,10 +236,13 @@ async fn rotate_password(
     Json(body): Json<RotatePasswordRequest>,
 ) -> impl IntoResponse {
     // Validate inputs up front
-    if body.new_password.is_empty() {
+    const MIN_PASSWORD_LEN: usize = 8;
+    if body.new_password.len() < MIN_PASSWORD_LEN {
         return (
             StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<()>::err("New password must not be empty")),
+            Json(ApiResponse::<()>::err(format!(
+                "Password must be at least {MIN_PASSWORD_LEN} characters"
+            ))),
         )
             .into_response();
     }
