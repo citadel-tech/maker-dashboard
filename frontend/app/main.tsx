@@ -18,26 +18,26 @@ import Setup from "./routes/setup";
 import { auth } from "@/api";
 
 interface AuthState {
-  initialized: boolean;
+  passwordExists: boolean;
   authenticated: boolean;
 }
 
 function useAuthStatus(): { checking: boolean; state: AuthState } {
   const [checking, setChecking] = useState(true);
   const [state, setState] = useState<AuthState>({
-    initialized: true,
+    passwordExists: false,
     authenticated: false,
   });
 
   useEffect(() => {
     auth
       .status()
-      .then(({ initialized, authenticated }) => {
-        setState({ initialized, authenticated });
+      .then(({ password_exists, authenticated }) => {
+        setState({ passwordExists: password_exists, authenticated });
         setChecking(false);
       })
       .catch(() => {
-        setState({ initialized: true, authenticated: false });
+        setState({ passwordExists: false, authenticated: false });
         setChecking(false);
       });
   }, []);
@@ -46,39 +46,39 @@ function useAuthStatus(): { checking: boolean; state: AuthState } {
 }
 
 // AuthLayout: wraps authenticated routes.
-// - uninitialized => /setup
-// - initialized + not authed => /login
-// - initialized + authed => render
+// - no password => /setup
+// - password exists + not authed => /login
+// - password exists + authed => render
 function AuthLayout() {
   const { checking, state } = useAuthStatus();
 
   if (checking) return null;
-  if (!state.initialized) return <Navigate to="/setup" replace />;
+  if (!state.passwordExists) return <Navigate to="/setup" replace />;
   if (!state.authenticated) return <Navigate to="/login" replace />;
   return <Outlet />;
 }
 
 // GuestLayout: wraps /login.
-// - uninitialized => /setup
-// - initialized + authed => /
-// - initialized + not authed => render
+// - no password => /setup
+// - password exists + authed => /
+// - password exists + not authed => render
 function GuestLayout() {
   const { checking, state } = useAuthStatus();
 
   if (checking) return null;
-  if (!state.initialized) return <Navigate to="/setup" replace />;
+  if (!state.passwordExists) return <Navigate to="/setup" replace />;
   if (state.authenticated) return <Navigate to="/" replace />;
   return <Outlet />;
 }
 
 // SetupLayout: wraps /setup.
-// - initialized => /login
-// - uninitialized => render
+// - password exists => /login
+// - no password => render
 function SetupLayout() {
   const { checking, state } = useAuthStatus();
 
   if (checking) return null;
-  if (state.initialized) return <Navigate to="/login" replace />;
+  if (state.passwordExists) return <Navigate to="/login" replace />;
   return <Outlet />;
 }
 

@@ -40,8 +40,8 @@ struct RotatePasswordRequest {
 
 #[derive(Serialize)]
 struct AuthStatus {
-    /// `true` if `auth.json` exists at startup OR was created via `/auth/setup`.
-    initialized: bool,
+    /// `true` if a dashboard password hash is present in memory.
+    password_exists: bool,
     /// `true` if the request carries a valid session cookie.
     authenticated: bool,
 }
@@ -368,13 +368,18 @@ async fn status(
     State(sessions): State<Arc<Mutex<SessionStore>>>,
     headers: axum::http::HeaderMap,
 ) -> impl IntoResponse {
-    let initialized = auth.read().unwrap().is_some();
+    let password_exists = auth
+        .read()
+        .unwrap()
+        .as_ref()
+        .map(|cfg| !cfg.password_hash.is_empty())
+        .unwrap_or(false);
     let authenticated = match extract_session_token(&headers) {
         Some(token) => sessions.lock().await.validate(&token),
         None => false,
     };
     Json(ApiResponse::ok(AuthStatus {
-        initialized,
+        password_exists,
         authenticated,
     }))
 }
