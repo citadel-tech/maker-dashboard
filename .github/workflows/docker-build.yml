@@ -61,7 +61,7 @@ jobs:
           done
           # Verify API responds and that a fresh container is uninitialized.
           if ! curl -sf http://localhost:3000/api/auth/status \
-            | jq -e '.data.initialized == false and .data.authenticated == false'; then
+            | jq -e '.data.password_exists == false and .data.authenticated == false'; then
             echo "Auth status assertion failed"
             docker logs test-container
             exit 1
