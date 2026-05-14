@@ -401,7 +401,7 @@ export const onboarding = {
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export interface AuthStatus {
-  initialized: boolean;
+  password_exists: boolean;
   authenticated: boolean;
 }
 
