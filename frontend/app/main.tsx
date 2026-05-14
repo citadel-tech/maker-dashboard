@@ -18,14 +18,14 @@ import Setup from "./routes/setup";
 import { auth } from "@/api";
 
 interface AuthState {
-  passwordExists: boolean;
+  passwordExists: boolean | null;
   authenticated: boolean;
 }
 
 function useAuthStatus(): { checking: boolean; state: AuthState } {
   const [checking, setChecking] = useState(true);
   const [state, setState] = useState<AuthState>({
-    passwordExists: false,
+    passwordExists: null,
     authenticated: false,
   });
 
@@ -37,7 +37,7 @@ function useAuthStatus(): { checking: boolean; state: AuthState } {
         setChecking(false);
       })
       .catch(() => {
-        setState({ passwordExists: false, authenticated: false });
+        setState({ passwordExists: null, authenticated: false });
         setChecking(false);
       });
   }, []);
@@ -52,7 +52,7 @@ function useAuthStatus(): { checking: boolean; state: AuthState } {
 function AuthLayout() {
   const { checking, state } = useAuthStatus();
 
-  if (checking) return null;
+  if (checking || state.passwordExists === null) return null;
   if (!state.passwordExists) return <Navigate to="/setup" replace />;
   if (!state.authenticated) return <Navigate to="/login" replace />;
   return <Outlet />;
@@ -65,7 +65,7 @@ function AuthLayout() {
 function GuestLayout() {
   const { checking, state } = useAuthStatus();
 
-  if (checking) return null;
+  if (checking || state.passwordExists === null) return null;
   if (!state.passwordExists) return <Navigate to="/setup" replace />;
   if (state.authenticated) return <Navigate to="/" replace />;
   return <Outlet />;
@@ -77,7 +77,7 @@ function GuestLayout() {
 function SetupLayout() {
   const { checking, state } = useAuthStatus();
 
-  if (checking) return null;
+  if (checking || state.passwordExists === null) return null;
   if (state.passwordExists) return <Navigate to="/login" replace />;
   return <Outlet />;
 }
