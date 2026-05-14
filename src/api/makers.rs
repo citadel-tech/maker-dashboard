@@ -136,12 +136,19 @@ async fn create_maker(
     Json(body): Json<CreateMakerRequest>,
 ) -> (StatusCode, Json<ApiResponse<MakerInfo>>) {
     let mut mgr = state.lock().await;
-    if mgr.has_maker(&body.id) {
+    let trimmed_id = body.id.trim().to_string();
+    if trimmed_id.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::err("Maker ID cannot be empty")),
+        );
+    }
+    if mgr.has_maker(&trimmed_id) {
         return (
             StatusCode::CONFLICT,
             Json(ApiResponse::err(format!(
                 "Maker '{}' already exists",
-                body.id
+                trimmed_id
             ))),
         );
     }
@@ -207,10 +214,10 @@ async fn create_maker(
         }
     }
 
-    match mgr.create_maker(body.id.clone(), config) {
+    match mgr.create_maker(trimmed_id.clone(), config) {
         Ok(()) => (
             StatusCode::CREATED,
-            Json(ApiResponse::ok(MakerInfo { id: body.id })),
+            Json(ApiResponse::ok(MakerInfo { id: trimmed_id })),
         ),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,

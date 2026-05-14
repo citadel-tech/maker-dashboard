@@ -26,9 +26,7 @@ thiserror = "2.0.18"
 futures = "0.3.32"
 clap = { version = "4.5.60", features = ["derive", "env"] }
 dirs = "6.0.0"
-ureq = { version = "2", features = ["json"] }
-sha2 = "0.10"
-hex = "0.4"
+libtor = "47"
 
 [[test]]
 name = "api"
@@ -40,3 +38,4 @@ bitcoin = { version = "0.32" }
 log = "0.4"
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
+ureq = { version = "3", features = ["json"] }

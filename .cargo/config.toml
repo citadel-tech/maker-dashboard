@@ -1,0 +1,7 @@
+# libtor-src compiles Tor from C and needs to find OpenSSL.
+# On macOS, Homebrew installs OpenSSL in a non-standard prefix, so we hint the
+# configure script via CFLAGS/LDFLAGS.  On Linux these paths don't exist and
+# the flags are harmlessly ignored.
+[env]
+CFLAGS  = "-I/opt/homebrew/opt/openssl@3/include"
+LDFLAGS = "-L/opt/homebrew/opt/openssl@3/lib"

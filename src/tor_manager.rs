@@ -1,4 +1,3 @@
-use std::io::Read;
 use std::net::TcpStream;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -6,39 +5,31 @@ use std::time::{Duration, Instant};
 const SOCKS_PORT: u16 = 9050;
 const CONTROL_PORT: u16 = 9051;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
-const STARTUP_TIMEOUT: Duration = Duration::from_secs(30);
+const STARTUP_TIMEOUT: Duration = Duration::from_secs(60);
 const POLL_INTERVAL: Duration = Duration::from_millis(500);
-const DOWNLOAD_CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
-const DOWNLOAD_READ_TIMEOUT: Duration = Duration::from_secs(120);
-const MAX_ARCHIVE_BYTES: u64 = 200 * 1024 * 1024; // 200 MB
-const MAX_MANIFEST_BYTES: u64 = 1024 * 1024; // 1 MB
-
-// Update this when the Tor Project releases a new stable version.
-const TOR_VERSION: &str = "14.0.7";
-const TOR_ARCHIVE_BASE: &str = "https://archive.torproject.org/tor-package-archive/torbrowser";
 
 enum TorSource {
     System,
     HostProcess,
-    Downloaded,
+    Embedded,
 }
 
 pub struct TorManager {
     source: TorSource,
     process: Option<std::process::Child>,
+    _tor_thread: Option<std::thread::JoinHandle<Result<u8, libtor::Error>>>,
 }
 
 impl TorManager {
-    #[allow(dead_code)]
     pub fn noop() -> Self {
         TorManager {
             source: TorSource::System,
             process: None,
+            _tor_thread: None,
         }
     }
 
     pub fn detect_or_start(config_dir: &Path) -> anyhow::Result<Self> {
-        // 1. Already running?
         tracing::info!(
             "Checking if Tor is already running (SOCKS:{} control:{})",
             SOCKS_PORT,
@@ -54,6 +45,7 @@ impl TorManager {
                 return Ok(TorManager {
                     source: TorSource::System,
                     process: None,
+                    _tor_thread: None,
                 });
             }
             tracing::warn!(
@@ -62,55 +54,41 @@ impl TorManager {
                 SOCKS_PORT,
                 CONTROL_PORT
             );
-        } else {
-            tracing::debug!("Tor not running on port {}", SOCKS_PORT);
         }
 
-        // 2. System tor binary on PATH?
-        tracing::info!("Searching for tor binary on PATH and known locations");
         if let Some(binary) = find_binary("tor") {
             tracing::info!("Found system tor at {}", binary.display());
-            let child = spawn_host_process(&binary, None, &config_dir.join("tor"))?;
+            let child = spawn_host_process(&binary, &config_dir.join("tor"))?;
             wait_for_port(SOCKS_PORT)?;
             return Ok(TorManager {
                 source: TorSource::HostProcess,
                 process: Some(child),
+                _tor_thread: None,
             });
         }
-        tracing::info!("No system tor binary found");
 
-        // 3. Previously downloaded bundle?
-        let bundle_dir = config_dir.join("tor-bundle");
-        let bundle_binary = tor_binary_in_bundle(&bundle_dir);
-        tracing::info!("Checking for cached bundle at {}", bundle_binary.display());
-        if bundle_binary.exists() {
-            tracing::info!("Using cached Tor bundle");
-            let lib_dir = bundle_binary.parent().map(Path::to_path_buf);
-            let child =
-                spawn_host_process(&bundle_binary, lib_dir.as_deref(), &config_dir.join("tor"))?;
-            wait_for_port(SOCKS_PORT)?;
-            return Ok(TorManager {
-                source: TorSource::Downloaded,
-                process: Some(child),
-            });
-        }
-        tracing::info!("No cached bundle found");
+        tracing::info!("Starting embedded Tor");
+        let data_dir = config_dir.join("tor").join("data");
+        std::fs::create_dir_all(&data_dir)?;
 
-        // 4. Download and extract
-        tracing::info!(
-            "Downloading Tor Expert Bundle v{} for {}/{}",
-            TOR_VERSION,
-            std::env::consts::OS,
-            std::env::consts::ARCH
-        );
-        let binary = download_tor_bundle(&bundle_dir)
-            .map_err(|e| anyhow::anyhow!("Failed to download Tor Expert Bundle: {}", e))?;
-        let lib_dir = binary.parent().map(Path::to_path_buf);
-        let child = spawn_host_process(&binary, lib_dir.as_deref(), &config_dir.join("tor"))?;
+        let handle = libtor::Tor::new()
+            .flag(libtor::TorFlag::DataDirectory(
+                data_dir.to_string_lossy().into_owned(),
+            ))
+            .flag(libtor::TorFlag::SocksPort(SOCKS_PORT))
+            .flag(libtor::TorFlag::ControlPort(CONTROL_PORT))
+            .flag(libtor::TorFlag::CookieAuthentication(
+                libtor::TorBool::False,
+            ))
+            .start_background();
+
         wait_for_port(SOCKS_PORT)?;
+        tracing::info!("Embedded Tor ready");
+
         Ok(TorManager {
-            source: TorSource::Downloaded,
-            process: Some(child),
+            source: TorSource::Embedded,
+            process: None,
+            _tor_thread: Some(handle),
         })
     }
 
@@ -118,21 +96,18 @@ impl TorManager {
         match self.source {
             TorSource::System => "system",
             TorSource::HostProcess => "host",
-            TorSource::Downloaded => "downloaded",
+            TorSource::Embedded => "embedded",
         }
     }
 }
 
 impl Drop for TorManager {
     fn drop(&mut self) {
-        match self.source {
-            TorSource::System => {}
-            TorSource::HostProcess | TorSource::Downloaded => {
-                if let Some(ref mut child) = self.process {
-                    let _ = child.kill();
-                    let _ = child.wait();
-                    tracing::info!("Tor process stopped");
-                }
+        if let TorSource::HostProcess = self.source {
+            if let Some(ref mut child) = self.process {
+                let _ = child.kill();
+                let _ = child.wait();
+                tracing::info!("Tor process stopped");
             }
         }
     }
@@ -152,22 +127,16 @@ fn find_binary(name: &str) -> Option<PathBuf> {
             }
         }
     }
-
     for prefix in ["/usr/local/bin", "/opt/homebrew/bin", "/usr/bin"] {
         let candidate = PathBuf::from(prefix).join(name);
         if candidate.exists() {
             return Some(candidate);
         }
     }
-
     None
 }
 
-fn spawn_host_process(
-    binary: &Path,
-    lib_dir: Option<&Path>,
-    tor_dir: &Path,
-) -> anyhow::Result<std::process::Child> {
+fn spawn_host_process(binary: &Path, tor_dir: &Path) -> anyhow::Result<std::process::Child> {
     let data_dir = tor_dir.join("data");
     std::fs::create_dir_all(&data_dir)?;
 
@@ -178,226 +147,19 @@ fn spawn_host_process(
     );
     std::fs::write(&torrc_path, &torrc_content)?;
 
-    tracing::info!("Tor config: {}", torrc_path.display());
-    tracing::info!("Tor data dir: {}", data_dir.display());
-    tracing::debug!("torrc contents:\n{}", torrc_content.trim());
-
-    let mut cmd = std::process::Command::new(binary);
-    cmd.args([
-        "-f",
-        torrc_path
-            .to_str()
-            .ok_or_else(|| anyhow::anyhow!("torrc path is not valid UTF-8"))?,
-    ]);
-
-    if let Some(dir) = lib_dir {
-        #[cfg(target_os = "linux")]
-        cmd.env("LD_LIBRARY_PATH", dir);
-        #[cfg(target_os = "macos")]
-        cmd.env("DYLD_LIBRARY_PATH", dir);
-    }
-
     tracing::info!("Spawning tor: {}", binary.display());
 
-    cmd.stdout(std::process::Stdio::null())
+    std::process::Command::new(binary)
+        .args([
+            "-f",
+            torrc_path
+                .to_str()
+                .ok_or_else(|| anyhow::anyhow!("torrc path is not valid UTF-8"))?,
+        ])
+        .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .spawn()
         .map_err(Into::into)
-}
-
-fn tor_binary_in_bundle(bundle_dir: &Path) -> PathBuf {
-    let name = if cfg!(windows) { "tor.exe" } else { "tor" };
-    bundle_dir.join("tor").join(name)
-}
-
-fn download_tor_bundle(bundle_dir: &Path) -> anyhow::Result<PathBuf> {
-    let os = match std::env::consts::OS {
-        "macos" => "macos",
-        "windows" => "windows",
-        _ => "linux",
-    };
-    let arch = match std::env::consts::ARCH {
-        "aarch64" => "aarch64",
-        _ => "x86_64",
-    };
-    let ext = "tar.gz";
-    let filename = format!("tor-expert-bundle-{os}-{arch}-{TOR_VERSION}.{ext}");
-    let url = format!("{TOR_ARCHIVE_BASE}/{TOR_VERSION}/{filename}");
-
-    std::fs::create_dir_all(bundle_dir)?;
-    let archive_path = bundle_dir.join(&filename);
-
-    let agent = ureq::AgentBuilder::new()
-        .timeout_connect(DOWNLOAD_CONNECT_TIMEOUT)
-        .timeout_read(DOWNLOAD_READ_TIMEOUT)
-        .build();
-
-    tracing::info!("Downloading {}", url);
-    let response = agent
-        .get(&url)
-        .call()
-        .map_err(|e| anyhow::anyhow!("Download failed: {}", e))?;
-    {
-        let mut file = std::fs::File::create(&archive_path)?;
-        let bytes = std::io::copy(
-            &mut response.into_reader().take(MAX_ARCHIVE_BYTES),
-            &mut file,
-        )?;
-        tracing::info!("Downloaded {:.1} MB", bytes as f64 / 1_048_576.0);
-    }
-
-    let checksum_url = format!("{TOR_ARCHIVE_BASE}/{TOR_VERSION}/sha256sums-unsigned-build.txt");
-    if let Err(e) = verify_checksum_from_manifest(&agent, &checksum_url, &filename, &archive_path) {
-        let _ = std::fs::remove_file(&archive_path);
-        return Err(anyhow::anyhow!("Checksum verification failed: {}", e));
-    }
-    tracing::info!("SHA256 checksum verified");
-
-    extract_archive(&archive_path, bundle_dir)?;
-    let _ = std::fs::remove_file(&archive_path);
-
-    let binary = tor_binary_in_bundle(bundle_dir);
-    if !binary.exists() {
-        return Err(anyhow::anyhow!(
-            "Tor binary not found at {} after extraction",
-            binary.display()
-        ));
-    }
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o755))?;
-    }
-
-    // Apple Silicon requires all binaries to be signed; ad-hoc signing works without a certificate.
-    #[cfg(target_os = "macos")]
-    adhoc_sign_bundle(&binary)?;
-
-    tracing::info!("Tor Expert Bundle ready at {}", binary.display());
-    Ok(binary)
-}
-
-fn verify_checksum_from_manifest(
-    agent: &ureq::Agent,
-    manifest_url: &str,
-    filename: &str,
-    file_path: &Path,
-) -> anyhow::Result<()> {
-    let response = agent
-        .get(manifest_url)
-        .call()
-        .map_err(|e| anyhow::anyhow!("Could not fetch checksum manifest: {}", e))?;
-    let mut manifest = String::new();
-    response
-        .into_reader()
-        .take(MAX_MANIFEST_BYTES)
-        .read_to_string(&mut manifest)
-        .map_err(|e| anyhow::anyhow!("Failed to read checksum manifest: {}", e))?;
-
-    let expected_hash = manifest
-        .lines()
-        .find(|l| l.contains(filename))
-        .and_then(|l| l.split_whitespace().next())
-        .ok_or_else(|| anyhow::anyhow!("Filename not found in checksum manifest"))?
-        .to_string();
-
-    let actual_hash = sha256_of_file(file_path)?;
-    if actual_hash.to_lowercase() != expected_hash.to_lowercase() {
-        return Err(anyhow::anyhow!(
-            "SHA256 mismatch: expected {}, got {}",
-            expected_hash,
-            actual_hash
-        ));
-    }
-    Ok(())
-}
-
-fn sha256_of_file(path: &Path) -> anyhow::Result<String> {
-    use sha2::{Digest, Sha256};
-    let mut hasher = Sha256::new();
-    let mut file = std::fs::File::open(path)?;
-    let mut buf = [0u8; 65536];
-    loop {
-        let n = file.read(&mut buf)?;
-        if n == 0 {
-            break;
-        }
-        hasher.update(&buf[..n]);
-    }
-    Ok(hex::encode(hasher.finalize()))
-}
-
-fn extract_archive(archive: &Path, dest: &Path) -> anyhow::Result<()> {
-    let archive_str = archive
-        .to_str()
-        .ok_or_else(|| anyhow::anyhow!("archive path is not valid UTF-8"))?;
-    let dest_str = dest
-        .to_str()
-        .ok_or_else(|| anyhow::anyhow!("dest path is not valid UTF-8"))?;
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        let status = std::process::Command::new("tar")
-            .args(["-xzf", archive_str, "-C", dest_str])
-            .status()?;
-        if !status.success() {
-            return Err(anyhow::anyhow!("tar extraction failed"));
-        }
-    }
-
-    #[cfg(target_os = "windows")]
-    {
-        let ok = std::process::Command::new("tar")
-            .args(["-xf", archive_str, "-C", dest_str])
-            .status()
-            .map(|s| s.success())
-            .unwrap_or(false);
-        if !ok {
-            let ps_cmd = format!(
-                "Expand-Archive -Force -Path '{}' -DestinationPath '{}'",
-                archive_str, dest_str
-            );
-            let status = std::process::Command::new("powershell")
-                .args(["-Command", &ps_cmd])
-                .status()?;
-            if !status.success() {
-                return Err(anyhow::anyhow!("Failed to extract zip archive"));
-            }
-        }
-    }
-
-    Ok(())
-}
-
-#[cfg(target_os = "macos")]
-fn adhoc_sign_bundle(binary: &Path) -> anyhow::Result<()> {
-    let lib_dir = binary
-        .parent()
-        .ok_or_else(|| anyhow::anyhow!("binary has no parent directory"))?;
-
-    for entry in std::fs::read_dir(lib_dir)? {
-        let path = entry?.path();
-        if path.extension().map_or(false, |e| e == "dylib") {
-            std::process::Command::new("codesign")
-                .args(["--force", "--sign", "-"])
-                .arg(&path)
-                .status()
-                .map_err(|e| anyhow::anyhow!("codesign failed for {}: {}", path.display(), e))?;
-        }
-    }
-
-    let status = std::process::Command::new("codesign")
-        .args(["--force", "--sign", "-"])
-        .arg(binary)
-        .status()
-        .map_err(|e| anyhow::anyhow!("codesign failed: {}", e))?;
-
-    if !status.success() {
-        return Err(anyhow::anyhow!("codesign exited with {}", status));
-    }
-
-    Ok(())
 }
 
 fn wait_for_port(port: u16) -> anyhow::Result<()> {

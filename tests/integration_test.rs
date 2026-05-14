@@ -201,9 +201,10 @@ impl ApiClient {
     fn new(port: u16, creds: RpcCreds) -> Self {
         Self {
             base: format!("http://127.0.0.1:{port}/api"),
-            agent: ureq::AgentBuilder::new()
-                .timeout(Duration::from_secs(120))
-                .build(),
+            agent: ureq::Agent::config_builder()
+                .timeout_global(Some(Duration::from_secs(120)))
+                .build()
+                .new_agent(),
             creds,
         }
     }
@@ -213,7 +214,8 @@ impl ApiClient {
             .get(&format!("{}{path}", self.base))
             .call()
             .unwrap_or_else(|e| panic!("GET {path} failed: {e}"))
-            .into_json()
+            .into_body()
+            .read_json()
             .unwrap_or_else(|e| panic!("JSON decode GET {path}: {e}"))
     }
 
@@ -222,7 +224,8 @@ impl ApiClient {
             .post(&format!("{}{path}", self.base))
             .send_json(body)
             .unwrap_or_else(|e| panic!("POST {path} failed: {e}"))
-            .into_json()
+            .into_body()
+            .read_json()
             .unwrap_or_else(|e| panic!("JSON decode POST {path}: {e}"))
     }
 
@@ -236,10 +239,8 @@ impl ApiClient {
             .send_json(body)
         {
             Ok(resp) => resp
-                .into_json()
-                .unwrap_or_else(|e| panic!("JSON decode POST {path}: {e}")),
-            Err(ureq::Error::Status(_, resp)) => resp
-                .into_json()
+                .into_body()
+                .read_json::<Value>()
                 .unwrap_or(serde_json::json!({"success": false})),
             Err(e) => panic!("POST {path} transport error: {e}"),
         }
@@ -250,7 +251,8 @@ impl ApiClient {
             .put(&format!("{}{path}", self.base))
             .send_json(body)
             .unwrap_or_else(|e| panic!("PUT {path} failed: {e}"))
-            .into_json()
+            .into_body()
+            .read_json()
             .unwrap_or_else(|e| panic!("JSON decode PUT {path}: {e}"))
     }
 
