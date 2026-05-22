@@ -11,8 +11,8 @@ use tokio::sync::Mutex;
 
 use super::{
     dto::{
-        ApiResponse, CreateMakerRequest, MakerInfo, MakerInfoDetailed, SuggestedMakerPorts,
-        UpdateMakerConfigRequest,
+        ApiResponse, CreateMakerRequest, MakerAutoStartSettings, MakerInfo, MakerInfoDetailed,
+        SuggestedMakerPorts, UpdateMakerAutoStartSettingsRequest, UpdateMakerConfigRequest,
     },
     AppState,
 };
@@ -22,6 +22,8 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/makers", get(list_makers))
         .route("/makers", post(create_maker))
+        .route("/makers/auto-start", get(get_auto_start_settings))
+        .route("/makers/auto-start", put(update_auto_start_settings))
         .route("/makers/ports/suggested", get(get_suggested_ports))
         .route("/makers/count", get(get_maker_count))
         .route("/makers/{id}", get(get_maker))
@@ -74,6 +76,50 @@ async fn get_suggested_ports(
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ApiResponse::err(format!(
                 "Failed to suggest maker ports: {e}"
+            ))),
+        ),
+    }
+}
+
+/// Get whether makers should automatically start after restore/startup.
+#[utoipa::path(
+    get, path = "/api/makers/auto-start", tag = "makers",
+    responses((status = 200, description = "Maker auto-start setting", body = ApiResponse<MakerAutoStartSettings>))
+)]
+async fn get_auto_start_settings(
+    State(state): State<Arc<Mutex<MakerManager>>>,
+) -> Json<ApiResponse<MakerAutoStartSettings>> {
+    let mgr = state.lock().await;
+    Json(ApiResponse::ok(MakerAutoStartSettings {
+        enabled: mgr.auto_start_makers(),
+    }))
+}
+
+/// Set whether makers should automatically start after restore/startup.
+#[utoipa::path(
+    put, path = "/api/makers/auto-start", tag = "makers",
+    request_body = UpdateMakerAutoStartSettingsRequest,
+    responses(
+        (status = 200, description = "Maker auto-start setting updated", body = ApiResponse<MakerAutoStartSettings>),
+        (status = 500, description = "Internal error", body = ApiResponse<MakerAutoStartSettings>)
+    )
+)]
+async fn update_auto_start_settings(
+    State(state): State<Arc<Mutex<MakerManager>>>,
+    Json(body): Json<UpdateMakerAutoStartSettingsRequest>,
+) -> (StatusCode, Json<ApiResponse<MakerAutoStartSettings>>) {
+    let mut mgr = state.lock().await;
+    match mgr.set_auto_start_makers(body.enabled) {
+        Ok(()) => (
+            StatusCode::OK,
+            Json(ApiResponse::ok(MakerAutoStartSettings {
+                enabled: body.enabled,
+            })),
+        ),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::err(format!(
+                "Failed to save maker auto-start setting: {e}"
             ))),
         ),
     }
@@ -212,10 +258,26 @@ async fn create_maker(
     }
 
     match mgr.create_maker(body.id.clone(), config) {
-        Ok(()) => (
-            StatusCode::CREATED,
-            Json(ApiResponse::ok(MakerInfo { id: body.id })),
-        ),
+        Ok(()) => {
+            if mgr.auto_start_makers() {
+                if let Err(e) = mgr.start_maker(&body.id) {
+                    tracing::warn!(
+                        "Maker '{}' created but failed to auto-start: {}",
+                        body.id,
+                        e
+                    );
+                }
+            } else {
+                tracing::info!(
+                    "Maker '{}' created without auto-start because the setting is disabled",
+                    body.id
+                );
+            }
+            (
+                StatusCode::CREATED,
+                Json(ApiResponse::ok(MakerInfo { id: body.id })),
+            )
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ApiResponse::err(e.to_string())),

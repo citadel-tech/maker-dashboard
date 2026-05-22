@@ -64,6 +64,8 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<Set<string>>(new Set());
+  const [autoStartMakers, setAutoStartMakers] = useState(true);
+  const [autoStartSaving, setAutoStartSaving] = useState(false);
   const [logSwapSeenAt, setLogSwapSeenAt] = useState<Record<string, number>>(
     {},
   );
@@ -155,6 +157,16 @@ export default function Home() {
 
   useEffect(() => {
     loadMakers(true);
+    makers
+      .autoStartSettings()
+      .then((settings) => setAutoStartMakers(settings.enabled))
+      .catch((err) =>
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Failed to load maker startup setting",
+        ),
+      );
     const interval = setInterval(() => {
       void loadMakers();
     }, 15_000);
@@ -221,6 +233,24 @@ export default function Home() {
         next.delete(id);
         return next;
       });
+    }
+  }
+
+  async function toggleAutoStartMakers(enabled: boolean) {
+    setAutoStartSaving(true);
+    setAutoStartMakers(enabled);
+    try {
+      const settings = await makers.updateAutoStartSettings(enabled);
+      setAutoStartMakers(settings.enabled);
+    } catch (err) {
+      setAutoStartMakers(!enabled);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to save maker startup setting",
+      );
+    } finally {
+      setAutoStartSaving(false);
     }
   }
 
@@ -389,12 +419,27 @@ export default function Home() {
                 </button>
               </div>
             </div>
-            <Link
-              to="/addMaker"
-              className="px-4 sm:px-5 py-2 sm:py-2.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 active:scale-[0.97] transition-all duration-150 font-semibold text-sm w-full sm:w-auto text-center"
-            >
-              + Add New Maker
-            </Link>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <label className="flex items-center justify-between gap-3 rounded-lg border border-gray-800 bg-gray-900 px-3 py-2 text-sm text-gray-300">
+                <span className="whitespace-nowrap">Auto-start makers</span>
+                <input
+                  type="checkbox"
+                  checked={autoStartMakers}
+                  disabled={autoStartSaving}
+                  onChange={(event) =>
+                    void toggleAutoStartMakers(event.target.checked)
+                  }
+                  className="h-4 w-4 accent-orange-600 disabled:cursor-not-allowed"
+                  aria-label="Auto-start makers on startup"
+                />
+              </label>
+              <Link
+                to="/addMaker"
+                className="px-4 sm:px-5 py-2 sm:py-2.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 active:scale-[0.97] transition-all duration-150 font-semibold text-sm w-full sm:w-auto text-center"
+              >
+                + Add New Maker
+              </Link>
+            </div>
           </div>
 
           {visibleMakerRows.length === 0 ? (

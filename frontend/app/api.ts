@@ -42,6 +42,10 @@ export interface SuggestedMakerPorts {
   rpc_port: number;
 }
 
+export interface MakerAutoStartSettings {
+  enabled: boolean;
+}
+
 export interface BalanceInfo {
   /** satoshis */
   regular: number;
@@ -313,6 +317,12 @@ export const makers = {
   count: (): Promise<number> => get("/makers/count"),
   suggestedPorts: (): Promise<SuggestedMakerPorts> =>
     get("/makers/ports/suggested"),
+  autoStartSettings: (): Promise<MakerAutoStartSettings> =>
+    get("/makers/auto-start"),
+  updateAutoStartSettings: (
+    enabled: boolean,
+  ): Promise<MakerAutoStartSettings> =>
+    put("/makers/auto-start", { enabled }),
   get: (id: string): Promise<MakerInfoDetailed> => get(`/makers/${id}`),
   info: (id: string): Promise<MakerInfoDetailed> => get(`/makers/${id}/info`),
   create: (body: CreateMakerRequest): Promise<MakerInfo> =>

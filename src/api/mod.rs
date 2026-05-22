@@ -75,6 +75,8 @@ impl FromRef<AppState> for Arc<std::path::PathBuf> {
     paths(
         makers::list_makers,
         makers::create_maker,
+        makers::get_auto_start_settings,
+        makers::update_auto_start_settings,
         makers::get_maker_count,
         makers::get_maker,
         makers::delete_maker,
@@ -112,6 +114,8 @@ impl FromRef<AppState> for Arc<std::path::PathBuf> {
         dto::UpdateMakerConfigRequest,
         dto::SendToAddressRequest,
         dto::MakerInfo,
+        dto::MakerAutoStartSettings,
+        dto::UpdateMakerAutoStartSettingsRequest,
         dto::MakerInfoDetailed,
         dto::MakerStateDto,
         dto::BalanceInfo,
