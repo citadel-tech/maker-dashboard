@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   bitcoind,
   onboarding,
@@ -29,62 +29,56 @@ export default function BitcoindWidget() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function probeExternalBitcoind(
-    targetNetwork: "regtest" | "signet",
-  ): Promise<BitcoindStatusInfo | null> {
-    const defaults = NETWORK_DEFAULTS[targetNetwork];
-    const checks: StartupCheckKind[] = ["rest", "bitcoin", "rpc"];
-
-    for (const check of checks) {
-      try {
-        const result = await onboarding.startupCheck({
-          check,
-          rpc: defaults.rpc,
-          rpc_user: "user",
-          rpc_password: "password",
-          zmq: defaults.zmq,
-        });
-        if (result.success) {
-          return {
-            running: true,
-            managed: false,
-            network: targetNetwork,
-          };
+  async function probeExternalBitcoind(): Promise<BitcoindStatusInfo | null> {
+    const networks: Array<"regtest" | "signet"> = ["regtest", "signet"];
+    for (const targetNetwork of networks) {
+      const defaults = NETWORK_DEFAULTS[targetNetwork];
+      const checks: StartupCheckKind[] = ["rest", "bitcoin", "rpc"];
+      for (const check of checks) {
+        try {
+          const result = await onboarding.startupCheck({
+            check,
+            rpc: defaults.rpc,
+            rpc_user: "user",
+            rpc_password: "password",
+            zmq: defaults.zmq,
+          });
+          if (result.success) {
+            return { running: true, managed: false, network: targetNetwork };
+          }
+        } catch {
+          // Ignore and try the next detection method.
         }
-      } catch {
-        // Ignore and try the next detection method.
       }
     }
-
     return null;
   }
 
-  async function fetchStatus(targetNetwork = network) {
+  const fetchStatus = useCallback(async () => {
     try {
       const s = await bitcoind.status();
       if (s.running) {
         setStatus(s);
+        if (s.network === "regtest" || s.network === "signet") {
+          setNetwork(s.network);
+        }
         return;
       }
-
-      const external = await probeExternalBitcoind(targetNetwork);
+      const external = await probeExternalBitcoind();
+      if (external?.network === "regtest" || external?.network === "signet") {
+        setNetwork(external.network);
+      }
       setStatus(external ?? s);
     } catch {
       // silently ignore poll failures
     }
-  }
-
-  useEffect(() => {
-    void fetchStatus(network);
-    const interval = setInterval(fetchStatus, 5_000);
-    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
-    if (!status.running) {
-      void fetchStatus(network);
-    }
-  }, [network]);
+    void fetchStatus();
+    const interval = setInterval(fetchStatus, 5_000);
+    return () => clearInterval(interval);
+  }, [fetchStatus]);
 
   async function toggle() {
     setPending(true);

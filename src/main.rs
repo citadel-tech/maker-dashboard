@@ -1,4 +1,5 @@
 mod api;
+mod auth;
 mod cli;
 mod maker_manager;
 mod middlewares;

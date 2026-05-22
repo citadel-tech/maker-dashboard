@@ -1,12 +1,15 @@
+use std::sync::Arc;
+
 use axum::{
     extract::{Path, State},
     http::StatusCode,
     routing::get,
     Json, Router,
 };
+use tokio::sync::Mutex;
 
 use super::{dto::ApiResponse, AppState};
-use crate::maker_manager::message::MessageResponse;
+use crate::maker_manager::{message::MessageResponse, MakerManager};
 
 pub fn routes() -> Router<AppState> {
     Router::new().route("/makers/{id}/fidelity", get(list_fidelity))
@@ -25,7 +28,7 @@ pub fn routes() -> Router<AppState> {
     )
 )]
 async fn list_fidelity(
-    State(state): State<AppState>,
+    State(state): State<Arc<Mutex<MakerManager>>>,
     Path(id): Path<String>,
 ) -> (StatusCode, Json<ApiResponse<String>>) {
     if !state.lock().await.has_maker(&id) {

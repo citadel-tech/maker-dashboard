@@ -103,6 +103,9 @@ pub struct MakerManager {
     bitcoind_network: Option<String>,
     #[allow(dead_code)]
     tor_manager: TorManager,
+    /// True iff the encryption key has been provided AND configs have been loaded.
+    /// `false` between startup and login when `makers.json` exists encrypted but no key is known.
+    unlocked: bool,
 }
 
 impl MakerManager {
@@ -110,8 +113,18 @@ impl MakerManager {
     const LEGACY_RPC_WALLET_NAME: &'static str = "random";
 
     /// Creates a new MakerManager with persistence at the given config directory.
+    ///
     /// Loads any previously saved maker configs and re-initializes them (but does NOT start servers).
-    pub fn new(config_dir: PathBuf) -> Result<Self> {
+    ///
+    /// Behavior:
+    /// - If `enc_key` is `Some`, attempts to load and re-initialize previously
+    ///   saved makers (they are NOT started).
+    /// - If `enc_key` is `None` AND `makers.json` does not exist (or is the
+    ///   legacy plaintext format), behaves as the `Some` case above.
+    /// - If `enc_key` is `None` AND `makers.json` is an encrypted envelope,
+    ///   the load is deferred. `configs` stays empty and `is_unlocked()` is
+    ///   false until [`MakerManager::unlock`] is called with the AES key.
+    pub fn new(config_dir: PathBuf, enc_key: Option<[u8; 32]>) -> Result<Self> {
         let tor_manager = TorManager::detect_or_start(&config_dir).unwrap_or_else(|e| {
             tracing::warn!(
                 "Tor could not be started: {}. Tor-dependent makers will fail to start.",
@@ -119,18 +132,21 @@ impl MakerManager {
             );
             TorManager::noop()
         });
-        Self::new_with_tor(config_dir, tor_manager)
+        Self::new_with_tor(config_dir, enc_key, tor_manager)
     }
 
     /// Creates a MakerManager without starting or detecting Tor. Use in tests only.
     #[allow(dead_code)]
-    pub fn new_for_testing(config_dir: PathBuf) -> Result<Self> {
-        Self::new_with_tor(config_dir, TorManager::noop())
+    pub fn new_for_testing(config_dir: PathBuf, enc_key: Option<[u8; 32]>) -> Result<Self> {
+        Self::new_with_tor(config_dir, enc_key, TorManager::noop())
     }
 
-    fn new_with_tor(config_dir: PathBuf, tor_manager: TorManager) -> Result<Self> {
-        let persistence = PersistenceManager::new(config_dir.clone())?;
-        let saved_configs = persistence.load()?;
+    fn new_with_tor(
+        config_dir: PathBuf,
+        enc_key: Option<[u8; 32]>,
+        tor_manager: TorManager,
+    ) -> Result<Self> {
+        let persistence = PersistenceManager::new(config_dir.clone(), enc_key)?;
 
         let mut mgr = Self {
             pool: MakerPool::new(),
@@ -139,9 +155,45 @@ impl MakerManager {
             bitcoind_process: None,
             bitcoind_network: None,
             tor_manager,
+            unlocked: false,
         };
 
-        // Restore previously registered makers (init only, not started)
+        // Decide whether we can load now or must defer until unlock().
+        // We can load eagerly when:
+        //   - we have a key (enc_key.is_some()), OR
+        //   - the on-disk state is missing or in legacy plaintext format.
+        // The persistence layer already returns an error when it encounters
+        // an encrypted envelope without a key, so only attempt loading when
+        // the policy above is satisfied.
+        let can_load = enc_key.is_some()
+            || !mgr.persistence.state_file_exists()
+            || !Self::file_is_encrypted_envelope(&mgr.persistence);
+
+        if can_load {
+            let saved_configs = mgr.persistence.load()?;
+            mgr.restore_makers(saved_configs);
+            mgr.unlocked = true;
+        }
+
+        Ok(mgr)
+    }
+
+    /// Best-effort check: returns true if `makers.json` looks like an encrypted
+    /// envelope (`{ "v": 1, "data": ... }`). Returns false on any read/parse
+    /// error or for legacy plaintext.
+    fn file_is_encrypted_envelope(persistence: &PersistenceManager) -> bool {
+        let path = persistence.config_dir.join("makers.json");
+        let Ok(bytes) = std::fs::read(&path) else {
+            return false;
+        };
+        let Ok(value) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
+            return false;
+        };
+        value.get("v") == Some(&serde_json::json!(1)) && value.get("data").is_some()
+    }
+
+    /// Restore previously registered makers (init only, not started).
+    fn restore_makers(&mut self, saved_configs: HashMap<MakerId, MakerConfig>) {
         let mut normalized_any = false;
         for (id, config) in saved_configs {
             tracing::info!("Restoring maker '{}'", id);
@@ -149,7 +201,7 @@ impl MakerManager {
             let normalized_config = Self::normalize_config(&id, config);
             normalized_any |= normalized_config.wallet_name != original_wallet_name;
 
-            match mgr.create_maker_internal(id.clone(), normalized_config.clone(), false) {
+            match self.create_maker_internal(id.clone(), normalized_config.clone(), false) {
                 Ok(()) => tracing::info!("Maker '{}' restored successfully (stopped)", id),
                 Err(e) => {
                     tracing::warn!(
@@ -157,16 +209,52 @@ impl MakerManager {
                         id,
                         e
                     );
-                    mgr.configs.insert(id, normalized_config);
+                    self.configs.insert(id, normalized_config);
                 }
             }
         }
 
         if normalized_any {
-            mgr.persist();
+            self.persist();
+        }
+    }
+
+    /// Provides the AES key and loads configs from disk if not already done.
+    /// Idempotent: a second call (with the same or different key) is a no-op
+    /// once the manager is already unlocked.
+    ///
+    /// Use this after a successful login or after first-run setup to bring the
+    /// manager into the post-authentication state.
+    pub fn unlock(&mut self, key: [u8; 32]) -> Result<()> {
+        if self.unlocked {
+            return Ok(());
+        }
+        self.persistence.update_enc_key(Some(key));
+        let saved_configs = self.persistence.load()?;
+        self.restore_makers(saved_configs);
+        self.unlocked = true;
+
+        // If makers.json doesn't exist yet (fresh setup), persist an empty
+        // encrypted envelope now so subsequent restarts go through the normal
+        // "encrypted, deferred load" path.
+        if !self.persistence.state_file_exists() {
+            self.persist();
         }
 
-        Ok(mgr)
+        Ok(())
+    }
+
+    /// Returns true iff `unlock()` (or the `Some(enc_key)` constructor path)
+    /// has run successfully — i.e. the manager has the AES key and any
+    /// persisted makers have been restored into memory.
+    pub fn is_unlocked(&self) -> bool {
+        self.unlocked
+    }
+
+    /// Returns true if the underlying `makers.json` already exists on disk.
+    /// Exposed for the first-run setup handler to refuse overwriting state.
+    pub fn persistence_state_file_exists(&self) -> bool {
+        self.persistence.state_file_exists()
     }
 
     /// Returns the default coinswap data directory for a maker.
@@ -305,6 +393,19 @@ impl MakerManager {
         if let Err(e) = self.persistence.save(&self.configs) {
             tracing::error!("Failed to persist maker configs: {}", e);
         }
+    }
+
+    /// Re-encrypts all maker configs with `new_key` and saves to disk.
+    /// Call after rotating the dashboard password so makers.json uses the new key.
+    ///
+    /// Returns an error if the manager has not been unlocked yet (the in-memory
+    /// `configs` would be incomplete and saving would silently truncate state).
+    pub fn rotate_enc_key(&mut self, new_key: Option<[u8; 32]>) -> anyhow::Result<()> {
+        if !self.unlocked {
+            anyhow::bail!("MakerManager is locked; cannot rotate encryption key before login");
+        }
+        self.persistence.update_enc_key(new_key);
+        self.persistence.save(&self.configs)
     }
 
     pub fn is_port_in_use(&self, port: u16, exclude_id: Option<&str>) -> bool {
@@ -736,7 +837,7 @@ mod tests {
         }
         std::fs::create_dir_all(&config_dir).unwrap();
 
-        let manager = MakerManager::new_for_testing(config_dir).unwrap();
+        let manager = MakerManager::new_for_testing(config_dir, None).unwrap();
         let network_listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let rpc_listener = TcpListener::bind("127.0.0.1:0").unwrap();
 

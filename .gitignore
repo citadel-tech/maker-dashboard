@@ -9,3 +9,4 @@ frontend/.react-router/
 .env.local
 CLAUDE.md
 AGENTS.md
+frontend/tsconfig.tsbuildinfo

@@ -1,15 +1,18 @@
+use std::sync::Arc;
+
 use axum::{
     extract::{Path, State},
     http::StatusCode,
     routing::{get, post},
     Json, Router,
 };
+use tokio::sync::Mutex;
 
 use super::{
     dto::{ApiResponse, BalanceInfo, SendToAddressRequest, UtxoInfo},
     AppState,
 };
-use crate::maker_manager::message::MessageResponse;
+use crate::maker_manager::{message::MessageResponse, MakerManager};
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -35,7 +38,7 @@ pub fn routes() -> Router<AppState> {
     )
 )]
 async fn get_balance(
-    State(state): State<AppState>,
+    State(state): State<Arc<Mutex<MakerManager>>>,
     Path(id): Path<String>,
 ) -> (StatusCode, Json<ApiResponse<BalanceInfo>>) {
     if !state.lock().await.has_maker(&id) {
@@ -81,7 +84,7 @@ async fn get_balance(
     )
 )]
 async fn get_utxos(
-    State(state): State<AppState>,
+    State(state): State<Arc<Mutex<MakerManager>>>,
     Path(id): Path<String>,
 ) -> (StatusCode, Json<ApiResponse<Vec<UtxoInfo>>>) {
     if !state.lock().await.has_maker(&id) {
@@ -129,7 +132,7 @@ async fn get_utxos(
     )
 )]
 async fn send_to_address(
-    State(state): State<AppState>,
+    State(state): State<Arc<Mutex<MakerManager>>>,
     Path(id): Path<String>,
     Json(body): Json<SendToAddressRequest>,
 ) -> (StatusCode, Json<ApiResponse<String>>) {
@@ -174,7 +177,7 @@ async fn send_to_address(
     )
 )]
 async fn get_new_address(
-    State(state): State<AppState>,
+    State(state): State<Arc<Mutex<MakerManager>>>,
     Path(id): Path<String>,
 ) -> (StatusCode, Json<ApiResponse<String>>) {
     if !state.lock().await.has_maker(&id) {
@@ -211,7 +214,7 @@ async fn get_new_address(
     )
 )]
 async fn sync_wallet(
-    State(state): State<AppState>,
+    State(state): State<Arc<Mutex<MakerManager>>>,
     Path(id): Path<String>,
 ) -> (StatusCode, Json<ApiResponse<String>>) {
     if !state.lock().await.has_maker(&id) {
@@ -251,7 +254,7 @@ async fn sync_wallet(
     )
 )]
 async fn get_swap_utxos(
-    State(state): State<AppState>,
+    State(state): State<Arc<Mutex<MakerManager>>>,
     Path(id): Path<String>,
 ) -> (StatusCode, Json<ApiResponse<Vec<UtxoInfo>>>) {
     if !state.lock().await.has_maker(&id) {
@@ -298,7 +301,7 @@ async fn get_swap_utxos(
     )
 )]
 async fn get_contract_utxos(
-    State(state): State<AppState>,
+    State(state): State<Arc<Mutex<MakerManager>>>,
     Path(id): Path<String>,
 ) -> (StatusCode, Json<ApiResponse<Vec<UtxoInfo>>>) {
     if !state.lock().await.has_maker(&id) {
@@ -345,7 +348,7 @@ async fn get_contract_utxos(
     )
 )]
 async fn get_fidelity_utxos(
-    State(state): State<AppState>,
+    State(state): State<Arc<Mutex<MakerManager>>>,
     Path(id): Path<String>,
 ) -> (StatusCode, Json<ApiResponse<Vec<UtxoInfo>>>) {
     if !state.lock().await.has_maker(&id) {

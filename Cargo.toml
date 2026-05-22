@@ -14,7 +14,7 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal"] }
 tower-http = { version = "0.6", features = ["fs", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-coinswap = { git = "https://github.com/citadel-tech/coinswap"}
+coinswap = { git = "https://github.com/citadel-tech/coinswap", rev = "b8fccc9" }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 serde_cbor = "0.11.2"
@@ -27,15 +27,20 @@ futures = "0.3.32"
 clap = { version = "4.5.60", features = ["derive", "env"] }
 dirs = "6.0.0"
 libtor = "47"
+argon2 = "0.5"
+aes-gcm = "0.10"
+rand = { version = "0.8", features = ["getrandom"] }
+base64 = "0.22"
+hex = "0.4"
 
 [[test]]
 name = "api"
 path = "tests/api/mod.rs"
 
 [dev-dependencies]
+ureq = { version = "3", features = ["json", "cookies"] }
 bitcoind = { version = "0.36", features = [] }
 bitcoin = { version = "0.32" }
 log = "0.4"
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
-ureq = { version = "3", features = ["json"] }

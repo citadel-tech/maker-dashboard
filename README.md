@@ -75,9 +75,31 @@ cd frontend && npm run build
 
 By default the server listens on `http://127.0.0.1:3000`. Open that in your browser to use the dashboard. Swagger UI is available at `http://127.0.0.1:3000/swagger-ui/`.
 
+## Authentication
+
+On first start (no `auth.json` present), visit `/setup` in your browser and choose a
+password. The password is hashed with argon2id and stored in
+`~/.config/maker-dashboard/auth.json`, and maker configs are encrypted at rest with an
+AES-256-GCM key derived from it.
+
+On subsequent starts the dashboard goes straight to the login screen. After a successful
+login the browser holds a session cookie valid for 24 hours.
+
+See [SECURITY.md](SECURITY.md) for the full security model, including the threat model
+around the unauthenticated setup window.
+
 ## First-Run Flow
 
-If there are no registered makers, the home page opens a guided onboarding flow instead of an empty dashboard. The onboarding wizard helps you:
+On first launch the server logs:
+
+```text
+First-run setup required. Visit http://127.0.0.1:3000/setup to initialize.
+```
+
+Open the URL, choose a password, and you'll be logged in.
+
+If there are no registered makers, the home page opens a guided onboarding flow. The
+onboarding wizard helps you:
 
 - Verify Bitcoin Core RPC connectivity
 - Verify Bitcoin Core REST availability
@@ -85,7 +107,8 @@ If there are no registered makers, the home page opens a guided onboarding flow 
 - Verify local Tor SOCKS and control ports
 - Create your first maker from the browser
 
-After a maker is created, the UI takes you to a setup screen that tails live logs while the maker initializes and waits for the fidelity bond flow to complete.
+After a maker is created, the UI takes you to a setup screen that tails live logs while
+the maker initializes and waits for the fidelity bond flow to complete.
 
 ## Managing Makers
 
@@ -117,11 +140,12 @@ Runtime options can be set with CLI flags or environment variables:
 | `--no-color`      | `DASHBOARD_NO_COLOR`      | `false`                            | Disable ANSI colors in logs                |
 | `--config-dir`    | `DASHBOARD_CONFIG_DIR`    | platform default                   | Dashboard config directory                 |
 
-By default the dashboard only accepts connections from the local machine. If you enable `--allow-remote`, put authentication and TLS in front of it with a reverse proxy.
+By default the dashboard only accepts connections from the local machine. If you enable `--allow-remote`, place a TLS-terminating reverse proxy in front. the built-in password auth is the only protection on the wire.
 
 Dashboard-managed files:
 
-- Registered maker configs: `~/.config/maker-dashboard/makers.json`
+- Auth config (argon2id hash + salts): `~/.config/maker-dashboard/auth.json`
+- Encrypted maker configs: `~/.config/maker-dashboard/makers.json`
 - Per-maker logs: `~/.coinswap/{id}/debug.log`
 
 Maker wallet and data directories are configured per maker and may differ from the dashboard config directory.
@@ -153,9 +177,12 @@ cd docker
 docker compose up --build -d
 ```
 
-This starts a custom signet bitcoind, a Tor daemon, and the maker dashboard — all sharing the same network namespace. The dashboard is available at `http://localhost:3000`.
+This starts a custom signet bitcoind, a Tor daemon, and the maker dashboard, all sharing the same network namespace. The dashboard is available at `http://localhost:3000`.
+
+On first run, visit `http://localhost:3000/setup` and choose a password. On subsequent runs, log in normally.
 
 When creating a maker, use:
+
 - RPC: `127.0.0.1:38332`, ZMQ: `tcp://127.0.0.1:28332`
 - RPC credentials: `user` / `password`
 - SOCKS port: `9050`, Control port: `9051`

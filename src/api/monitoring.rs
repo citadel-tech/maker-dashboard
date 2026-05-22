@@ -1,5 +1,6 @@
 use std::convert::Infallible;
 use std::fs;
+use std::sync::Arc;
 use std::time::Duration;
 
 use axum::{
@@ -14,9 +15,10 @@ use axum::{
 };
 use futures::{stream, StreamExt};
 use serde::Deserialize;
+use tokio::sync::Mutex;
 use tracing::warn;
 
-use crate::maker_manager::message::MessageResponse;
+use crate::maker_manager::{message::MessageResponse, MakerManager};
 use crate::utils::log_writer::read_last_n_lines;
 
 use super::{
@@ -54,7 +56,7 @@ pub fn routes() -> Router<AppState> {
     )
 )]
 async fn get_status(
-    State(state): State<AppState>,
+    State(state): State<Arc<Mutex<MakerManager>>>,
     Path(id): Path<String>,
 ) -> (StatusCode, Json<ApiResponse<MakerStatus>>) {
     if !state.lock().await.has_maker(&id) {
@@ -91,7 +93,7 @@ async fn get_status(
     )
 )]
 async fn get_swaps(
-    State(state): State<AppState>,
+    State(state): State<Arc<Mutex<MakerManager>>>,
     Path(id): Path<String>,
 ) -> (StatusCode, Json<ApiResponse<SwapHistoryDto>>) {
     if !state.lock().await.has_maker(&id) {
@@ -149,7 +151,7 @@ async fn get_swaps(
     )
 )]
 async fn get_swap_reports(
-    State(state): State<AppState>,
+    State(state): State<Arc<Mutex<MakerManager>>>,
     Path(id): Path<String>,
 ) -> (StatusCode, Json<ApiResponse<Vec<SwapReportDto>>>) {
     let manager = state.lock().await;
@@ -258,7 +260,7 @@ where
     )
 )]
 async fn get_logs(
-    State(state): State<AppState>,
+    State(state): State<Arc<Mutex<MakerManager>>>,
     Path(id): Path<String>,
     Query(query): Query<LogsQuery>,
 ) -> (StatusCode, Json<ApiResponse<Vec<String>>>) {
@@ -288,7 +290,10 @@ async fn get_logs(
 }
 
 /// Download the full log file for a maker.
-async fn get_logs_download(State(state): State<AppState>, Path(id): Path<String>) -> Response {
+async fn get_logs_download(
+    State(state): State<Arc<Mutex<MakerManager>>>,
+    Path(id): Path<String>,
+) -> Response {
     let manager = state.lock().await;
     if !manager.has_maker(&id) {
         return (
@@ -359,7 +364,7 @@ async fn get_logs_download(State(state): State<AppState>, Path(id): Path<String>
     )
 )]
 async fn get_logs_stream(
-    State(state): State<AppState>,
+    State(state): State<Arc<Mutex<MakerManager>>>,
     Path(id): Path<String>,
 ) -> Result<
     Sse<impl futures::Stream<Item = Result<Event, Infallible>>>,
@@ -425,7 +430,7 @@ async fn get_logs_stream(
     )
 )]
 async fn get_rpc_status(
-    State(state): State<AppState>,
+    State(state): State<Arc<Mutex<MakerManager>>>,
     Path(id): Path<String>,
 ) -> (StatusCode, Json<ApiResponse<RpcStatusInfo>>) {
     let manager = state.lock().await;
@@ -501,7 +506,7 @@ async fn get_rpc_status(
     )
 )]
 async fn get_combined_logs(
-    State(state): State<AppState>,
+    State(state): State<Arc<Mutex<MakerManager>>>,
     Query(query): Query<LogsQuery>,
 ) -> (StatusCode, Json<ApiResponse<Vec<CombinedLogLine>>>) {
     let n = query.lines.unwrap_or(100);
@@ -541,7 +546,7 @@ struct LogsQuery {
     )
 )]
 pub async fn get_tor_status(State(state): State<AppState>) -> Json<ApiResponse<TorStatusInfo>> {
-    let source = state.lock().await.tor_source();
+    let source = state.makers.lock().await.tor_source();
     Json(ApiResponse::ok(TorStatusInfo {
         managed: source != "system",
         source,
@@ -561,7 +566,7 @@ pub async fn get_tor_status(State(state): State<AppState>) -> Json<ApiResponse<T
     )
 )]
 async fn get_tor_address(
-    State(state): State<AppState>,
+    State(state): State<Arc<Mutex<MakerManager>>>,
     Path(id): Path<String>,
 ) -> (StatusCode, Json<ApiResponse<String>>) {
     if !state.lock().await.has_maker(&id) {
@@ -600,7 +605,7 @@ async fn get_tor_address(
     )
 )]
 async fn get_data_dir(
-    State(state): State<AppState>,
+    State(state): State<Arc<Mutex<MakerManager>>>,
     Path(id): Path<String>,
 ) -> (StatusCode, Json<ApiResponse<String>>) {
     if !state.lock().await.has_maker(&id) {

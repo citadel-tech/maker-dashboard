@@ -2,7 +2,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use axum::{middleware::from_fn, Router};
+use axum::{middleware::from_fn, middleware::from_fn_with_state, Router};
 use tokio::sync::Mutex;
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
@@ -11,7 +11,6 @@ use utoipa_axum::router::OpenApiRouter;
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::api::{api_router, ApiDoc, AppState};
-use crate::maker_manager::MakerManager;
 use crate::middlewares;
 use crate::utils::default_config_dir;
 
@@ -52,10 +51,46 @@ pub struct Server {
 
 impl Server {
     /// Creates a new server with the given config and a fresh MakerManager.
-    /// Loads any previously persisted maker registrations.
+    ///
+    /// Bootstrap flow:
+    /// - If `auth.json` exists, the dashboard is already initialized. The
+    ///   maker manager starts in the "locked" state — no AES key is held until
+    ///   the user logs in via `POST /api/auth/login`.
+    /// - If `auth.json` does NOT exist, the dashboard waits for
+    ///   `POST /api/auth/setup` to complete first-run setup.
     pub fn new(config: ServerConfig) -> anyhow::Result<Self> {
-        let manager = MakerManager::new(config.config_dir.clone())?;
-        let state: AppState = Arc::new(Mutex::new(manager));
+        use crate::auth::{AuthConfig, SessionStore};
+
+        std::fs::create_dir_all(&config.config_dir).map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to create config directory {}: {e}",
+                config.config_dir.display()
+            )
+        })?;
+
+        let auth_config = AuthConfig::load(&config.config_dir)?;
+
+        // The maker manager always starts WITHOUT a key. If makers.json is
+        // encrypted, the load is deferred until login. If makers.json is
+        // missing or legacy plaintext, the deferred-load path is a no-op.
+        let manager = crate::maker_manager::MakerManager::new(config.config_dir.clone(), None)?;
+
+        if auth_config.is_none() {
+            tracing::info!(
+                "First-run setup required. Visit http://{}:{}/setup to initialize.",
+                config.host,
+                config.port
+            );
+        }
+
+        let state = AppState {
+            makers: Arc::new(Mutex::new(manager)),
+            sessions: Arc::new(Mutex::new(SessionStore::new())),
+            auth: Arc::new(std::sync::RwLock::new(auth_config)),
+            setup_lock: Arc::new(Mutex::new(())),
+            config_dir: Arc::new(config.config_dir.clone()),
+        };
+
         Ok(Self { config, state })
     }
 
@@ -76,6 +111,10 @@ impl Server {
         let mut app = router
             .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", api))
             .with_state(self.state.clone())
+            .layer(from_fn_with_state(
+                self.state.clone(),
+                middlewares::auth_middleware,
+            ))
             .layer(TraceLayer::new_for_http());
 
         if self.config.localhost_only {

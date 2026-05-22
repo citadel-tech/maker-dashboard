@@ -135,7 +135,7 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
         onClick={onNext}
         className="px-8 py-3 bg-orange-600 hover:bg-orange-700 text-white font-semibold rounded-xl transition-all text-lg"
       >
-        Get started →
+        Get started
       </button>
     </div>
   );
@@ -446,7 +446,7 @@ function PrereqsStep({
           disabled={!allChecked}
           className="flex-1 px-6 py-3 bg-orange-600 hover:bg-orange-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all"
         >
-          {allChecked ? "Continue →" : "Pass all checks to continue"}
+          {allChecked ? "Continue =>" : "Pass all checks to continue"}
         </button>
       </div>
     </div>
@@ -813,7 +813,7 @@ function CreateStep({
           disabled={!canSubmit || submitting}
           className="flex-1 px-6 py-3 bg-orange-600 hover:bg-orange-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all"
         >
-          {submitting ? "Creating…" : "Create maker →"}
+          {submitting ? "Creating…" : "Create maker =>"}
         </button>
       </div>
     </div>

@@ -60,6 +60,12 @@ jobs:
             fi
             sleep 1
           done
-          # Verify API responds
-          curl -sf http://localhost:3000/api/makers | jq .
+          # Verify API responds and that a fresh container is uninitialized.
+          if ! curl -sf http://localhost:3000/api/auth/status \
+            | jq -e '.data.password_exists == false and .data.authenticated == false'; then
+            echo "Auth status assertion failed"
+            docker logs test-container
+            docker rm -f test-container || true
+            exit 1
+          fi
           docker rm -f test-container || true

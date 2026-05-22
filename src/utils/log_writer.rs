@@ -56,6 +56,7 @@ impl Default for MakerLogWriter {
 }
 
 impl MakerLogWriter {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self
     }
@@ -159,7 +160,7 @@ fn strip_ansi(buf: &[u8]) -> Vec<u8> {
     let mut out = Vec::with_capacity(buf.len());
     let mut i = 0;
     while i < buf.len() {
-        // ESC [ ... m  — CSI sequences
+        // ESC [ ... m  - CSI sequences
         if buf[i] == 0x1b && buf.get(i + 1) == Some(&b'[') {
             i += 2;
             while i < buf.len() && !buf[i].is_ascii_alphabetic() {

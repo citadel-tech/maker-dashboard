@@ -224,6 +224,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     ...options,
   });
 
+  if (res.status === 401 && !path.startsWith("/auth/")) {
+    window.location.href = "/login";
+    return Promise.reject(new ApiError(401, "Unauthorized"));
+  }
+
   const raw = await res.text();
   let body: ApiResponse<T> | null = null;
 
@@ -346,7 +351,7 @@ export const fidelity = {
 
 // ─── Monitoring ───────────────────────────────────────────────────────────────
 
-export type TorSource = "system" | "host" | "docker";
+export type TorSource = "system" | "host" | "embedded";
 
 export interface TorStatusInfo {
   source: TorSource;
@@ -399,6 +404,22 @@ export const health = {
 export const onboarding = {
   startupCheck: (body: StartupCheckRequest): Promise<StartupCheckResponse> =>
     post("/onboarding/startup-check", body),
+};
+
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+
+export interface AuthStatus {
+  password_exists: boolean;
+  authenticated: boolean;
+}
+
+export const auth = {
+  login: (password: string): Promise<void> => post("/auth/login", { password }),
+  logout: (): Promise<void> => post("/auth/logout"),
+  status: (): Promise<AuthStatus> => get("/auth/status"),
+  setup: (password: string): Promise<void> => post("/auth/setup", { password }),
+  rotatePassword: (old_password: string, new_password: string): Promise<void> =>
+    post("/auth/rotate-password", { old_password, new_password }),
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

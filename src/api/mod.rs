@@ -1,3 +1,4 @@
+pub mod auth;
 pub mod bitcoind;
 pub mod dto;
 pub mod fidelity;
@@ -6,17 +7,67 @@ pub mod monitoring;
 pub mod onboarding;
 pub mod wallet;
 
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
-use axum::{extract::State, routing::get, Json, Router};
+use axum::{
+    extract::{FromRef, State},
+    routing::get,
+    Json, Router,
+};
 use tokio::sync::Mutex;
 use utoipa::OpenApi;
 
-use crate::{api::dto::MakerStatus, maker_manager::MakerManager};
+use crate::{
+    api::dto::MakerStatus,
+    auth::{AuthConfig, SessionStore},
+    maker_manager::MakerManager,
+};
 use dto::{ApiResponse, HealthResponse};
 
 /// Shared application state accessible by all handlers
-pub type AppState = Arc<Mutex<MakerManager>>;
+#[derive(Clone)]
+pub struct AppState {
+    pub makers: Arc<Mutex<MakerManager>>,
+    pub sessions: Arc<Mutex<SessionStore>>,
+    /// `Some` once the dashboard is initialized (auth.json exists or has been
+    /// created via `/auth/setup`). `None` means first-run setup is required.
+    pub auth: Arc<RwLock<Option<AuthConfig>>>,
+    /// Serializes concurrent `/auth/setup` calls to prevent TOCTOU races.
+    /// Carries no payload — the setup endpoint validates against on-disk state
+    /// while holding this lock.
+    pub setup_lock: Arc<Mutex<()>>,
+    pub config_dir: Arc<std::path::PathBuf>,
+}
+
+impl FromRef<AppState> for Arc<Mutex<MakerManager>> {
+    fn from_ref(state: &AppState) -> Self {
+        state.makers.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<Mutex<SessionStore>> {
+    fn from_ref(state: &AppState) -> Self {
+        state.sessions.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<RwLock<Option<AuthConfig>>> {
+    fn from_ref(state: &AppState) -> Self {
+        state.auth.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<Mutex<()>> {
+    fn from_ref(state: &AppState) -> Self {
+        state.setup_lock.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<std::path::PathBuf> {
+    fn from_ref(state: &AppState) -> Self {
+        state.config_dir.clone()
+    }
+}
 
 #[derive(OpenApi)]
 #[openapi(
@@ -98,6 +149,7 @@ pub fn api_router() -> Router<AppState> {
         .merge(monitoring::routes())
         .merge(bitcoind::routes())
         .merge(onboarding::routes())
+        .merge(auth::routes())
         .route("/health", get(health_check))
 }
 
@@ -109,7 +161,9 @@ pub fn api_router() -> Router<AppState> {
         (status = 200, description = "API and maker health status", body = ApiResponse<HealthResponse>),
     )
 )]
-async fn health_check(State(state): State<AppState>) -> Json<ApiResponse<HealthResponse>> {
+async fn health_check(
+    State(state): State<Arc<Mutex<MakerManager>>>,
+) -> Json<ApiResponse<HealthResponse>> {
     let ids: Vec<String> = state
         .lock()
         .await
