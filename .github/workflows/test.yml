@@ -9,6 +9,9 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Test ${{ matrix.os }} (${{ matrix.rust }})
@@ -41,6 +44,27 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-cargo-${{ matrix.rust }}-
           ${{ runner.os }}-cargo-
+
+    - name: Install macOS build dependencies
+      if: runner.os == 'macOS'
+      run: brew install automake autoconf libtool pkg-config openssl
+
+    - name: Install Windows build dependencies
+      if: runner.os == 'Windows'
+      uses: msys2/setup-msys2@v2
+      with:
+        update: true
+        install: >-
+          autoconf
+          automake
+          libtool
+          patch
+          make
+
+    - name: Add MSYS2 tools to PATH
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: echo "C:\msys64\usr\bin" >> $env:GITHUB_PATH
     
     - name: Build
       shell: bash

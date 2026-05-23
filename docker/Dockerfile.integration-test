@@ -4,6 +4,10 @@ FROM rust:1.90-slim
 RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
+    autoconf \
+    automake \
+    libtool \
+    patch \
     protobuf-compiler \
     pkg-config \
     libssl-dev \

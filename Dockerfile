@@ -13,7 +13,7 @@ FROM rust:1.88-slim AS backend-builder
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends pkg-config curl libssl-dev build-essential cmake && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends pkg-config curl libssl-dev build-essential cmake autoconf automake libtool patch && rm -rf /var/lib/apt/lists/*
 
 # Copy manifests and cache dependencies
 COPY Cargo.toml Cargo.lock ./
