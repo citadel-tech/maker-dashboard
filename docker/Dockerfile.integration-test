@@ -1,6 +1,7 @@
-FROM rust:1.90-slim
+FROM rust:1.90-slim-trixie
 
-# System dependencies required by nostr-rs-relay and the integration test
+# System dependencies required by nostr-rs-relay, the integration test, and
+# libtor-src (git autoconf automake libtool file — see ../Dockerfile).
 RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
@@ -10,6 +11,11 @@ RUN apt-get update && apt-get install -y \
     curl \
     netcat-openbsd \
     ca-certificates \
+    git \
+    autoconf \
+    automake \
+    libtool \
+    file \
     && rm -rf /var/lib/apt/lists/*
 
 
