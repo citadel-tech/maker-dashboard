@@ -6,6 +6,22 @@ Before diving in, read [docs/ARCH.md](docs/ARCH.md) to understand how the codeba
 
 You need Rust (stable) and Node.js (LTS or later).
 
+The backend builds bundled Tor through `libtor-src`, so install the native build
+tools for your platform before running `cargo build`:
+
+```sh
+# macOS
+brew install automake autoconf libtool pkg-config openssl
+```
+
+On Windows, install the MSYS2 toolchain and add `C:\msys64\usr\bin` to your
+`PATH`:
+
+```sh
+# Windows, from an MSYS2 shell
+pacman -S --needed autoconf automake libtool patch make
+```
+
 ```sh
 git clone https://github.com/citadel-tech/maker-dashboard
 cd maker-dashboard

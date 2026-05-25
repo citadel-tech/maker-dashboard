@@ -8,6 +8,19 @@ Maker Dashboard is a full-stack application for managing Coinswap maker nodes. T
 
 ## Commands
 
+The backend builds bundled Tor through `libtor-src`. Before running Rust build
+commands, macOS needs:
+
+```sh
+brew install automake autoconf libtool pkg-config openssl
+```
+
+Windows needs MSYS2 with `C:\msys64\usr\bin` on `PATH` and these packages:
+
+```sh
+pacman -S --needed autoconf automake libtool patch make
+```
+
 ### Backend
 ```sh
 cargo build --release          # build

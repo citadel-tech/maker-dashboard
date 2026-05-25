@@ -35,9 +35,29 @@ For protocol background, see the [Coinswap documentation](https://github.com/cit
 - **RPC enabled** on your Bitcoin node
 - **REST enabled** on your Bitcoin node (`rest=1`)
 - **ZMQ enabled** on your Bitcoin node for real-time block and transaction updates
-- A local **Tor** daemon with SOCKS and control ports reachable by the maker
 - **Rust** and `cargo` for the backend
 - **Node.js** and `npm` for the frontend
+- Native build tools required by the bundled Tor build (`libtor-src`)
+
+Install the platform-specific native build tools before running `cargo build` or
+`make build`:
+
+```sh
+# macOS
+brew install automake autoconf libtool pkg-config openssl
+```
+
+On Windows, install the MSYS2 toolchain and add `C:\msys64\usr\bin` to your
+`PATH`:
+
+```sh
+# Windows, from an MSYS2 shell
+pacman -S --needed autoconf automake libtool patch make
+```
+
+The dashboard deploys Tor automatically through `libtor-src`. If you configure a
+maker to use an external Tor instance instead, that Tor daemon must expose SOCKS
+and control ports reachable by the maker.
 
 Typical local defaults used by the onboarding checks:
 
