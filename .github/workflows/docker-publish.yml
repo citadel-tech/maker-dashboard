@@ -11,11 +11,15 @@ env:
   IMAGE_NAME: coinswap/maker-dashboard
 
 jobs:
-  docker:
-    name: Build and Push Docker Image
+  build:
+    name: Build, Push, Sign
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      # Required for cosign keyless signing via the GitHub OIDC token.
+      id-token: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
 
     steps:
       - uses: actions/checkout@v4
@@ -26,6 +30,9 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
@@ -35,18 +42,22 @@ jobs:
       - name: Determine image tags
         id: meta
         run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          SHORT_SHA="$(echo "${{ github.sha }}" | cut -c1-12)"
           if [ "${{ github.ref_type }}" = "tag" ]; then
             VERSION=${GITHUB_REF#refs/tags/}
-            echo "tags=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${VERSION}" >> "$GITHUB_OUTPUT"
+            TAGS="${IMAGE}:${VERSION},${IMAGE}:sha-${SHORT_SHA}"
             # Also tag as latest for stable releases (no pre-release identifiers)
             if echo "$VERSION" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
-              echo "tags=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${VERSION},${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> "$GITHUB_OUTPUT"
+              TAGS="${TAGS},${IMAGE}:latest"
             fi
           else
-            echo "tags=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:master" >> "$GITHUB_OUTPUT"
+            TAGS="${IMAGE}:master,${IMAGE}:sha-${SHORT_SHA}"
           fi
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -55,3 +66,30 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Sign image with cosign (keyless)
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          # Sign by digest — one signature covers all tags pointing at it.
+          cosign sign --yes "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${DIGEST}"
+
+      # Nudge the VPS to pull now. The VPS subscribes to this ntfy topic
+      # outbound; nothing inbound is opened. A trigger only causes a
+      # pull + cosign-verify, so the channel needs no SSH-level trust.
+      # Best-effort: a publish failure must not fail the build (the VPS
+      # timer still catches the new image).
+      - name: Trigger VPS pull (ntfy)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          NTFY_URL: ${{ secrets.NTFY_URL }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: |
+          : "${NTFY_URL:=https://ntfy.sh}"
+          if [ -n "${NTFY_TOPIC}" ]; then
+            curl -fsS -H "Title: maker-dashboard" \
+              -d "deploy sha-$(echo "${GITHUB_SHA}" | cut -c1-12)" \
+              "${NTFY_URL}/${NTFY_TOPIC}" || true
+          else
+            echo "NTFY_TOPIC secret not set; skipping push trigger (VPS timer will catch it)"
+          fi

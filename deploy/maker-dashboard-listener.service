@@ -1,0 +1,15 @@
+[Unit]
+Description=Maker Dashboard deploy trigger listener (ntfy)
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/maker-dashboard/ntfy.env
+ExecStart=/usr/local/bin/maker-dashboard-listen.sh
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,12 @@
+[Unit]
+Description=Fallback update check for Maker Dashboard (ntfy listener is the fast path)
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=30min
+RandomizedDelaySec=60s
+Unit=maker-dashboard-update.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target
