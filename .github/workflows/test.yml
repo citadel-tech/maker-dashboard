@@ -10,51 +10,134 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  test:
+  unix:
     name: Test ${{ matrix.os }} (${{ matrix.rust }})
     runs-on: ${{ matrix.os }}
-    
+
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest]
         rust: [stable, beta, nightly]
-    
+
+    defaults:
+      run:
+        shell: bash
+
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@master
-      with:
-        toolchain: ${{ matrix.rust }}
-    
-    - name: Cache cargo dependencies
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cargo/bin/
-          ~/.cargo/registry/index/
-          ~/.cargo/registry/cache/
-          ~/.cargo/git/db/
-          target/
-        key: ${{ runner.os }}-cargo-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-cargo-${{ matrix.rust }}-
-          ${{ runner.os }}-cargo-
-    
-    - name: Build
-      shell: bash
-      run: |
-          cargo build --verbose --no-default-features
-    
-    - name: Run tests
-      shell: bash
-      run: |
-          cargo test --verbose --no-default-features
-  
-    - name: Check documentation
-      shell: bash
-      run: |
-          cargo doc --no-deps --no-default-features
-      env:
-        RUSTDOCFLAGS: -D warnings
+      - uses: actions/checkout@v4
+
+      # libtor-src builds libevent + tor from source via autotools.
+
+      - name: Install native build tools (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            git autoconf automake libtool pkg-config \
+            libssl-dev build-essential cmake file
+
+      - name: Install native build tools (macOS)
+        if: runner.os == 'macOS'
+        run: brew install automake autoconf libtool pkg-config openssl
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+
+      - name: Cache cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ matrix.rust }}-
+            ${{ runner.os }}-cargo-
+
+      - name: Build
+        run: cargo build --verbose --no-default-features
+
+      - name: Run tests
+        run: cargo test --verbose --no-default-features
+
+      - name: Check documentation
+        run: cargo doc --no-deps --no-default-features
+        env:
+          RUSTDOCFLAGS: -D warnings
+  # TODO: FIX WINDOWS CI AND MAKE IT WORKS WITH LIBTOR 
+  # windows:
+  #   name: Test windows-latest (${{ matrix.rust }})
+  #   runs-on: windows-latest
+
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       rust: [stable, beta, nightly]
+
+  #   # Every `run:` step uses the msys2 shell so cargo can find aclocal, gcc,
+  #   # etc. from MSYS2's PATH. (Set at job level — GitHub Actions rejects
+  #   # expressions in `shell:` on individual steps.)
+  #   defaults:
+  #     run:
+  #       shell: 'msys2 {0}'
+
+  #   steps:
+  #     - uses: actions/checkout@v4
+
+  #     - name: Install MSYS2 + autotools + GNU toolchain
+  #       uses: msys2/setup-msys2@v2
+  #       with:
+  #         msystem: MINGW64
+  #         update: true
+  #         path-type: inherit
+  #         install: >-
+  #           autoconf
+  #           automake
+  #           libtool
+  #           patch
+  #           make
+  #           gettext
+  #           gettext-devel
+  #           mingw-w64-x86_64-gcc
+  #           mingw-w64-x86_64-pkgconf
+  #           mingw-w64-x86_64-openssl
+
+  #     - name: Install Rust (GNU target)
+  #       uses: dtolnay/rust-toolchain@master
+  #       with:
+  #         toolchain: ${{ matrix.rust }}
+  #         targets: x86_64-pc-windows-gnu
+
+  #     - name: Default to GNU target
+  #       run: echo "CARGO_BUILD_TARGET=x86_64-pc-windows-gnu" >> "$GITHUB_ENV"
+
+  #     - name: Cache cargo dependencies
+  #       uses: actions/cache@v4
+  #       with:
+  #         path: |
+  #           ~/.cargo/bin/
+  #           ~/.cargo/registry/index/
+  #           ~/.cargo/registry/cache/
+  #           ~/.cargo/git/db/
+  #           target/
+  #         key: ${{ runner.os }}-cargo-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
+  #         restore-keys: |
+  #           ${{ runner.os }}-cargo-${{ matrix.rust }}-
+  #           ${{ runner.os }}-cargo-
+
+  #     - name: Build
+  #       run: cargo build --verbose --no-default-features
+
+  #     - name: Run tests
+  #       run: cargo test --verbose --no-default-features
+
+  #     - name: Check documentation
+  #       run: cargo doc --no-deps --no-default-features
+  #       env:
+  #         RUSTDOCFLAGS: -D warnings

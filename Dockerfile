@@ -9,11 +9,14 @@ COPY frontend/ ./
 RUN npm run build
 
 # Stage 2: Build Rust backend
-FROM rust:1.88-slim AS backend-builder
+FROM rust:1.88-slim-trixie AS backend-builder
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends pkg-config curl libssl-dev build-essential cmake && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        pkg-config curl libssl-dev build-essential cmake \
+        git autoconf automake libtool file \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy manifests and cache dependencies
 COPY Cargo.toml Cargo.lock ./
@@ -26,7 +29,7 @@ COPY src ./src
 RUN cargo build --release
 
 # Stage 3: Runtime
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 
 WORKDIR /app
 

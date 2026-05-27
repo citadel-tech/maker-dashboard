@@ -16,7 +16,8 @@ use maker_dashboard::{
 use super::{get, post, temp_config_dir};
 
 fn setup_app(config_dir: std::path::PathBuf) -> Router {
-    let manager = MakerManager::new(config_dir.clone(), None).expect("MakerManager::new");
+    let manager =
+        MakerManager::new_for_testing(config_dir.clone(), None).expect("MakerManager::new");
     let state = AppState {
         makers: Arc::new(Mutex::new(manager)),
         sessions: Arc::new(Mutex::new(SessionStore::new())),
