@@ -8,6 +8,7 @@ use std::thread::{self, JoinHandle};
 use anyhow::{anyhow, Result};
 use coinswap::bitcoin::{Address, Amount};
 use coinswap::maker::{start_server, MakerServer};
+use coinswap::protocol::common_messages::COINSWAP_PORT;
 use coinswap::utill::UTXO;
 use coinswap::wallet::{AddressType, Destination, Wallet};
 use tokio::{runtime::Runtime, sync::Mutex};
@@ -39,14 +40,30 @@ impl MakerWalletAccess for MakerServer {
     }
 }
 
-fn read_tor_address(data_dir: &Path, network_port: u16) -> Result<String> {
+fn read_tor_address(data_dir: &Path, _network_port: u16) -> Result<String> {
     let tor_metadata_path = data_dir.join("tor/hostname");
     let tor_metadata = fs::read(&tor_metadata_path)
         .map_err(|e| anyhow!("Failed to read {}: {e}", tor_metadata_path.display()))?;
-    let [_, hostname]: [String; 2] = serde_cbor::from_slice(&tor_metadata)
-        .map_err(|e| anyhow!("Failed to decode {}: {e}", tor_metadata_path.display()))?;
+    let hostname: String = match serde_cbor::from_slice(&tor_metadata) {
+        Ok(hostname) => {
+            tracing::debug!(
+                "tor metadata format=string path={}",
+                tor_metadata_path.display()
+            );
+            hostname
+        }
+        Err(_) => {
+            let [_, hostname]: [String; 2] = serde_cbor::from_slice(&tor_metadata)
+                .map_err(|e| anyhow!("Failed to decode {}: {e}", tor_metadata_path.display()))?;
+            tracing::debug!(
+                "tor metadata format=legacy-array path={}",
+                tor_metadata_path.display()
+            );
+            hostname
+        }
+    };
 
-    Ok(format!("{hostname}:{network_port}"))
+    Ok(format!("{hostname}:{COINSWAP_PORT}"))
 }
 
 /// Unified request handler for any maker implementing `MakerWalletAccess`
@@ -470,9 +487,11 @@ mod tests {
     use super::read_tor_address;
 
     #[test]
-    fn reads_tor_hostname_from_maker_data_dir() {
-        let temp_dir =
-            std::env::temp_dir().join(format!("maker-pool-tor-address-{}", std::process::id()));
+    fn reads_legacy_tor_hostname_from_maker_data_dir() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "maker-pool-legacy-tor-address-{}",
+            std::process::id()
+        ));
         let tor_dir = temp_dir.join("tor");
         std::fs::create_dir_all(&tor_dir).unwrap();
         std::fs::write(
@@ -486,7 +505,25 @@ mod tests {
         .unwrap();
 
         let address = read_tor_address(&temp_dir, 6102).unwrap();
-        assert_eq!(address, "maker-example.onion:6102");
+        assert_eq!(address, "maker-example.onion:21");
+
+        std::fs::remove_dir_all(temp_dir).unwrap();
+    }
+
+    #[test]
+    fn reads_tor_hostname_string_from_maker_data_dir() {
+        let temp_dir =
+            std::env::temp_dir().join(format!("maker-pool-tor-address-{}", std::process::id()));
+        let tor_dir = temp_dir.join("tor");
+        std::fs::create_dir_all(&tor_dir).unwrap();
+        std::fs::write(
+            tor_dir.join("hostname"),
+            serde_cbor::to_vec(&"maker-example.onion".to_string()).unwrap(),
+        )
+        .unwrap();
+
+        let address = read_tor_address(&temp_dir, 6102).unwrap();
+        assert_eq!(address, "maker-example.onion:21");
 
         std::fs::remove_dir_all(temp_dir).unwrap();
     }

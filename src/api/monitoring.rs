@@ -1,5 +1,7 @@
+use std::collections::HashMap;
 use std::convert::Infallible;
 use std::fs;
+use std::path::{Path as FsPath, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -170,9 +172,10 @@ async fn get_swap_reports(
         );
     };
 
-    let reports_dir = data_dir.join("swap_reports");
+    let wallet_name = config.wallet_name.unwrap_or_else(|| id.clone());
 
-    let result = tokio::task::spawn_blocking(move || load_swap_reports(reports_dir, id)).await;
+    let result =
+        tokio::task::spawn_blocking(move || load_swap_reports(data_dir, wallet_name, id)).await;
 
     match result {
         Ok(Ok(reports)) => (StatusCode::OK, Json(ApiResponse::ok(reports))),
@@ -185,41 +188,127 @@ async fn get_swap_reports(
 }
 
 fn load_swap_reports(
-    reports_dir: std::path::PathBuf,
+    data_dir: PathBuf,
+    wallet_name: String,
     id: String,
 ) -> Result<Vec<SwapReportDto>, (StatusCode, String)> {
-    let entries = match fs::read_dir(&reports_dir) {
-        Ok(entries) => entries,
+    let mut reports = load_wallet_swap_report(&data_dir, &wallet_name, &id)?;
+    reports.sort_by_key(|b| std::cmp::Reverse(b.end_timestamp));
+    Ok(reports)
+}
+
+fn load_wallet_swap_report(
+    data_dir: &FsPath,
+    wallet_name: &str,
+    id: &str,
+) -> Result<Vec<SwapReportDto>, (StatusCode, String)> {
+    let path = wallet_swap_report_path(data_dir, wallet_name);
+    let raw = match fs::read_to_string(&path) {
+        Ok(raw) => raw,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
         Err(e) => {
             return Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to read swap reports: {e}"),
+                format!("Failed to read swap report: {e}"),
             ))
         }
     };
 
-    let mut reports = Vec::new();
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
-            continue;
-        }
-        match fs::read_to_string(&path)
-            .ok()
-            .and_then(|raw| serde_json::from_str::<SwapReportDto>(&raw).ok())
-        {
-            Some(report) => reports.push(report),
-            None => warn!(
-                "Failed to parse swap report for maker '{}' at {}",
+    let mut report_file = match serde_json::from_str::<WalletSwapReportFile>(&raw) {
+        Ok(report_file) => report_file,
+        Err(e) => {
+            warn!(
+                "Failed to parse wallet swap report for maker '{}' at {}: {}",
                 id,
-                path.display()
-            ),
+                path.display(),
+                e
+            );
+            return Ok(Vec::new());
+        }
+    };
+
+    Ok(report_file
+        .maker
+        .remove(id)
+        .unwrap_or_default()
+        .into_iter()
+        .map(SwapReportDto::from)
+        .collect())
+}
+
+fn wallet_swap_report_path(data_dir: &FsPath, wallet_name: &str) -> PathBuf {
+    const REPORT_SUFFIX: &str = "_swap_report.json";
+
+    let wallet_stem = FsPath::new(wallet_name)
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .filter(|stem| !stem.is_empty())
+        .unwrap_or(wallet_name);
+
+    data_dir
+        .join("wallets")
+        .join(format!("{wallet_stem}{REPORT_SUFFIX}"))
+}
+
+#[derive(Debug, Deserialize)]
+struct WalletSwapReportFile {
+    #[serde(default)]
+    maker: HashMap<String, Vec<WalletMakerReport>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct WalletMakerReport {
+    swap_id: String,
+    status: String,
+    network: String,
+    swap_duration_seconds: f64,
+    start_timestamp: u64,
+    end_timestamp: u64,
+    incoming_amount: u64,
+    outgoing_amount: u64,
+    fee_earned: u64,
+    incoming_contract_txid: String,
+    outgoing_contract_txid: String,
+    timelock: u32,
+}
+
+impl From<WalletMakerReport> for SwapReportDto {
+    fn from(report: WalletMakerReport) -> Self {
+        Self {
+            swap_id: report.swap_id,
+            role: "maker".to_string(),
+            status: report.status,
+            swap_duration_seconds: report.swap_duration_seconds,
+            recovery_duration_seconds: 0.0,
+            start_timestamp: report.start_timestamp,
+            end_timestamp: report.end_timestamp,
+            network: report.network,
+            error_message: None,
+            incoming_amount: report.incoming_amount,
+            outgoing_amount: report.outgoing_amount,
+            fee_paid_or_earned: report.fee_earned as i64,
+            incoming_contract_txid: Some(report.incoming_contract_txid),
+            outgoing_contract_txid: Some(report.outgoing_contract_txid),
+            funding_txids: Vec::new(),
+            recovery_txids: None,
+            timelock: report.timelock.try_into().unwrap_or(u16::MAX),
+            makers_count: None,
+            maker_addresses: Vec::new(),
+            maker_fee_info: Vec::new(),
+            total_maker_fees: 0,
+            mining_fee: 0,
+            fee_percentage: if report.incoming_amount == 0 {
+                0.0
+            } else {
+                (report.fee_earned as f64 / report.incoming_amount as f64) * 100.0
+            },
+            input_utxos: Vec::new(),
+            output_change_amounts: Vec::new(),
+            output_swap_amounts: Vec::new(),
+            output_change_utxos: Vec::new(),
+            output_swap_utxos: Vec::new(),
         }
     }
-
-    reports.sort_by_key(|b| std::cmp::Reverse(b.end_timestamp));
-    Ok(reports)
 }
 
 fn convert_utxos<T>(id: &str, label: &str, utxos: Vec<T>) -> Vec<UtxoInfo>
@@ -630,5 +719,183 @@ async fn get_data_dir(
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ApiResponse::err(e.to_string())),
         ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::{
+        body::Body,
+        http::{Request, StatusCode},
+    };
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
+
+    use crate::{
+        api::AppState,
+        auth::{AuthConfig, SessionStore},
+        maker_manager::MakerConfig,
+    };
+
+    #[test]
+    fn wallet_swap_report_path_uses_wallet_file_stem() {
+        let data_dir = PathBuf::from("/tmp/coinswap/maker1");
+        assert_eq!(
+            wallet_swap_report_path(&data_dir, "maker1.dat"),
+            data_dir.join("wallets").join("maker1_swap_report.json")
+        );
+    }
+
+    #[test]
+    fn load_wallet_swap_report_reads_maker_entries() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let data_dir = std::env::temp_dir().join(format!(
+            "maker-dashboard-report-test-{}-{nonce}",
+            std::process::id()
+        ));
+        let wallets_dir = data_dir.join("wallets");
+        std::fs::create_dir_all(&wallets_dir).unwrap();
+        std::fs::write(
+            wallets_dir.join("maker1_swap_report.json"),
+            r#"{
+                "taker": [],
+                "maker": {
+                    "maker1": [{
+                        "swap_id": "swap-1",
+                        "status": "Success",
+                        "network": "regtest",
+                        "swap_duration_seconds": 2.5,
+                        "start_timestamp": 10,
+                        "end_timestamp": 12,
+                        "incoming_amount": 10000,
+                        "outgoing_amount": 9800,
+                        "fee_earned": 200,
+                        "incoming_contract_txid": "in-txid",
+                        "outgoing_contract_txid": "out-txid",
+                        "timelock": 144
+                    }]
+                },
+                "recovery": [],
+                "deniability_proofs": []
+            }"#,
+        )
+        .unwrap();
+
+        let reports = load_wallet_swap_report(&data_dir, "maker1.dat", "maker1").unwrap();
+        assert_eq!(reports.len(), 1);
+        assert_eq!(reports[0].swap_id, "swap-1");
+        assert_eq!(reports[0].role, "maker");
+        assert_eq!(reports[0].fee_paid_or_earned, 200);
+        assert_eq!(reports[0].timelock, 144);
+
+        std::fs::remove_dir_all(data_dir).unwrap();
+    }
+
+    #[tokio::test]
+    async fn swap_reports_endpoint_returns_only_requested_maker_reports() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let config_dir = std::env::temp_dir().join(format!(
+            "maker-dashboard-api-config-test-{}-{nonce}",
+            std::process::id()
+        ));
+        let data_dir = std::env::temp_dir().join(format!(
+            "maker-dashboard-api-report-test-{}-{nonce}",
+            std::process::id()
+        ));
+        let wallets_dir = data_dir.join("wallets");
+        std::fs::create_dir_all(&config_dir).unwrap();
+        std::fs::create_dir_all(&wallets_dir).unwrap();
+        std::fs::write(
+            wallets_dir.join("shared-wallet_swap_report.json"),
+            r#"{
+                "taker": [],
+                "maker": {
+                    "alpha": [{
+                        "swap_id": "alpha-swap",
+                        "status": "Success",
+                        "network": "regtest",
+                        "swap_duration_seconds": 2.5,
+                        "start_timestamp": 10,
+                        "end_timestamp": 12,
+                        "incoming_amount": 10000,
+                        "outgoing_amount": 9800,
+                        "fee_earned": 200,
+                        "incoming_contract_txid": "alpha-in-txid",
+                        "outgoing_contract_txid": "alpha-out-txid",
+                        "timelock": 144
+                    }],
+                    "beta": [{
+                        "swap_id": "beta-swap",
+                        "status": "Success",
+                        "network": "regtest",
+                        "swap_duration_seconds": 3.5,
+                        "start_timestamp": 20,
+                        "end_timestamp": 22,
+                        "incoming_amount": 20000,
+                        "outgoing_amount": 19700,
+                        "fee_earned": 300,
+                        "incoming_contract_txid": "beta-in-txid",
+                        "outgoing_contract_txid": "beta-out-txid",
+                        "timelock": 288
+                    }]
+                },
+                "recovery": [],
+                "deniability_proofs": []
+            }"#,
+        )
+        .unwrap();
+
+        let mut manager = MakerManager::new_for_testing(config_dir.clone(), None).unwrap();
+        for id in ["alpha", "beta"] {
+            manager.insert_config_for_testing(
+                id.to_string(),
+                MakerConfig {
+                    data_directory: Some(data_dir.clone()),
+                    wallet_name: Some("shared-wallet".to_string()),
+                    ..MakerConfig::default()
+                },
+            );
+        }
+
+        let state = AppState {
+            makers: Arc::new(Mutex::new(manager)),
+            sessions: Arc::new(Mutex::new(SessionStore::new())),
+            auth: Arc::new(std::sync::RwLock::new(Some(
+                AuthConfig::new("test-password").unwrap(),
+            ))),
+            setup_lock: Arc::new(Mutex::new(())),
+            config_dir: Arc::new(config_dir.clone()),
+        };
+        let app = routes().with_state(state);
+
+        let alpha_body = request_json(app.clone(), "/makers/alpha/swap-reports").await;
+        let beta_body = request_json(app, "/makers/beta/swap-reports").await;
+
+        assert_eq!(alpha_body["success"].as_bool(), Some(true));
+        assert_eq!(beta_body["success"].as_bool(), Some(true));
+        assert_eq!(alpha_body["data"].as_array().unwrap().len(), 1);
+        assert_eq!(beta_body["data"].as_array().unwrap().len(), 1);
+        assert_eq!(alpha_body["data"][0]["swap_id"], "alpha-swap");
+        assert_eq!(beta_body["data"][0]["swap_id"], "beta-swap");
+
+        std::fs::remove_dir_all(data_dir).unwrap();
+        std::fs::remove_dir_all(config_dir).unwrap();
+    }
+
+    async fn request_json(app: Router, path: &str) -> serde_json::Value {
+        let resp = app
+            .oneshot(Request::get(path).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+        serde_json::from_slice(&bytes).unwrap()
     }
 }
