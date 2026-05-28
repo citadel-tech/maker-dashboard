@@ -4,6 +4,7 @@ pub mod persistence;
 
 use std::collections::HashMap;
 use std::net::TcpListener;
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -286,6 +287,29 @@ impl MakerManager {
         config
     }
 
+    fn panic_payload_to_string(payload: Box<dyn std::any::Any + Send>) -> String {
+        if let Some(message) = payload.downcast_ref::<String>() {
+            message.clone()
+        } else if let Some(message) = payload.downcast_ref::<&'static str>() {
+            (*message).to_string()
+        } else {
+            "unknown panic".to_string()
+        }
+    }
+
+    fn init_maker_server(config: MakerServerConfig) -> Result<MakerServer> {
+        let init_result = catch_unwind(AssertUnwindSafe(|| MakerServer::init(config)));
+
+        init_result
+            .map_err(|panic| {
+                anyhow!(
+                    "Maker server initialization panicked: {}",
+                    Self::panic_payload_to_string(panic)
+                )
+            })?
+            .map_err(|e| anyhow!("Failed to initialize maker server: {e:?}"))
+    }
+
     fn infer_network(&self, rpc_url: &str) -> Network {
         match self.bitcoind_network.as_deref() {
             Some("regtest") => Network::Regtest,
@@ -338,35 +362,33 @@ impl MakerManager {
         MakerLogWriter::register_maker(&id, &data_dir)?;
         let wallet_name = config.wallet_name.clone().unwrap_or_else(|| id.clone());
         let network = self.infer_network(&config.rpc);
-        let maker = Arc::new(
-            MakerServer::init(MakerServerConfig {
-                data_dir,
-                network_port: config.network_port,
-                rpc_port: config.rpc_port,
-                base_fee: config.base_fee,
-                amount_relative_fee_pct: config.amount_relative_fee_pct,
-                time_relative_fee_pct: config.time_relative_fee_pct,
-                min_swap_amount: config.min_swap_amount,
-                required_confirms: config.required_confirms,
-                supported_protocols: MakerServerConfig::default().supported_protocols,
-                zmq_addr: config.zmq.clone(),
-                fidelity_amount: config.fidelity_amount,
-                fidelity_timelock: config.fidelity_timelock,
-                network,
-                wallet_name,
-                rpc_config,
-                control_port: config.control_port,
-                socks_port: config.socks_port,
-                tor_auth_password: config.tor_auth.clone().unwrap_or_default(),
-                password: config.password.clone(),
-                nostr_relays: if config.nostr_relays.is_empty() {
-                    MakerServerConfig::default().nostr_relays
-                } else {
-                    config.nostr_relays.clone()
-                },
-            })
-            .map_err(|e| anyhow!("Failed to initialize maker server: {e:?}"))?,
-        );
+        let server_config = MakerServerConfig {
+            data_dir,
+            network_port: config.network_port,
+            rpc_port: config.rpc_port,
+            base_fee: config.base_fee,
+            amount_relative_fee_pct: config.amount_relative_fee_pct,
+            time_relative_fee_pct: config.time_relative_fee_pct,
+            min_swap_amount: config.min_swap_amount,
+            required_confirms: config.required_confirms,
+            supported_protocols: MakerServerConfig::default().supported_protocols,
+            zmq_addr: config.zmq.clone(),
+            fidelity_amount: config.fidelity_amount,
+            fidelity_timelock: config.fidelity_timelock,
+            network,
+            wallet_name,
+            rpc_config,
+            control_port: config.control_port,
+            socks_port: config.socks_port,
+            tor_auth_password: config.tor_auth.clone().unwrap_or_default(),
+            password: config.password.clone(),
+            nostr_relays: if config.nostr_relays.is_empty() {
+                MakerServerConfig::default().nostr_relays
+            } else {
+                config.nostr_relays.clone()
+            },
+        };
+        let maker = Arc::new(Self::init_maker_server(server_config)?);
         self.pool
             .spawn_maker(id.clone(), maker, config.network_port)?;
 
@@ -379,6 +401,12 @@ impl MakerManager {
 
     pub fn get_maker_config(&self, id: &str) -> Option<&MakerConfig> {
         self.configs.get(id)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn insert_config_for_testing(&mut self, id: MakerId, config: MakerConfig) {
+        let config = Self::normalize_config(&id, config);
+        self.configs.insert(id, config);
     }
 
     /// Creates and registers a new maker (init + message loop only, NOT started).

@@ -197,6 +197,16 @@ struct ApiClient {
     creds: RpcCreds,
 }
 
+struct CreateMakerRequest<'a> {
+    id: &'a str,
+    rpc_url: &'a str,
+    zmq_url: &'a str,
+    data_dir: &'a Path,
+    network_port: u16,
+    wallet_name: &'a str,
+    rpc_port: u16,
+}
+
 impl ApiClient {
     fn new(port: u16, creds: RpcCreds) -> Self {
         let agent: ureq::Agent = ureq::Agent::config_builder()
@@ -286,34 +296,26 @@ impl ApiClient {
 
     // - domain helpers
 
-    fn create_maker(
-        &self,
-        id: &str,
-        rpc_url: &str,
-        zmq_url: &str,
-        data_dir: &Path,
-        network_port: u16,
-        wallet_name: &str,
-        rpc_port: u16,
-    ) {
+    fn create_maker(&self, req: CreateMakerRequest<'_>) {
         let resp: Value = self.post_json(
             "/makers",
             &serde_json::json!({
-                "id": id,
-                "rpc": rpc_url,
-                "zmq": zmq_url,
+                "id": req.id,
+                "rpc": req.rpc_url,
+                "zmq": req.zmq_url,
                 "rpc_user": self.creds.user,
                 "rpc_password": self.creds.pass,
-                "data_directory": data_dir.to_string_lossy(),
-                "network_port": network_port,
-                "wallet_name": wallet_name,
-                "rpc_port": rpc_port,
+                "data_directory": req.data_dir.to_string_lossy(),
+                "network_port": req.network_port,
+                "wallet_name": req.wallet_name,
+                "rpc_port": req.rpc_port,
                 "fidelity_amount": TEST_FIDELITY_AMOUNT
             }),
         );
         assert!(
             resp["success"].as_bool().unwrap_or(false),
-            "create_maker '{id}' failed: {resp}"
+            "create_maker '{}' failed: {resp}",
+            req.id
         );
     }
 
@@ -562,24 +564,24 @@ fn test_maker_manager_integration() {
 
     // Create two makers
     println!("[INFO] Creating makers");
-    client.create_maker(
-        MAKER_ALPHA_ID,
-        &rpc_url,
-        &zmq_addr,
-        &maker_alpha_dir,
-        MAKER_ALPHA_PORT,
-        "alpha-wallet",
-        maker_alpha_rpc_port,
-    );
-    client.create_maker(
-        MAKER_BETA_ID,
-        &rpc_url,
-        &zmq_addr,
-        &maker_beta_dir,
-        MAKER_BETA_PORT,
-        "beta-wallet",
-        maker_beta_rpc_port,
-    );
+    client.create_maker(CreateMakerRequest {
+        id: MAKER_ALPHA_ID,
+        rpc_url: &rpc_url,
+        zmq_url: &zmq_addr,
+        data_dir: &maker_alpha_dir,
+        network_port: MAKER_ALPHA_PORT,
+        wallet_name: "alpha-wallet",
+        rpc_port: maker_alpha_rpc_port,
+    });
+    client.create_maker(CreateMakerRequest {
+        id: MAKER_BETA_ID,
+        rpc_url: &rpc_url,
+        zmq_url: &zmq_addr,
+        data_dir: &maker_beta_dir,
+        network_port: MAKER_BETA_PORT,
+        wallet_name: "beta-wallet",
+        rpc_port: maker_beta_rpc_port,
+    });
 
     let list: Value = client.get("/makers");
     let ids: Vec<&str> = list["data"]
