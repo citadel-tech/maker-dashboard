@@ -115,8 +115,7 @@ async fn login(
     }
 
     let token = sessions.lock().await.create();
-    let cookie =
-        format!("session={token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=86400");
+    let cookie = format!("session={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=86400");
     (
         StatusCode::OK,
         [(header::SET_COOKIE, cookie)],
@@ -236,8 +235,7 @@ async fn setup(
     *auth.write().unwrap() = Some(new_auth);
 
     let token = sessions.lock().await.create();
-    let cookie =
-        format!("session={token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=86400");
+    let cookie = format!("session={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=86400");
     (
         StatusCode::OK,
         [(header::SET_COOKIE, cookie)],
