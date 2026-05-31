@@ -72,7 +72,6 @@ services:
     environment:
       - DASHBOARD_HOST=0.0.0.0
       - DASHBOARD_PORT=${DASHBOARD_PORT:-3000}
-      - DASHBOARD_ALLOW_REMOTE=true
       - DASHBOARD_LOG_FILTER=${DASHBOARD_LOG_FILTER:-tower_http=debug,info}
       - DASHBOARD_NO_COLOR=true
     restart: unless-stopped

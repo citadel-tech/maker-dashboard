@@ -124,6 +124,4 @@ Every endpoint returns the same JSON envelope:
 { "success": false, "error": "<message>" }
 ```
 
-Authentication is handled at the network level. By default the server binds to `127.0.0.1` and a middleware rejects any request that did not originate from localhost. Remote access can be enabled with `--allow-remote` / `DASHBOARD_ALLOW_REMOTE=true`, but there is no built-in login system. securing that is the operator's responsibility (e.g. via a reverse proxy with TLS and authentication in front of the dashboard).
-
 Interactive OpenAPI documentation for all endpoints is available at `http://localhost:3000/swagger-ui/` while the server is running.
