@@ -9,7 +9,10 @@ set -euo pipefail
 # both fire close together. The second caller exits cleanly instead of
 # racing a docker pull / restart against the first.
 exec 9>/run/lock/maker-dashboard-update.lock
-flock -n 9 || { echo "[update] another run in progress, skipping"; exit 0; }
+flock -n 9 || {
+	echo "[update] another run in progress, skipping"
+	exit 0
+}
 
 IMAGE="${IMAGE:-docker.io/coinswap/maker-dashboard:master}"
 REPO="${REPO:-citadel-tech/maker-dasboard}"

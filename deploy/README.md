@@ -207,6 +207,57 @@ restart failure. "No change" runs are silent.
 
 [matrix-commander]: https://github.com/8go/matrix-commander
 
+## Forward WARN/ERROR logs to Matrix (optional)
+
+The `maker-dashboard-forwarder.service` tails the dashboard's journald
+output, collects WARN/ERROR lines over a short window, and forwards each
+batch as a single Matrix message with the raw lines in a `<pre><code>`
+block. Cursor-based: persists a journald position so restarts don't repeat
+or miss entries.
+
+Defaults:
+
+- Flush every 30 seconds. Quiet windows produce no message; bursty windows
+  collapse into one batched message instead of N separate ones.
+- Within a batch, identical lines are deduped — the first appears, repeats
+  are counted. Across batches, the same line is suppressed for 5 minutes
+  (with a `(+N previously suppressed)` annotation when it next appears).
+- Cap of 50 lines per batch; the excess is counted and shown as `(+N
+  dropped)` on the message header.
+
+`sudo deploy/setup.sh` offers this as step 8 (only when Matrix is already
+configured).
+
+### Manual setup
+
+```sh
+sudo install -m 0755 deploy/maker-dashboard-forwarder.py /usr/local/bin/
+sudo install -m 0644 deploy/maker-dashboard-forwarder.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now maker-dashboard-forwarder.service
+```
+
+### Tuning
+
+Environment variables (set in a drop-in or by editing the unit):
+
+| Var                 | Default                           | Meaning                                                |
+| ------------------- | --------------------------------- | ------------------------------------------------------ |
+| `FORWARDER_UNIT`    | `maker-dashboard.service`         | unit to tail                                           |
+| `LEVELS`            | `WARN,ERROR`                      | comma-separated levels to forward (`INFO` for debug)   |
+| `BATCH_WINDOW_SEC`  | `30`                              | flush a batch every N seconds                          |
+| `MAX_BATCH_LINES`   | `50`                              | cap on lines per batch; excess shown as `(+N dropped)` |
+| `DEDUPE_WINDOW_SEC` | `300`                             | cross-batch suppression window for identical messages  |
+| `NOTIFY_CMD`        | `/usr/local/bin/notify-matrix.sh` | sender command                                         |
+
+### Caveats
+
+The dashboard writes all tracing output to stdout, which systemd journals as
+priority `info`. The forwarder matches the level token in the message text
+(` WARN ` / ` ERROR `) rather than journald priority. If the dashboard ever
+starts emitting native journald priorities or writes WARN+ to stderr, switch
+to `journalctl -p warning` for cheaper filtering.
+
 ## Troubleshooting
 
 **`signature verification FAILED - refusing to deploy`:** the image at

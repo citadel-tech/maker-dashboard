@@ -19,17 +19,22 @@ NTFY_URL="${NTFY_URL:-https://ntfy.sh}"
 NTFY_TOPIC="${NTFY_TOPIC:?NTFY_TOPIC required}"
 UPDATE_CMD="${UPDATE_CMD:-/usr/local/bin/maker-dashboard-update.sh}"
 
+if ! command -v curl >/dev/null; then
+    echo "[listen] ERROR: curl not found in PATH" >&2
+    exit 1
+fi
+
 log() { printf '[listen] %s\n' "$*"; }
 
 log "subscribing to ${NTFY_URL}/${NTFY_TOPIC}"
 
 while true; do
-    # --raw streams one message body per line; keepalives arrive as blank lines.
-    curl -sN "${NTFY_URL}/${NTFY_TOPIC}/raw" | while IFS= read -r line; do
-        [ -z "$line" ] && continue
-        log "trigger: ${line}"
-        "$UPDATE_CMD" || log "update failed; will retry on next trigger or timer"
-    done
-    log "stream closed, reconnecting in 5s"
-    sleep 5
+	# --raw streams one message body per line; keepalives arrive as blank lines.
+	curl -sN "${NTFY_URL}/${NTFY_TOPIC}/raw" | while IFS= read -r line; do
+		[ -z "$line" ] && continue
+		log "trigger: ${line}"
+		"$UPDATE_CMD" || log "update failed; will retry on next trigger or timer"
+	done
+	log "stream closed, reconnecting in 5s"
+	sleep 5
 done

@@ -61,9 +61,11 @@ install_matrix_deps() {
 
 [ "$(id -u)" -eq 0 ] || fatal "must run as root (use sudo)"
 
-for f in maker-dashboard-update.sh maker-dashboard-listen.sh notify-matrix.sh \
-         maker-dashboard.service maker-dashboard-update.service \
-         maker-dashboard-update.timer maker-dashboard-listener.service; do
+for f in maker-dashboard-update.sh maker-dashboard-listen.sh \
+	maker-dashboard-forwarder.py notify-matrix.sh \
+	maker-dashboard.service maker-dashboard-update.service \
+	maker-dashboard-update.timer maker-dashboard-listener.service \
+	maker-dashboard-forwarder.service; do
 	[ -f "${DEPLOY_DIR}/${f}" ] || fatal "${DEPLOY_DIR}/${f} not found"
 done
 
@@ -83,8 +85,8 @@ else
 	curl -sSL -o "$tmpfile" \
 		https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64
 
-	curl -sSL -o "${tmpfile}.sha256" \ 
-	https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64.sha256
+	curl -sSL -o "${tmpfile}.sha256" \
+		https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64.sha256
 
 	# Verify checksum
 	echo "$(cat "${tmpfile}.sha256")  ${tmpfile}" | sha256sum -c - || fatal "cosign checksum verification failed"
@@ -100,11 +102,13 @@ fi
 bold "2. Deploy scripts and systemd units"
 install -m 0755 "${DEPLOY_DIR}/maker-dashboard-update.sh" /usr/local/bin/
 install -m 0755 "${DEPLOY_DIR}/maker-dashboard-listen.sh" /usr/local/bin/
+install -m 0755 "${DEPLOY_DIR}/maker-dashboard-forwarder.py" /usr/local/bin/
 install -m 0755 "${DEPLOY_DIR}/notify-matrix.sh" /usr/local/bin/
 install -m 0644 "${DEPLOY_DIR}/maker-dashboard.service" /etc/systemd/system/
 install -m 0644 "${DEPLOY_DIR}/maker-dashboard-update.service" /etc/systemd/system/
 install -m 0644 "${DEPLOY_DIR}/maker-dashboard-update.timer" /etc/systemd/system/
 install -m 0644 "${DEPLOY_DIR}/maker-dashboard-listener.service" /etc/systemd/system/
+install -m 0644 "${DEPLOY_DIR}/maker-dashboard-forwarder.service" /etc/systemd/system/
 info "scripts in /usr/local/bin/, units in /etc/systemd/system/"
 
 # ---------------------------------------------------------- data dir ----
@@ -121,6 +125,26 @@ read -r -p "  Set up encrypted Matrix notifications now? [y/N] " choice
 matrix_enabled=""
 case "${choice,,}" in
 y | yes)
+	# Always ensure the matrix-commander binary is present. teardown.sh
+	# wipes the venv + symlink while it can leave credentials in place, so
+	# the "keep existing creds" branch below would otherwise end up with
+	# creds but no CLI to use them.
+	if ! command -v matrix-commander >/dev/null ||
+		[ ! -x "${MC_VENV}/bin/matrix-commander" ]; then
+		info "installing system dependencies for matrix-commander..."
+		install_matrix_deps >/dev/null
+
+		info "installing matrix-commander into ${MC_VENV}..."
+		mkdir -p "$(dirname "$MC_VENV")"
+		python3 -m venv "$MC_VENV"
+		"${MC_VENV}/bin/pip" install --quiet --upgrade pip
+		"${MC_VENV}/bin/pip" install --quiet matrix-commander
+		ln -sf "${MC_VENV}/bin/matrix-commander" /usr/local/bin/matrix-commander
+		info "matrix-commander $(${MC_VENV}/bin/matrix-commander --version 2>&1 | head -1)"
+	else
+		info "matrix-commander already installed"
+	fi
+
 	if [ -f "$MC_CREDS" ]; then
 		read -r -p "  ${MC_CREDS} exists. Reconfigure from scratch? [y/N] " ow
 		case "${ow,,}" in
@@ -135,16 +159,6 @@ y | yes)
 	fi
 
 	if [ -z "$matrix_enabled" ]; then
-		info "installing system dependencies for matrix-commander..."
-		install_matrix_deps >/dev/null
-
-		info "installing matrix-commander into ${MC_VENV}..."
-		mkdir -p "$(dirname "$MC_VENV")"
-		python3 -m venv "$MC_VENV"
-		"${MC_VENV}/bin/pip" install --quiet --upgrade pip
-		"${MC_VENV}/bin/pip" install --quiet matrix-commander
-		ln -sf "${MC_VENV}/bin/matrix-commander" /usr/local/bin/matrix-commander
-		info "matrix-commander $(${MC_VENV}/bin/matrix-commander --version 2>&1 | head -1)"
 
 		read -r -p "  Matrix homeserver URL [https://matrix.org]: " hs
 		hs="${hs:-https://matrix.org}"
@@ -217,12 +231,26 @@ IMAGE="${IMAGE_NAME}:master"
 CERT_IDENTITY="${CERT_IDENTITY:-https://github.com/${REPO}/${WORKFLOW_PATH}@refs/heads/${BRANCH}}"
 CERT_OIDC_ISSUER="${CERT_OIDC_ISSUER:-https://token.actions.githubusercontent.com}"
 
-info "pulling ${IMAGE}..."
-docker pull --quiet "$IMAGE" >/dev/null
+resolve_digest() {
+	docker image inspect --format '{{index .RepoDigests 0}}' "$1" 2>/dev/null |
+		awk -F'@' '{print $2}'
+}
 
-digest="$(docker image inspect --format '{{index .RepoDigests 0}}' "$IMAGE" |
-	awk -F'@' '{print $2}')"
+before="$(resolve_digest "$IMAGE" || true)"
+info "current digest: ${before:-<none>}"
+info "pulling ${IMAGE}..."
+docker pull "$IMAGE"
+
+digest="$(resolve_digest "$IMAGE")"
 [ -n "$digest" ] || fatal "could not resolve image digest after pull"
+
+if [ -z "$before" ]; then
+	info "freshly pulled: ${digest}"
+elif [ "$before" = "$digest" ]; then
+	info "image already up to date (${digest})"
+else
+	info "updated: ${before} -> ${digest}"
+fi
 
 info "verifying signature against ${CERT_IDENTITY}"
 cosign verify \
@@ -238,7 +266,9 @@ bold "6. Enable and start service"
 systemctl daemon-reload
 systemctl enable --now maker-dashboard.service
 sleep 1
-systemctl status maker-dashboard.service --no-pager -l | head -10
+# `head` closes the pipe early; mask the SIGPIPE so `set -o pipefail` doesn't
+# kill the script before step 7.
+systemctl status maker-dashboard.service --no-pager -l | head -10 || true
 
 if [ -n "$matrix_enabled" ] && command -v notify-matrix.sh >/dev/null; then
 	short="${digest#sha256:}"
@@ -246,9 +276,11 @@ if [ -n "$matrix_enabled" ] && command -v notify-matrix.sh >/dev/null; then
 	host="$(hostname)"
 	plain="[maker-dashboard] Setup complete on ${host}, image ${short}"
 	html="<strong>[maker-dashboard]</strong> <strong>Setup complete</strong> on <code>${host}</code><br/>Image: <code>${short}</code><br/>Status: <code>active</code>"
-	notify-matrix.sh "$plain" "$html" 2>/dev/null &&
-		info "Matrix notification sent" ||
-		warn "Matrix notification failed (deploy itself succeeded)"
+	notify_out="$(notify-matrix.sh "$plain" "$html" 2>&1)" &&
+		info "Matrix notification sent" || {
+		warn "Matrix notification failed (deploy itself succeeded):"
+		printf '    %s\n' "$notify_out" | head -20
+	}
 fi
 
 # ---------------------------------------------------- auto-deploy ----
@@ -302,6 +334,24 @@ EOF
 	info "skipped (deploy manually with: sudo maker-dashboard-update.sh)"
 	;;
 esac
+
+# ---------------------------------------------------- log forwarder ----
+
+forwarder_enabled=""
+if [ -n "$matrix_enabled" ]; then
+	bold "8. Forward WARN/ERROR logs to Matrix (optional)"
+	read -r -p "  Enable the log forwarder? [y/N] " choice
+	case "${choice,,}" in
+	y | yes)
+		systemctl enable --now maker-dashboard-forwarder.service
+		info "forwarder enabled (dedupe 5 min, max 10 msgs/min)"
+		forwarder_enabled=1
+		;;
+	*)
+		info "skipped"
+		;;
+	esac
+fi
 
 # ------------------------------------------------------------- done ----
 
