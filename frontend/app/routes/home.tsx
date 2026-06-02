@@ -158,6 +158,8 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
+
+
   function copyTor(id: string, torAddress: string) {
     const text = torHostOnly(torAddress);
     navigator.clipboard

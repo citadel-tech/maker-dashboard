@@ -39,6 +39,7 @@ function mempoolTxUrl(txid?: string | null) {
   return `${MEMPOOL_TX_BASE_URL}/${txid}`;
 }
 
+
 function earnedSpread(report: SwapReportDto) {
   return Number(report.incoming_amount) - Number(report.outgoing_amount);
 }

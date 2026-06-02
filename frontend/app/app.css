@@ -1160,6 +1160,7 @@ a.cs-maker-report-artifact:focus-visible {
   color: var(--cs-text-3);
 }
 
+
 .cs-maker-report-artifact code {
   color: var(--cs-text-2);
   font-family: var(--cs-mono);
@@ -1723,6 +1724,7 @@ a.cs-maker-report-artifact:focus-visible {
 .cs-log-action:hover {
   background: #374151;
 }
+
 
 .cs-log-filter {
   min-height: 27px;
