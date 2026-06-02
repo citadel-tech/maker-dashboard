@@ -98,53 +98,60 @@ export default function BitcoindWidget() {
     }
   }
 
-  return (
-    <div className="flex items-center gap-2">
-      {error && (
-        <span className="text-xs text-red-400 max-w-48 truncate" title={error}>
-          {error}
-        </span>
-      )}
+  const statusLabel = status.running
+    ? `${status.network ?? network} ${status.managed ? "managed" : "detected"}`
+    : "not detected";
+  const canStop = status.running && status.managed;
+  const stopTitle =
+    status.running && !status.managed
+      ? "This Bitcoin Core was detected externally. Stop it from the process that started it."
+      : undefined;
 
-      <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 border border-gray-800 rounded-lg">
-        <span
-          className={`w-2 h-2 rounded-full shrink-0 ${
-            status.running
-              ? "bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.6)] animate-pulse"
-              : "bg-gray-600"
-          }`}
-        />
-        <span className="text-xs text-gray-400">
-          {status.running ? (status.network ?? "running") : "bitcoind"}
-        </span>
+  return (
+    <div className="cs-bitcoind-widget">
+      <div className="cs-bitcoind-copy">
+        <div className="cs-bitcoind-head">
+          <span className="cs-label">Bitcoin Core</span>
+        </div>
+        <div className="cs-bitcoind-main">
+          <span
+            className={`cs-bitcoind-dot ${status.running ? "running" : ""}`}
+            aria-hidden="true"
+          />
+          <div>
+            <strong>{status.running ? "Running" : "Stopped"}</strong>
+            <p>{statusLabel}</p>
+          </div>
+        </div>
       </div>
 
-      {!status.running && (
-        <select
-          value={network}
-          onChange={(e) => setNetwork(e.target.value as "regtest" | "signet")}
-          disabled={pending}
-          className="px-2 py-1.5 bg-gray-900 border border-gray-800 rounded-lg text-xs text-gray-300 focus:outline-none focus:border-orange-500 disabled:opacity-50"
-        >
-          <option value="regtest">regtest</option>
-          <option value="signet">signet</option>
-        </select>
-      )}
-
-      {(!status.running || status.managed) && (
+      <div className="cs-bitcoind-controls">
+        {!status.running && (
+          <select
+            value={network}
+            onChange={(e) => setNetwork(e.target.value as "regtest" | "signet")}
+            disabled={pending}
+            aria-label="Bitcoin Core network"
+          >
+            <option value="regtest">regtest</option>
+            <option value="signet">signet</option>
+          </select>
+        )}
         <button
-          disabled={pending}
+          type="button"
+          disabled={pending || (status.running && !canStop)}
           onClick={toggle}
-          className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-all duration-150 active:scale-[0.97] ${
-            pending
-              ? "border-gray-700 text-gray-600 cursor-not-allowed"
-              : status.running
-                ? "border-red-800 text-red-400 hover:bg-red-900/30"
-                : "border-orange-800 text-orange-400 hover:bg-orange-900/20"
-          }`}
+          className={status.running ? "danger" : "primary"}
+          title={stopTitle}
         >
-          {pending ? "…" : status.running ? "Stop" : "Start"}
+          {pending ? "..." : status.running ? "Stop" : "Start"}
         </button>
+      </div>
+
+      {error && (
+        <span className="cs-bitcoind-error" title={error}>
+          {error}
+        </span>
       )}
     </div>
   );

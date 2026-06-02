@@ -1,30 +1,26 @@
-import { satsToBtc } from "../../api";
+import { formatSats } from "../../api";
 import { LoadingCard } from "./components";
-import { btcUsd, type MakerCoreData } from "./types";
+import type { MakerCoreData } from "./types";
+import type { CSSProperties } from "react";
 interface Props {
   core: MakerCoreData;
 }
 
-function formatPercent(value: number) {
-  return `${(value * 100).toFixed(2)}%`;
+function plural(value: number, word: string) {
+  return `${value} ${word}${value === 1 ? "" : "s"}`;
 }
 
 export default function Dashboard({ core }: Props) {
   const { info, balances, dataDir, loading, earningsSats, swapReportCount } =
     core;
 
-  const totalBtc = balances
-    ? satsToBtc(
-        balances.regular +
-          balances.swap +
-          balances.contract +
-          balances.fidelity,
-      )
-    : null;
+  const totalSats = balances
+    ? balances.regular + balances.swap + balances.contract + balances.fidelity
+    : 0;
 
   if (loading) {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="cs-grid-dashboard">
         {[...Array(4)].map((_, i) => (
           <LoadingCard key={i} />
         ))}
@@ -32,136 +28,189 @@ export default function Dashboard({ core }: Props) {
     );
   }
 
+  const regularPct = totalSats > 0 ? (balances!.regular / totalSats) * 100 : 0;
+  const swapPct = totalSats > 0 ? (balances!.swap / totalSats) * 100 : 0;
+  const fidelityPct =
+    totalSats > 0 ? (balances!.fidelity / totalSats) * 100 : 0;
   return (
-    <div className="space-y-6">
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-gray-900 p-4 sm:p-5 rounded-xl border border-gray-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-orange-500/5">
-          <div className="text-sm text-gray-400 mb-2">Spendable Balance</div>
-          <div className="text-2xl font-bold text-orange-500">
-            {balances ? satsToBtc(balances.spendable) : "—"} BTC
-          </div>
-          {balances && (
-            <div className="text-xs text-gray-500 mt-1">
-              {btcUsd(satsToBtc(balances.spendable))}
+    <div className="space-y-[22px]">
+      <section className="cs-grid-dashboard">
+        <article className="cs-card cs-rail cs-balance-hero">
+          <div className="cs-balance-top">
+            <div className="cs-metric">
+              <span className="cs-label">Swappable</span>
+              <span className="cs-value text-[var(--cs-blue)]">
+                {balances ? formatSats(balances.swap) : "—"}
+              </span>
+              <span className="text-[13px] cs-muted">
+                {balances ? "Eligible for swap" : "—"}
+              </span>
             </div>
-          )}
-        </div>
-
-        <div className="bg-gray-900 p-4 sm:p-5 rounded-xl border border-gray-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-orange-500/5">
-          <div className="text-sm text-gray-400 mb-2">Total Balance</div>
-          <div className="text-2xl font-bold text-blue-500">
-            {totalBtc ?? "—"} BTC
           </div>
-          {totalBtc && (
-            <div className="text-xs text-gray-500 mt-1">{btcUsd(totalBtc)}</div>
-          )}
-        </div>
-
-        <div className="bg-gray-900 p-4 sm:p-5 rounded-xl border border-gray-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-orange-500/5">
-          <div className="text-sm text-gray-400 mb-2">Fee Summary</div>
-          <div className="text-2xl font-bold text-purple-500">
-            {info ? `${info.base_fee} sats` : "—"}
+          <div className="cs-balance-bottom">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="cs-label">Total Balance</span>
+              {balances && balances.fidelity > 0 && (
+                <span className="cs-pill amber">
+                  <span className="cs-dot" />
+                  {formatSats(balances.fidelity)} locked
+                </span>
+              )}
+            </div>
+            <div className="cs-value mt-2">
+              {balances ? formatSats(totalSats) : "—"}
+            </div>
+            <div className="mt-1 text-[13px] cs-muted">
+              {balances
+                ? "Regular + swap + contract + fidelity"
+                : "Balance data unavailable"}
+            </div>
+            <div className="cs-share-bar" aria-hidden="true">
+              <span
+                style={{
+                  width: `${regularPct}%`,
+                  background: "var(--cs-orange)",
+                }}
+              />
+              <span
+                style={{ width: `${swapPct}%`, background: "var(--cs-blue)" }}
+              />
+              <span
+                style={{
+                  width: `${fidelityPct}%`,
+                  background: "var(--cs-amber)",
+                }}
+              />
+            </div>
+            <div className="mt-3 flex flex-wrap gap-4">
+              <span className="cs-label">Regular {regularPct.toFixed(0)}%</span>
+              <span className="cs-label">Swap {swapPct.toFixed(0)}%</span>
+              <span className="cs-label">
+                Fidelity {fidelityPct.toFixed(0)}%
+              </span>
+            </div>
           </div>
-          <div className="text-xs text-gray-500 mt-1">
-            Amount fee{" "}
-            {info ? formatPercent(info.amount_relative_fee_pct) : "—"} · Time
-            fee {info ? formatPercent(info.time_relative_fee_pct) : "—"} ·
-            Fidelity {info ? `${info.fidelity_amount} sats` : "—"}
-          </div>
-        </div>
+        </article>
 
-        <div className="bg-gray-900 p-4 sm:p-5 rounded-xl border border-gray-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-orange-500/5">
-          <div className="text-sm text-gray-400 mb-2">Net Earnings</div>
+        <article
+          className="cs-card cs-rail cs-stat-card"
+          style={{ "--rail": "var(--cs-amber)" } as CSSProperties}
+        >
+          <div className="cs-stat-label">
+            <span className="cs-label">Contract</span>
+            <span className="cs-pill">Idle</span>
+          </div>
+          <div className="cs-value text-[var(--cs-amber)]">
+            {balances ? formatSats(balances.contract) : "—"}
+          </div>
+          <div className="text-[13px] cs-muted">
+            {balances && balances.contract > 0
+              ? "Active contract funds"
+              : "No active contracts"}
+          </div>
+          <div className="cs-stat-meta">
+            <span>
+              Live HTLCs · {balances && balances.contract > 0 ? 1 : 0}
+            </span>
+            <span>→</span>
+          </div>
+        </article>
+
+        <article
+          className="cs-card cs-rail cs-stat-card"
+          style={{ "--rail": "var(--cs-text)" } as CSSProperties}
+        >
+          <div className="cs-stat-label">
+            <span className="cs-label">Fidelity Bond</span>
+            <span className="cs-pill amber">Locked</span>
+          </div>
+          <div className="cs-value">
+            {balances ? formatSats(balances.fidelity) : "—"}
+          </div>
+          <div className="text-[13px] cs-muted">
+            {info
+              ? `Timelock ${info.fidelity_timelock.toLocaleString()} blocks`
+              : "Reputation stake"}
+          </div>
+          <div className="cs-stat-meta">
+            <span>Bond strength · {info ? "configured" : "—"}</span>
+            <span>→</span>
+          </div>
+        </article>
+
+        <article
+          className="cs-card cs-rail cs-stat-card"
+          style={{ "--rail": "var(--cs-orange)" } as CSSProperties}
+        >
+          <div className="cs-stat-label">
+            <span className="cs-label">Spendable</span>
+            <span className="cs-pill orange">Regular + Swap</span>
+          </div>
+          <div className="cs-value text-[var(--cs-orange)]">
+            {balances ? formatSats(balances.spendable) : "—"}
+          </div>
+          <div className="text-[13px] cs-muted">
+            {balances
+              ? "Excludes contract and fidelity locks"
+              : "Spendable balance unavailable"}
+          </div>
+          <div className="cs-stat-meta">
+            <span>Regular + swap coins</span>
+            <span>→</span>
+          </div>
+        </article>
+
+        <article
+          className="cs-card cs-rail cs-stat-card"
+          style={{ "--rail": "var(--cs-green)" } as CSSProperties}
+        >
+          <div className="cs-stat-label">
+            <span className="cs-label">Net Earning</span>
+            <span className="cs-pill green">{swapReportCount} swaps</span>
+          </div>
           <div
-            className={`text-2xl font-bold ${
-              earningsSats >= 0 ? "text-emerald-500" : "text-red-300"
-            }`}
+            className={`cs-value ${earningsSats >= 0 ? "text-[var(--cs-green)]" : "text-[var(--cs-red)]"}`}
           >
-            {satsToBtc(earningsSats)} BTC
+            {earningsSats >= 0
+              ? `+${formatSats(earningsSats)}`
+              : formatSats(earningsSats)}
           </div>
-          <div className="text-xs text-gray-500 mt-1">
-            {btcUsd(satsToBtc(earningsSats))}
+          <div className="text-[13px] cs-muted">
+            {`Across ${plural(swapReportCount, "successful swap")}`}
           </div>
-          <div className="text-xs text-gray-500 mt-1">
-            Across {swapReportCount} swap{swapReportCount === 1 ? "" : "s"}
+          <div className="cs-stat-meta">
+            <span>Last earned · {swapReportCount > 0 ? "reported" : "—"}</span>
+            <span>→</span>
           </div>
-        </div>
-      </div>
+        </article>
+      </section>
 
-      {/* Wallet Balances */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
-        <h3 className="text-lg font-semibold mb-4">Wallet Balances</h3>
-        {balances ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {(
-              ["regular", "swap", "contract", "fidelity", "spendable"] as const
-            ).map((type) => (
-              <div
-                key={type}
-                className="bg-gray-800 p-4 rounded-lg border border-gray-700 transition-all duration-200 hover:border-gray-600 hover:shadow-sm hover:shadow-orange-500/5"
-              >
-                <div className="flex items-start justify-between mb-2">
-                  <div className="font-medium capitalize text-gray-100">
-                    {type}
-                  </div>
-                  {type === "spendable" && (
-                    <span className="text-xs bg-emerald-600 text-white px-2 py-0.5 rounded">
-                      Available
-                    </span>
-                  )}
-                </div>
-                <div
-                  className={`text-xl font-bold mb-1 ${
-                    type === "spendable"
-                      ? "text-emerald-500"
-                      : "text-orange-500"
-                  }`}
-                >
-                  {satsToBtc(balances[type])} BTC
-                </div>
-                <div className="text-xs text-gray-400 mb-2">
-                  {btcUsd(satsToBtc(balances[type]))}
-                </div>
-                <div className="text-xs text-gray-500 leading-relaxed">
-                  {type === "regular" && "Single signature wallet coins"}
-                  {type === "swap" && "2of2 multisig coins from swaps"}
-                  {type === "contract" && "Live contract transactions"}
-                  {type === "fidelity" && "Locked in fidelity bonds"}
-                  {type === "spendable" && "Available to spend"}
+      <section className="cs-section">
+        <div className="cs-card">
+          <div className="cs-card-head">
+            <h2>Configuration</h2>
+            <span className="cs-card-meta">Runtime paths</span>
+          </div>
+          <div className="cs-card-body">
+            <div className="cs-field-grid cols-3">
+              <div className="cs-card p-4">
+                <div className="cs-label mb-2">Data Directory</div>
+                <div className="cs-tx">
+                  {dataDir ?? info?.data_directory ?? "—"}
                 </div>
               </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-gray-400 text-sm">Balance data unavailable</p>
-        )}
-      </div>
-
-      {/* Configuration */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
-        <h3 className="text-lg font-semibold mb-4">Configuration</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">
-            <div className="text-xs text-gray-400 mb-2">Data Directory</div>
-            <div className="font-mono text-sm text-gray-100 break-all">
-              {dataDir ?? info?.data_directory ?? "—"}
-            </div>
-          </div>
-          <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">
-            <div className="text-xs text-gray-400 mb-2">Bitcoin RPC</div>
-            <div className="font-mono text-sm text-gray-100">
-              {info?.rpc ?? "—"}
-            </div>
-          </div>
-          <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">
-            <div className="text-xs text-gray-400 mb-2">ZMQ</div>
-            <div className="font-mono text-sm text-gray-100">
-              {info?.zmq ?? "—"}
+              <div className="cs-card p-4">
+                <div className="cs-label mb-2">Bitcoin RPC</div>
+                <div className="cs-tx">{info?.rpc ?? "—"}</div>
+              </div>
+              <div className="cs-card p-4">
+                <div className="cs-label mb-2">ZMQ</div>
+                <div className="cs-tx">{info?.zmq ?? "—"}</div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

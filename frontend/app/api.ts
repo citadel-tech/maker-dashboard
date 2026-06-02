@@ -429,6 +429,14 @@ export function satsToBtc(sats: number): string {
   return (sats / 1e8).toFixed(8);
 }
 
+export const SATS_SYMBOL = "丰";
+
+/** Format satoshis with the sats symbol used in the dashboard UI. */
+export function formatSats(sats: number): string {
+  const sign = sats < 0 ? "-" : "";
+  return `${sign}${Math.abs(Math.round(sats)).toLocaleString()} ${SATS_SYMBOL}`;
+}
+
 /** Convert BTC amount to satoshis */
 export function btcToSats(btc: number | string): number {
   return Math.round(Number(btc) * 1e8);

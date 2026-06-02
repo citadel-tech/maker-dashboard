@@ -11,6 +11,7 @@ import "@/app.css";
 
 import Home from "./routes/home";
 import MakerDetails from "./routes/makerDetails";
+import MakerSwapReportPage from "./routes/makerDetails/swapReport";
 import AddMaker from "./routes/addMaker";
 import MakerSetup from "./routes/makersetup";
 import Login from "./routes/login";
@@ -119,6 +120,10 @@ function App() {
         <Route element={<AuthLayout />}>
           <Route path="/" element={<Home />} />
           <Route path="/makerDetails/:makerId" element={<MakerDetails />} />
+          <Route
+            path="/makerDetails/:makerId/swapReports/:swapId"
+            element={<MakerSwapReportPage />}
+          />
           <Route path="/addMaker" element={<AddMaker />} />
           <Route path="/makers/:makerId/setup" element={<MakerSetup />} />
         </Route>

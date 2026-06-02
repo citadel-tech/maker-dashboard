@@ -1,17 +1,21 @@
-import { useState, useEffect } from "react";
-import { monitoring, satsToBtc, type SwapReportDto } from "../../api";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { ExternalLink, FileText } from "lucide-react";
+import { formatSats, monitoring, type SwapReportDto } from "../../api";
 import { LoadingCard, ErrorBanner } from "./components";
 
 interface Props {
   id: string;
 }
 
+type Filter = "all" | "success" | "other";
+
 function formatDate(timestamp: number) {
   return new Date(timestamp * 1000).toLocaleString();
 }
 
 function formatDuration(seconds: number) {
-  if (!Number.isFinite(seconds) || seconds <= 0) return "—";
+  if (!Number.isFinite(seconds) || seconds <= 0) return "-";
   if (seconds < 60) return `${seconds.toFixed(1)}s`;
   const total = Math.round(seconds);
   const minutes = Math.floor(total / 60);
@@ -19,197 +23,96 @@ function formatDuration(seconds: number) {
   return `${minutes}m ${secs}s`;
 }
 
-function TxRow({ label, txid }: { label: string; txid?: string | null }) {
-  if (!txid) return null;
+function shortId(value: string, start = 12, end = 8) {
+  if (value.length <= start + end + 1) return value;
+  return `${value.slice(0, start)}...${value.slice(-end)}`;
+}
+
+function feeLabel(report: SwapReportDto) {
+  return report.fee_paid_or_earned >= 0
+    ? `+${formatSats(report.fee_paid_or_earned)}`
+    : formatSats(report.fee_paid_or_earned);
+}
+
+function statusClass(report: SwapReportDto) {
+  return report.status === "Success" ? "success" : "other";
+}
+
+function Metric({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent?: "orange" | "green" | "red" | "blue";
+}) {
   return (
-    <div className="flex flex-col gap-1">
-      <span className="text-xs uppercase tracking-wide text-gray-500">
-        {label}
-      </span>
-      <code className="text-xs text-gray-300 break-all">{txid}</code>
+    <div className={`cs-maker-report-metric ${accent ?? ""}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
     </div>
   );
 }
 
-function TxList({ label, txids }: { label: string; txids?: string[] | null }) {
-  if (!txids || txids.length === 0) return null;
+function ReportRow({
+  makerId,
+  report,
+}: {
+  makerId: string;
+  report: SwapReportDto;
+}) {
   return (
-    <div className="flex flex-col gap-1">
-      <span className="text-xs uppercase tracking-wide text-gray-500">
-        {label}
-      </span>
-      <div className="space-y-1">
-        {txids.map((txid) => (
-          <code key={txid} className="block text-xs text-gray-300 break-all">
-            {txid}
-          </code>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function SwapCard({ report }: { report: SwapReportDto }) {
-  const recoveryTxids = report.recovery_txids ?? [];
-  const makerAddresses = report.maker_addresses ?? [];
-  const makerFeeInfo = report.maker_fee_info ?? [];
-  const feeLabel =
-    report.fee_paid_or_earned >= 0
-      ? `+${satsToBtc(report.fee_paid_or_earned)} BTC`
-      : `${satsToBtc(report.fee_paid_or_earned)} BTC`;
-
-  return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
-      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-4">
+    <Link
+      to={`/makerDetails/${encodeURIComponent(makerId)}/swapReports/${encodeURIComponent(report.swap_id)}`}
+      className="cs-maker-report-row"
+    >
+      <div className="cs-maker-report-row-main">
+        <span className={`cs-maker-report-row-icon ${statusClass(report)}`}>
+          <FileText size={18} />
+        </span>
         <div>
-          <div className="flex flex-wrap items-center gap-2 mb-2">
-            <span
-              className={`text-xs px-2 py-0.5 rounded ${
-                report.status === "Success"
-                  ? "bg-green-900/60 text-green-300"
-                  : "bg-red-900/60 text-red-300"
-              }`}
-            >
-              {report.status}
-            </span>
-            <span className="text-xs px-2 py-0.5 rounded bg-gray-800 text-gray-300">
-              {report.role}
-            </span>
-            <span className="text-xs px-2 py-0.5 rounded bg-gray-800 text-gray-300">
-              {report.network}
-            </span>
-          </div>
-          <h3 className="text-lg font-semibold mb-1">Swap {report.swap_id}</h3>
-          <p className="text-sm text-gray-400">
-            Completed {formatDate(report.end_timestamp)}
+          <strong>Swap {shortId(report.swap_id, 10, 6)}</strong>
+          <p>
+            {formatDate(report.end_timestamp)} ·{" "}
+            {formatDuration(report.swap_duration_seconds)}
           </p>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 min-w-0">
-          <div>
-            <div className="text-xs text-gray-500 mb-1">Incoming</div>
-            <div className="text-sm font-semibold text-orange-400">
-              {satsToBtc(report.incoming_amount)} BTC
-            </div>
-          </div>
-          <div>
-            <div className="text-xs text-gray-500 mb-1">Outgoing</div>
-            <div className="text-sm font-semibold text-orange-400">
-              {satsToBtc(report.outgoing_amount)} BTC
-            </div>
-          </div>
-          <div>
-            <div className="text-xs text-gray-500 mb-1">Fee</div>
-            <div
-              className={`text-sm font-semibold ${
-                report.fee_paid_or_earned >= 0
-                  ? "text-emerald-400"
-                  : "text-red-300"
-              }`}
-            >
-              {feeLabel}
-            </div>
-          </div>
-          <div>
-            <div className="text-xs text-gray-500 mb-1">Duration</div>
-            <div className="text-sm font-semibold text-gray-200">
-              {formatDuration(report.swap_duration_seconds)}
-            </div>
-          </div>
+      </div>
+
+      <div className="cs-maker-report-row-badges">
+        <span className={statusClass(report)}>{report.status}</span>
+        <span>{report.role}</span>
+        <span>{report.network}</span>
+      </div>
+
+      <div className="cs-maker-report-row-details">
+        <div>
+          <span>Revenue</span>
+          <strong
+            className={
+              report.fee_paid_or_earned >= 0 ? "text-[var(--cs-green)]" : ""
+            }
+          >
+            {feeLabel(report)}
+          </strong>
+        </div>
+        <div>
+          <span>Incoming</span>
+          <strong>{formatSats(report.incoming_amount)}</strong>
+        </div>
+        <div>
+          <span>Outgoing</span>
+          <strong>{formatSats(report.outgoing_amount)}</strong>
+        </div>
+        <div>
+          <span>Duration</span>
+          <strong>{formatDuration(report.swap_duration_seconds)}</strong>
         </div>
       </div>
 
-      {report.error_message && (
-        <div className="mb-4 text-sm text-red-300 bg-red-950/40 border border-red-900 rounded-lg px-3 py-2">
-          {report.error_message}
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-3">
-          <TxRow
-            label="Incoming Contract Tx"
-            txid={report.incoming_contract_txid}
-          />
-          <TxRow
-            label="Outgoing Contract Tx"
-            txid={report.outgoing_contract_txid}
-          />
-          <TxList label="Recovery Txs" txids={recoveryTxids} />
-        </div>
-
-        <div className="space-y-3">
-          <div>
-            <div className="text-xs uppercase tracking-wide text-gray-500 mb-1">
-              Timelock
-            </div>
-            <div className="text-sm text-gray-200">
-              {report.timelock} blocks
-            </div>
-          </div>
-          {report.recovery_duration_seconds > 0 && (
-            <div>
-              <div className="text-xs uppercase tracking-wide text-gray-500 mb-1">
-                Recovery Duration
-              </div>
-              <div className="text-sm text-gray-200">
-                {formatDuration(report.recovery_duration_seconds)}
-              </div>
-            </div>
-          )}
-          <div>
-            <div className="text-xs uppercase tracking-wide text-gray-500 mb-1">
-              Started
-            </div>
-            <div className="text-sm text-gray-200">
-              {formatDate(report.start_timestamp)}
-            </div>
-          </div>
-          {makerAddresses.length > 0 && (
-            <div>
-              <div className="text-xs uppercase tracking-wide text-gray-500 mb-1">
-                Maker Route
-              </div>
-              <div className="space-y-1">
-                {makerAddresses.map((address) => (
-                  <code
-                    key={address}
-                    className="block text-xs text-gray-300 break-all"
-                  >
-                    {address}
-                  </code>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {makerFeeInfo.length > 0 && (
-        <div className="mt-4">
-          <div className="text-xs uppercase tracking-wide text-gray-500 mb-2">
-            Maker Fee Breakdown
-          </div>
-          <div className="space-y-2">
-            {makerFeeInfo.map((fee) => (
-              <div
-                key={`${fee.maker_index}-${fee.maker_address}`}
-                className="rounded-lg border border-gray-800 bg-gray-950/60 px-3 py-2 text-sm text-gray-300"
-              >
-                <div className="font-medium text-gray-200">
-                  Maker {fee.maker_index + 1}
-                </div>
-                <code className="block text-xs text-gray-400 break-all mt-1">
-                  {fee.maker_address}
-                </code>
-                <div className="mt-1 text-xs text-gray-400">
-                  Total {satsToBtc(Math.round(fee.total_fee))} BTC
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
+      <ExternalLink size={16} />
+    </Link>
   );
 }
 
@@ -217,6 +120,7 @@ export default function Swaps({ id }: Props) {
   const [reports, setReports] = useState<SwapReportDto[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<Filter>("all");
 
   useEffect(() => {
     setLoading(true);
@@ -232,32 +136,101 @@ export default function Swaps({ id }: Props) {
       .finally(() => setLoading(false));
   }, [id]);
 
+  const visibleReports = useMemo(() => {
+    const rows = reports ?? [];
+    if (filter === "success") return rows.filter((r) => r.status === "Success");
+    if (filter === "other") return rows.filter((r) => r.status !== "Success");
+    return rows;
+  }, [filter, reports]);
+
+  const stats = useMemo(() => {
+    const rows = reports ?? [];
+    const success = rows.filter((r) => r.status === "Success").length;
+    const earned = rows.reduce((sum, r) => sum + r.fee_paid_or_earned, 0);
+    const avgDuration =
+      rows.length > 0
+        ? rows.reduce((sum, r) => sum + r.swap_duration_seconds, 0) /
+          rows.length
+        : 0;
+    return {
+      total: rows.length,
+      success,
+      other: rows.length - success,
+      earned,
+      avgDuration,
+    };
+  }, [reports]);
+
   if (loading) return <LoadingCard />;
   if (error) return <ErrorBanner message={error} />;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <section className="cs-maker-reports-page">
+      <header className="cs-maker-reports-head">
         <div>
-          <h3 className="text-lg font-semibold">Swap Reports</h3>
-          <p className="text-sm text-gray-400 mt-1">
-            Detailed maker-side reports for completed or recovered swaps
-          </p>
+          <h2>Swap Reports</h2>
+          <p>Maker-side revenue, contracts, and transaction details.</p>
         </div>
-        <div className="text-sm text-gray-500">
-          {reports?.length ?? 0} report{reports?.length === 1 ? "" : "s"}
+        <div className="cs-card-meta">
+          {visibleReports.length} report{visibleReports.length === 1 ? "" : "s"}
         </div>
+      </header>
+
+      <section className="cs-maker-reports-stats">
+        <Metric label="Total reports" value={String(stats.total)} />
+        <Metric label="Success" value={String(stats.success)} accent="green" />
+        <Metric
+          label="Net maker revenue"
+          value={
+            stats.earned >= 0
+              ? `+${formatSats(stats.earned)}`
+              : formatSats(stats.earned)
+          }
+          accent={stats.earned >= 0 ? "green" : "red"}
+        />
+        <Metric
+          label="Avg duration"
+          value={formatDuration(stats.avgDuration)}
+          accent="blue"
+        />
+      </section>
+
+      <div className="cs-filter-row">
+        <button
+          className={`cs-chip ${filter === "all" ? "active" : ""}`}
+          onClick={() => setFilter("all")}
+        >
+          All <span>{stats.total}</span>
+        </button>
+        <button
+          className={`cs-chip ${filter === "success" ? "active" : ""}`}
+          onClick={() => setFilter("success")}
+        >
+          Success <span>{stats.success}</span>
+        </button>
+        <button
+          className={`cs-chip ${filter === "other" ? "active" : ""}`}
+          onClick={() => setFilter("other")}
+        >
+          Other <span>{stats.other}</span>
+        </button>
       </div>
 
-      {reports && reports.length > 0 ? (
-        reports.map((report) => (
-          <SwapCard key={report.swap_id} report={report} />
-        ))
-      ) : (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
-          <p className="text-gray-400 text-sm">No swap reports yet</p>
-        </div>
-      )}
-    </div>
+      <section className="cs-maker-reports-panel">
+        {visibleReports.length > 0 ? (
+          <div className="cs-maker-reports-list">
+            {visibleReports.map((report) => (
+              <ReportRow key={report.swap_id} makerId={id} report={report} />
+            ))}
+          </div>
+        ) : (
+          <div className="cs-maker-reports-empty">
+            <FileText size={42} />
+            <h3>No swap reports</h3>
+            <p>No maker-side reports match this filter.</p>
+          </div>
+        )}
+      </section>
+    </section>
   );
 }
