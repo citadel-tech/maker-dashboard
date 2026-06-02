@@ -42,6 +42,7 @@ async fn main() {
         frontend_path: args.frontend_path,
         spa_index: args.spa_index,
         localhost_only: !args.allow_remote,
+        secure_cookies: !args.disable_secure_cookies,
         config_dir,
     };
 

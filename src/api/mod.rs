@@ -37,6 +37,8 @@ pub struct AppState {
     /// while holding this lock.
     pub setup_lock: Arc<Mutex<()>>,
     pub config_dir: Arc<std::path::PathBuf>,
+    /// Whether session cookies should include the Secure attribute.
+    pub secure_cookies: bool,
 }
 
 impl FromRef<AppState> for Arc<Mutex<MakerManager>> {
@@ -66,6 +68,12 @@ impl FromRef<AppState> for Arc<Mutex<()>> {
 impl FromRef<AppState> for Arc<std::path::PathBuf> {
     fn from_ref(state: &AppState) -> Self {
         state.config_dir.clone()
+    }
+}
+
+impl FromRef<AppState> for bool {
+    fn from_ref(state: &AppState) -> Self {
+        state.secure_cookies
     }
 }
 

@@ -56,6 +56,7 @@ pub fn test_app() -> Router {
         auth: Arc::new(std::sync::RwLock::new(Some(auth_config))),
         setup_lock: Arc::new(Mutex::new(())),
         config_dir: Arc::new(config_dir),
+        secure_cookies: true,
     };
     api_router().with_state(state)
 }

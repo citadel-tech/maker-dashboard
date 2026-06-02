@@ -16,6 +16,10 @@ use maker_dashboard::{
 use super::{get, post, temp_config_dir};
 
 fn setup_app(config_dir: std::path::PathBuf) -> Router {
+    setup_app_with_secure_cookies(config_dir, true)
+}
+
+fn setup_app_with_secure_cookies(config_dir: std::path::PathBuf, secure_cookies: bool) -> Router {
     let manager =
         MakerManager::new_for_testing(config_dir.clone(), None).expect("MakerManager::new");
     let state = AppState {
@@ -24,6 +28,7 @@ fn setup_app(config_dir: std::path::PathBuf) -> Router {
         auth: Arc::new(std::sync::RwLock::new(None)),
         setup_lock: Arc::new(Mutex::new(())),
         config_dir: Arc::new(config_dir),
+        secure_cookies,
     };
     api_router().with_state(state)
 }
@@ -87,4 +92,16 @@ async fn setup_refuses_locked_maker_state_without_auth_config() {
         .as_str()
         .unwrap()
         .contains("makers.json already exists"));
+}
+
+#[tokio::test]
+async fn setup_session_cookie_can_disable_secure_attribute() {
+    let config_dir = temp_config_dir();
+    std::fs::create_dir_all(&config_dir).unwrap();
+    let app = setup_app_with_secure_cookies(config_dir, false);
+
+    let (status, body) = post(app, "/auth/setup", json!({ "password": "test-password" })).await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body, json!({ "success": true, "data": null }));
 }

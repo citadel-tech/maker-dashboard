@@ -50,6 +50,7 @@ async fn login(
     State(auth): State<Arc<RwLock<Option<AuthConfig>>>>,
     State(sessions): State<Arc<Mutex<SessionStore>>>,
     State(makers): State<Arc<Mutex<crate::maker_manager::MakerManager>>>,
+    State(secure_cookies): State<bool>,
     Json(body): Json<LoginRequest>,
 ) -> impl IntoResponse {
     // Verify against the stored hash and derive the AES key under the read
@@ -115,8 +116,7 @@ async fn login(
     }
 
     let token = sessions.lock().await.create();
-    let cookie =
-        format!("session={token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=86400");
+    let cookie = session_cookie(&token, secure_cookies);
     (
         StatusCode::OK,
         [(header::SET_COOKIE, cookie)],
@@ -131,6 +131,7 @@ async fn setup(
     State(setup_lock): State<Arc<Mutex<()>>>,
     State(makers): State<Arc<Mutex<crate::maker_manager::MakerManager>>>,
     State(config_dir): State<Arc<std::path::PathBuf>>,
+    State(secure_cookies): State<bool>,
     Json(body): Json<SetupRequest>,
 ) -> impl IntoResponse {
     // Hold the setup lock for the entire critical section so two concurrent
@@ -236,8 +237,7 @@ async fn setup(
     *auth.write().unwrap() = Some(new_auth);
 
     let token = sessions.lock().await.create();
-    let cookie =
-        format!("session={token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=86400");
+    let cookie = session_cookie(&token, secure_cookies);
     (
         StatusCode::OK,
         [(header::SET_COOKIE, cookie)],
@@ -408,4 +408,9 @@ pub fn extract_session_token(headers: &axum::http::HeaderMap) -> Option<String> 
         let part = part.trim();
         part.strip_prefix("session=").map(|v| v.to_string())
     })
+}
+
+fn session_cookie(token: &str, secure: bool) -> String {
+    let secure_attr = if secure { "; Secure" } else { "" };
+    format!("session={token}; HttpOnly{secure_attr}; SameSite=Strict; Path=/; Max-Age=86400")
 }

@@ -872,6 +872,7 @@ mod tests {
             ))),
             setup_lock: Arc::new(Mutex::new(())),
             config_dir: Arc::new(config_dir.clone()),
+            secure_cookies: true,
         };
         let app = routes().with_state(state);
 

@@ -139,6 +139,7 @@ impl DashboardGuard {
                         frontend_path: PathBuf::from("frontend/build/client"),
                         spa_index: PathBuf::from("frontend/build/client/index.html"),
                         localhost_only: true,
+                        secure_cookies: true,
                         config_dir,
                     };
                     let server = Server::new(cfg).expect("Server::new");

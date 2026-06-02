@@ -40,6 +40,14 @@ pub struct Cli {
     #[arg(long, default_value_t = false, env = "DASHBOARD_ALLOW_REMOTE")]
     pub allow_remote: bool,
 
+    /// Disable the Secure attribute on session cookies for plain HTTP deployments.
+    #[arg(
+        long,
+        default_value_t = false,
+        env = "DASHBOARD_DISABLE_SECURE_COOKIES"
+    )]
+    pub disable_secure_cookies: bool,
+
     /// Log filter directive (e.g. "debug", "tower_http=debug,info")
     #[arg(
         long,

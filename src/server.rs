@@ -26,6 +26,8 @@ pub struct ServerConfig {
     pub spa_index: PathBuf,
     /// Whether to restrict access to localhost only
     pub localhost_only: bool,
+    /// Whether to set the Secure attribute on session cookies
+    pub secure_cookies: bool,
     /// Application config/data directory (e.g. ~/.config/maker-dashboard)
     pub config_dir: PathBuf,
 }
@@ -38,6 +40,7 @@ impl Default for ServerConfig {
             frontend_path: PathBuf::from("frontend/build/client"),
             spa_index: PathBuf::from("frontend/build/client/index.html"),
             localhost_only: true,
+            secure_cookies: true,
             config_dir: default_config_dir(),
         }
     }
@@ -89,6 +92,7 @@ impl Server {
             auth: Arc::new(std::sync::RwLock::new(auth_config)),
             setup_lock: Arc::new(Mutex::new(())),
             config_dir: Arc::new(config.config_dir.clone()),
+            secure_cookies: config.secure_cookies,
         };
 
         Ok(Self { config, state })
@@ -133,6 +137,11 @@ impl Server {
         if self.config.localhost_only {
             tracing::info!(
                 "Localhost requests only are accepted. All requests from outside machine are forbidden for security reasons."
+            );
+        }
+        if !self.config.secure_cookies {
+            tracing::warn!(
+                "Secure cookies are disabled. Use this only for trusted plain HTTP deployments."
             );
         }
         tracing::info!("API docs available at http://{}/swagger-ui/", addr);
