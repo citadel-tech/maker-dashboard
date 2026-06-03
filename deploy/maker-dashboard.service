@@ -1,0 +1,27 @@
+[Unit]
+Description=Maker Dashboard (Coinswap)
+Wants=network-online.target docker.service
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5s
+TimeoutStartSec=120
+TimeoutStopSec=60
+
+# Pull is idempotent; the updater unit is what actually decides when to swap.
+ExecStartPre=-/usr/bin/docker rm -f maker-dashboard
+ExecStart=/usr/bin/docker run --rm \
+    --name maker-dashboard \
+    --pull never \
+    -p 127.0.0.1:3000:3000 \
+    -e DASHBOARD_HOST=0.0.0.0 \
+    -v /var/lib/maker-dashboard:/home/appuser/.config/maker-dashboard \
+    docker.io/coinswap/maker-dashboard:master
+
+ExecStop=/usr/bin/docker stop maker-dashboard
+
+[Install]
+WantedBy=multi-user.target

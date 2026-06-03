@@ -18,9 +18,17 @@ impl Write for LogWriter {
                 let stripped = strip_ansi(buf);
                 f.write_all(&stripped)?;
                 s.write_all(buf)?;
+                // Force flush so block-buffered stdout (non-TTY containers)
+                // surfaces each tracing event immediately instead of waiting
+                // for the 8 KB buffer to fill.
+                s.flush()?;
                 Ok(buf.len())
             }
-            LogWriter::Stdout(s) => s.write(buf),
+            LogWriter::Stdout(s) => {
+                let n = s.write(buf)?;
+                s.flush()?;
+                Ok(n)
+            }
         }
     }
 

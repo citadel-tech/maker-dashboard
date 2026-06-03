@@ -1,0 +1,17 @@
+[Unit]
+Description=Forward maker-dashboard WARN/ERROR logs to Matrix
+After=network-online.target maker-dashboard.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Auto-creates /var/lib/maker-dashboard-forwarder/ (root:root, 0755)
+# for the journald cursor file.
+StateDirectory=maker-dashboard-forwarder
+ExecStart=/usr/local/bin/maker-dashboard-forwarder.py
+Restart=always
+RestartSec=10s
+SyslogIdentifier=maker-dashboard-forwarder
+
+[Install]
+WantedBy=multi-user.target
