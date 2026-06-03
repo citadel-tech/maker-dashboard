@@ -29,4 +29,3 @@ services:
     environment:
       DASHBOARD_HOST: 0.0.0.0
       DASHBOARD_PORT: "3000"
-      DASHBOARD_ALLOW_REMOTE: "true"

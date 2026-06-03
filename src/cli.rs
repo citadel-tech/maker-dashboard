@@ -36,8 +36,8 @@ pub struct Cli {
     )]
     pub spa_index: PathBuf,
 
-    /// Allow requests from non-localhost addresses (disabled by default for security)
-    #[arg(long, default_value_t = false, env = "DASHBOARD_ALLOW_REMOTE")]
+    /// Allow requests from non-localhost addresses (enabled by default for security)
+    #[arg(long, default_value_t = true, env = "DASHBOARD_ALLOW_REMOTE")]
     pub allow_remote: bool,
 
     /// Disable the Secure attribute on session cookies for plain HTTP deployments.

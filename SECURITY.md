@@ -48,13 +48,11 @@ logins; no restart or env-var update is required.
 
 ## Localhost-only access
 
-By default the dashboard binds to `127.0.0.1` and a middleware rejects every request
+When you are using `--allow-remote=false`, the dashboard would bind to `127.0.0.1` and a middleware rejects every request
 whose source IP is not a loopback address, providing defence-in-depth on top of the
-password layer.
+password layer. But by default, it allows non-Localhost requests without issues. This is an additional security layer if you want.
 
-This restriction is lifted when you set `--allow-remote` or `DASHBOARD_ALLOW_REMOTE=true`.
-When running remotely, place the dashboard behind a reverse proxy that enforces TLS
-before forwarding to it, so the session cookie and password are never sent in cleartext.
+You may be able to access the dashboard if you use this option and run it inside a docker container. You will need to run it on the host network and may face a lot of issues with non-linux systems like [MacOS](https://forums.docker.com/t/enabling-network-host-on-macos/150379).
 
 ## Hot wallet
 
