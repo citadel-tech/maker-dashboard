@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
-import BitcoindWidget from "./BitcoindWidget.tsx";
 import { auth, ApiError } from "@/api";
 
 function PasswordInput({
@@ -162,7 +161,6 @@ export default function Nav() {
               Coinswap Maker Dashboard
             </Link>
             <div className="flex items-center gap-3">
-              <BitcoindWidget />
               <button
                 onClick={() => setShowChangePassword(true)}
                 className="text-xs text-gray-400 hover:text-gray-200 transition-colors px-2 py-1 rounded hover:bg-gray-800"

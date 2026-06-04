@@ -7,7 +7,6 @@ import {
   makers,
   wallet,
   monitoring,
-  streamLogs,
   formatSats,
   type MakerInfoDetailed,
   type BalanceInfo,
@@ -32,7 +31,6 @@ interface MakerRow {
 }
 
 const SWAP_HISTORY_REFRESH_MS = 60_000;
-const TRANSIENT_SWAP_SIGNAL_MS = 30_000;
 type MakerFilter = "all" | "running" | "stopped";
 
 function swapKey(
@@ -56,13 +54,6 @@ function torHostOnly(value: string) {
   return value.slice(0, idx + marker.length);
 }
 
-const SWAP_LOG_KEYWORDS = ["new connection from"];
-
-function isSwapLogLine(line: string): boolean {
-  const lower = line.toLowerCase();
-  return SWAP_LOG_KEYWORDS.some((kw) => lower.includes(kw));
-}
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function Home() {
@@ -70,9 +61,6 @@ export default function Home() {
   const [makerFilter, setMakerFilter] = useState<MakerFilter>("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [logSwapSeenAt, setLogSwapSeenAt] = useState<Record<string, number>>(
-    {},
-  );
   const [copiedTor, setCopiedTor] = useState<string | null>(null);
   const [swapBannerDismissed, setSwapBannerDismissed] = useState(false);
   const swapHistoryCache = useRef<Record<string, UtxoInfo[]>>({});
@@ -168,52 +156,6 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    const runningIds = new Set(
-      makerRows
-        .filter((maker) => maker.state === "running")
-        .map((maker) => maker.id),
-    );
-
-    setLogSwapSeenAt((prev) => {
-      const next = Object.fromEntries(
-        Object.entries(prev).filter(([id]) => runningIds.has(id)),
-      );
-      return Object.keys(next).length === Object.keys(prev).length
-        ? prev
-        : next;
-    });
-
-    const stops = Array.from(runningIds).map((id) =>
-      streamLogs(id, (line) => {
-        if (!isSwapLogLine(line)) return;
-        setSwapBannerDismissed(false);
-        setLogSwapSeenAt((prev) => {
-          return { ...prev, [id]: Date.now() };
-        });
-      }),
-    );
-
-    const pruneInterval = setInterval(() => {
-      setLogSwapSeenAt((prev) => {
-        const cutoff = Date.now() - TRANSIENT_SWAP_SIGNAL_MS;
-        const next = Object.fromEntries(
-          Object.entries(prev).filter(
-            ([id, seenAt]) => runningIds.has(id) && seenAt >= cutoff,
-          ),
-        );
-        return Object.keys(next).length === Object.keys(prev).length
-          ? prev
-          : next;
-      });
-    }, 5_000);
-
-    return () => {
-      clearInterval(pruneInterval);
-      for (const stop of stops) stop();
-    };
-  }, [makerRows]);
-
   function copyTor(id: string, torAddress: string) {
     const text = torHostOnly(torAddress);
     navigator.clipboard
@@ -261,13 +203,8 @@ export default function Home() {
       : makerFilter === "stopped"
         ? makerRows.filter((m) => m.state !== "running")
         : makerRows;
-  const swapSignalCutoff = Date.now() - TRANSIENT_SWAP_SIGNAL_MS;
 
-  const anySwapping = makerRows.some(
-    (m) =>
-      m.swapActive.length > 0 ||
-      (m.state === "running" && (logSwapSeenAt[m.id] ?? 0) >= swapSignalCutoff),
-  );
+  const anySwapping = makerRows.some((m) => m.swapActive.length > 0);
   const showSwapBanner = anySwapping && !swapBannerDismissed;
 
   return (
@@ -391,10 +328,7 @@ export default function Home() {
             <div className="cs-home-makers">
               {visibleMakerRows.map((maker) => {
                 const isRunning = maker.state === "running";
-                const isSwapping =
-                  maker.swapActive.length > 0 ||
-                  (maker.state === "running" &&
-                    (logSwapSeenAt[maker.id] ?? 0) >= swapSignalCutoff);
+                const isSwapping = maker.swapActive.length > 0;
                 return (
                   <article
                     key={maker.id}

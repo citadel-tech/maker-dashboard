@@ -1108,10 +1108,28 @@ select {
   border: 1px solid var(--cs-border);
   border-radius: 12px;
   background: var(--cs-surface-3);
+  color: inherit;
+  text-decoration: none;
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    transform 0.18s ease;
+}
+
+a.cs-maker-report-artifact:hover,
+a.cs-maker-report-artifact:focus-visible {
+  border-color: rgba(42, 130, 218, 0.42);
+  background: rgba(42, 130, 218, 0.08);
+  transform: translateY(-1px);
+  outline: none;
 }
 
 .cs-maker-report-artifact h4 {
   margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   color: var(--cs-text);
   font-size: 14px;
   font-weight: 800;
@@ -1135,6 +1153,11 @@ select {
 
 .cs-maker-report-artifact.green h4 span {
   color: var(--cs-green);
+}
+
+.cs-maker-report-artifact h4 svg {
+  flex: 0 0 auto;
+  color: var(--cs-text-3);
 }
 
 .cs-maker-report-artifact code {
@@ -1678,6 +1701,27 @@ select {
   align-items: center;
   gap: 8px;
   margin-bottom: 12px;
+}
+
+.cs-log-action {
+  min-height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: #1f2937;
+  color: #d1d5db;
+  font-family: var(--cs-sans);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background var(--cs-t),
+    color var(--cs-t);
+}
+
+.cs-log-action:hover {
+  background: #374151;
 }
 
 .cs-log-filter {

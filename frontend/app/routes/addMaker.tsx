@@ -359,10 +359,7 @@ export default function AddMaker() {
       <main className="cs-add-page">
         <header className="cs-add-head">
           <div>
-            <Link
-              to="/"
-              className="cs-add-back"
-            >
+            <Link to="/" className="cs-add-back">
               <ArrowLeft size={14} />
               Back to dashboard
             </Link>
@@ -721,10 +718,7 @@ export default function AddMaker() {
           </section>
 
           <div className="cs-add-actions">
-            <Link
-              to="/"
-              className="cs-btn ghost"
-            >
+            <Link to="/" className="cs-btn ghost">
               Cancel
             </Link>
             <button

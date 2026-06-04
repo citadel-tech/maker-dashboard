@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Download, Home } from "lucide-react";
+import { ArrowLeft, Download, ExternalLink, Home } from "lucide-react";
 import { formatSats, monitoring, type SwapReportDto } from "../../api";
 import { ErrorBanner, LoadingCard } from "./components";
 
@@ -30,6 +30,13 @@ function feeLabel(report: SwapReportDto) {
 
 function fundingTxids(report: SwapReportDto) {
   return report.funding_txids.flatMap((group) => group);
+}
+
+const MEMPOOL_TX_BASE_URL = "http://170.75.166.88:8080/tx";
+
+function mempoolTxUrl(txid?: string | null) {
+  if (!txid) return undefined;
+  return `${MEMPOOL_TX_BASE_URL}/${txid}`;
 }
 
 function earnedSpread(report: SwapReportDto) {
@@ -69,19 +76,37 @@ function Artifact({
   label,
   value,
   accent,
+  href,
 }: {
   label: string;
   value?: string | null;
   accent?: "orange" | "blue" | "green";
+  href?: string;
 }) {
   if (!value) return null;
-  return (
-    <div className={`cs-maker-report-artifact ${accent ?? ""}`}>
+
+  const content = (
+    <>
       <h4>
         <span>{label}</span>
+        {href && <ExternalLink size={15} aria-hidden="true" />}
       </h4>
       <code>{value}</code>
-    </div>
+    </>
+  );
+
+  return href ? (
+    <a
+      className={`cs-maker-report-artifact ${accent ?? ""}`}
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      title={`Open ${label} in Mempool`}
+    >
+      {content}
+    </a>
+  ) : (
+    <div className={`cs-maker-report-artifact ${accent ?? ""}`}>{content}</div>
   );
 }
 
@@ -167,11 +192,13 @@ function MakerSwapReportPageContent({
               <Artifact
                 label="Incoming contract tx"
                 value={report.incoming_contract_txid}
+                href={mempoolTxUrl(report.incoming_contract_txid)}
                 accent="blue"
               />
               <Artifact
                 label="Outgoing contract tx"
                 value={report.outgoing_contract_txid}
+                href={mempoolTxUrl(report.outgoing_contract_txid)}
                 accent="orange"
               />
               {recoveryTxids.map((txid, index) => (

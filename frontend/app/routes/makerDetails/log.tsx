@@ -153,7 +153,7 @@ export default function Logs({ id }: Props) {
             <button
               type="button"
               onClick={() => downloadLogs(id)}
-              className="text-xs px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-all"
+              className="cs-log-action"
             >
               Download
             </button>
@@ -254,7 +254,7 @@ export default function Logs({ id }: Props) {
           <button
             type="button"
             onClick={copyPath}
-            className="shrink-0 text-xs px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-all"
+            className="cs-log-action shrink-0"
           >
             {copied ? "Copied!" : "Copy path"}
           </button>
