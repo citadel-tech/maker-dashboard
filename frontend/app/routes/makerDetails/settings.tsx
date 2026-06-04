@@ -82,6 +82,9 @@ export default function Settings({ id, onSaved }: Props) {
   const [fidelityTimelock, setFidelityTimelock] = useState(15000);
 
   // ── UI state ──────────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<"bitcoin" | "network" | "swap">(
+    "bitcoin",
+  );
   const [showRpcPassword, setShowRpcPassword] = useState(false);
   const [showTorAuth, setShowTorAuth] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -223,6 +226,12 @@ export default function Settings({ id, onSaved }: Props) {
     }
   }
 
+  const tabs = [
+    { id: "bitcoin" as const, label: "Bitcoin Core" },
+    { id: "network" as const, label: "Network & Tor" },
+    { id: "swap" as const, label: "Swap & Fees" },
+  ];
+
   return (
     <div className="space-y-6">
       {loadError && (
@@ -231,480 +240,515 @@ export default function Settings({ id, onSaved }: Props) {
         </div>
       )}
 
-      {/* ── Bitcoin Core RPC ──────────────────────────────────────────────── */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
-        <h3 className="text-lg font-semibold mb-6">Bitcoin Core RPC</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="sm:col-span-2">
-            <label className="block text-sm text-gray-400 mb-2">
-              RPC Endpoint
-            </label>
-            <input
-              type="text"
-              value={rpc}
-              onChange={(e) => setRpc(e.target.value)}
-              placeholder="127.0.0.1:18443"
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono text-sm"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              8332 mainnet · 18332 testnet · 18443 regtest · 38332 signet
-            </p>
-          </div>
-          <div>
-            <label className="block text-sm text-gray-400 mb-2">
-              RPC Username
-            </label>
-            <input
-              type="text"
-              value={rpcUser}
-              onChange={(e) => setRpcUser(e.target.value)}
-              placeholder="Leave blank to keep current"
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-400 mb-2">
-              RPC Password
-            </label>
-            <div className="relative">
-              <input
-                type={showRpcPassword ? "text" : "password"}
-                value={rpcPassword}
-                onChange={(e) => setRpcPassword(e.target.value)}
-                placeholder="Leave blank to keep current"
-                className="w-full px-4 py-2.5 pr-12 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100"
-              />
-              <button
-                type="button"
-                onClick={() => setShowRpcPassword(!showRpcPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-100 transition-colors"
-              >
-                <EyeIcon open={showRpcPassword} />
-              </button>
-            </div>
-            <p className="text-xs text-gray-500 mt-1">
-              Username and password must be provided together
-            </p>
-          </div>
-          <div>
-            <label className="block text-sm text-gray-400 mb-2">
-              Data Directory
-            </label>
-            <input
-              type="text"
-              value={dataDir}
-              onChange={(e) => setDataDir(e.target.value)}
-              placeholder="~/.coinswap/maker"
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono text-sm"
-            />
-          </div>
-          <div className="flex items-end">
-            <div className="flex items-center justify-between bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 w-full">
-              <div>
-                <div className="text-sm text-gray-200">Unified Protocol</div>
-                <div className="text-xs text-gray-500">
-                  Unified maker server
-                </div>
-              </div>
-              <div className="text-xs text-gray-500 font-medium">Always on</div>
-            </div>
-          </div>
-        </div>
+      {/* ── Tabs ─────────────────────────────────────────────────────────── */}
+      <div className="flex border-b border-gray-800">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors duration-150 ${
+              activeTab === tab.id
+                ? "border-orange-500 text-orange-400"
+                : "border-transparent text-gray-400 hover:text-gray-200"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
-      {/* ── Test Connection ───────────────────────────────────────────────── */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
-        <div className="flex items-center gap-3 mb-6">
-          <h3 className="text-lg font-semibold">Test Connection</h3>
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-            <div className="flex justify-between items-center mb-4">
-              <div className="flex items-center gap-2">
-                <div
-                  className={`w-3 h-3 rounded-full ${
-                    rpcStatus === null
-                      ? "bg-gray-600"
-                      : rpcStatus.connected
-                        ? "bg-green-500"
-                        : "bg-red-500"
-                  }`}
+      {/* ── Bitcoin Core tab ─────────────────────────────────────────────── */}
+      {activeTab === "bitcoin" && (
+        <>
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
+            <h3 className="text-lg font-semibold mb-6">Bitcoin Core RPC</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="sm:col-span-2">
+                <label className="block text-sm text-gray-400 mb-2">
+                  RPC Endpoint
+                </label>
+                <input
+                  type="text"
+                  value={rpc}
+                  onChange={(e) => setRpc(e.target.value)}
+                  placeholder="127.0.0.1:18443"
+                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono text-sm"
                 />
-                <span className="text-sm text-gray-400">Connection Status</span>
+                <p className="text-xs text-gray-500 mt-1">
+                  8332 mainnet · 18332 testnet · 18443 regtest · 38332 signet
+                </p>
               </div>
-              <span
-                className={`text-sm font-semibold ${
-                  rpcStatus === null
-                    ? "text-gray-500"
-                    : rpcStatus.connected
-                      ? "text-green-400"
-                      : "text-red-400"
-                }`}
-              >
-                {rpcStatus === null
-                  ? "Unknown"
-                  : rpcStatus.connected
-                    ? "Connected"
-                    : "Disconnected"}
-              </span>
-            </div>
-            <div className="space-y-2 text-xs">
-              {(
-                [
-                  [
-                    "Bitcoin Version",
-                    rpcStatus?.version !== undefined
-                      ? String(rpcStatus.version)
-                      : "--",
-                  ],
-                  ["Network", rpcStatus?.network ?? "--"],
-                  [
-                    "Block Height",
-                    rpcStatus?.block_height !== undefined
-                      ? rpcStatus.block_height.toLocaleString()
-                      : "--",
-                  ],
-                  [
-                    "Sync Progress",
-                    rpcStatus?.sync_progress !== undefined
-                      ? `${(rpcStatus.sync_progress * 100).toFixed(2)}%`
-                      : "--",
-                  ],
-                ] as [string, string][]
-              ).map(([label, val]) => (
-                <div key={label} className="flex justify-between">
-                  <span className="text-gray-500">{label}</span>
-                  <span
-                    className={val === "--" ? "text-gray-600" : "text-gray-300"}
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">
+                  RPC Username
+                </label>
+                <input
+                  type="text"
+                  value={rpcUser}
+                  onChange={(e) => setRpcUser(e.target.value)}
+                  placeholder="Leave blank to keep current"
+                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">
+                  RPC Password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showRpcPassword ? "text" : "password"}
+                    value={rpcPassword}
+                    onChange={(e) => setRpcPassword(e.target.value)}
+                    placeholder="Leave blank to keep current"
+                    className="w-full px-4 py-2.5 pr-12 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowRpcPassword(!showRpcPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-100 transition-colors"
                   >
-                    {val}
+                    <EyeIcon open={showRpcPassword} />
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Username and password must be provided together
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">
+                  Data Directory
+                </label>
+                <input
+                  type="text"
+                  value={dataDir}
+                  onChange={(e) => setDataDir(e.target.value)}
+                  placeholder="~/.coinswap/maker"
+                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono text-sm"
+                />
+              </div>
+              <div className="flex items-end">
+                <div className="flex items-center justify-between bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 w-full">
+                  <div>
+                    <div className="text-sm text-gray-200">
+                      Unified Protocol
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Unified maker server
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-500 font-medium">
+                    Always on
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <h3 className="text-lg font-semibold">Test Connection</h3>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                <div className="flex justify-between items-center mb-4">
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={`w-3 h-3 rounded-full ${
+                        rpcStatus === null
+                          ? "bg-gray-600"
+                          : rpcStatus.connected
+                            ? "bg-green-500"
+                            : "bg-red-500"
+                      }`}
+                    />
+                    <span className="text-sm text-gray-400">
+                      Connection Status
+                    </span>
+                  </div>
+                  <span
+                    className={`text-sm font-semibold ${
+                      rpcStatus === null
+                        ? "text-gray-500"
+                        : rpcStatus.connected
+                          ? "text-green-400"
+                          : "text-red-400"
+                    }`}
+                  >
+                    {rpcStatus === null
+                      ? "Unknown"
+                      : rpcStatus.connected
+                        ? "Connected"
+                        : "Disconnected"}
                   </span>
                 </div>
-              ))}
+                <div className="space-y-2 text-xs">
+                  {(
+                    [
+                      [
+                        "Bitcoin Version",
+                        rpcStatus?.version !== undefined
+                          ? String(rpcStatus.version)
+                          : "--",
+                      ],
+                      ["Network", rpcStatus?.network ?? "--"],
+                      [
+                        "Block Height",
+                        rpcStatus?.block_height !== undefined
+                          ? rpcStatus.block_height.toLocaleString()
+                          : "--",
+                      ],
+                      [
+                        "Sync Progress",
+                        rpcStatus?.sync_progress !== undefined
+                          ? `${(rpcStatus.sync_progress * 100).toFixed(2)}%`
+                          : "--",
+                      ],
+                    ] as [string, string][]
+                  ).map(([label, val]) => (
+                    <div key={label} className="flex justify-between">
+                      <span className="text-gray-500">{label}</span>
+                      <span
+                        className={
+                          val === "--" ? "text-gray-600" : "text-gray-300"
+                        }
+                      >
+                        {val}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="flex flex-col justify-center gap-3">
+                <p className="text-sm text-gray-400">
+                  Tests connectivity to the configured Bitcoin Core RPC endpoint
+                  and returns node info.
+                </p>
+                {rpcTestError && (
+                  <p className="text-xs text-red-400">{rpcTestError}</p>
+                )}
+                <button
+                  type="button"
+                  onClick={handleTestConnection}
+                  disabled={rpcTesting}
+                  className="w-full py-3 bg-orange-600 hover:bg-orange-500 active:scale-[0.98] disabled:bg-gray-800 disabled:border disabled:border-dashed disabled:border-gray-600 disabled:text-gray-500 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-all duration-150"
+                >
+                  {rpcTesting ? "Testing…" : "Test Connection"}
+                </button>
+              </div>
             </div>
           </div>
-          <div className="flex flex-col justify-center gap-3">
-            <p className="text-sm text-gray-400">
-              Tests connectivity to the configured Bitcoin Core RPC endpoint and
-              returns node info.
-            </p>
-            {rpcTestError && (
-              <p className="text-xs text-red-400">{rpcTestError}</p>
-            )}
-            <button
-              type="button"
-              onClick={handleTestConnection}
-              disabled={rpcTesting}
-              className="w-full py-3 bg-orange-600 hover:bg-orange-500 active:scale-[0.98] disabled:bg-gray-800 disabled:border disabled:border-dashed disabled:border-gray-600 disabled:text-gray-500 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-all duration-150"
-            >
-              {rpcTesting ? "Testing…" : "Test Connection"}
-            </button>
-          </div>
-        </div>
-      </div>
 
-      {/* ── ZMQ ──────────────────────────────────────────────────────────── */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
-        <h3 className="text-lg font-semibold mb-6">ZMQ Configuration</h3>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="space-y-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
+            <h3 className="text-lg font-semibold mb-6">ZMQ Configuration</h3>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">
+                    ZMQ Endpoint
+                  </label>
+                  <input
+                    type="text"
+                    value={zmq}
+                    onChange={(e) => setZmq(e.target.value)}
+                    placeholder="tcp://127.0.0.1:28332"
+                    className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono text-sm"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Used for both zmqpubrawblock and zmqpubrawtx
+                  </p>
+                </div>
+                <div className="bg-yellow-900/20 border border-yellow-800/30 rounded-lg p-3">
+                  <p className="text-xs text-yellow-400">
+                    <strong>Note:</strong> Both zmqpubrawblock and zmqpubrawtx
+                    must use the same endpoint.
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium text-gray-300">
+                  bitcoin.conf snippet
+                </h4>
+                <div className="bg-gray-800 rounded-lg p-4 font-mono text-xs text-gray-300">
+                  zmqpubrawblock={zmq || "tcp://127.0.0.1:28332"}
+                  <br />
+                  zmqpubrawtx={zmq || "tcp://127.0.0.1:28332"}
+                </div>
+                <button
+                  type="button"
+                  onClick={copyZmqConfig}
+                  className="w-full bg-gray-800 hover:bg-gray-700 text-white py-2 rounded-lg text-sm transition-all"
+                >
+                  {copied ? "Copied!" : "Copy ZMQ Config"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Network & Tor tab ─────────────────────────────────────────────── */}
+      {activeTab === "network" && (
+        <>
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
+            <h3 className="text-lg font-semibold mb-2">Network Ports</h3>
+            <p className="text-sm text-gray-400 mb-6">
+              Each maker must use unique ports to avoid clashes when running
+              multiple makers on the same machine.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label
+                  htmlFor="networkPort"
+                  className="block text-sm text-gray-400 mb-2"
+                >
+                  Network Port
+                </label>
+                <input
+                  type="number"
+                  value={networkPort}
+                  min={1}
+                  max={65535}
+                  onChange={(e) => setNetworkPort(Number(e.target.value))}
+                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Port for coinswap client connections (default 6102)
+                </p>
+              </div>
+              <div>
+                <label
+                  htmlFor="rpcPort"
+                  className="block text-sm text-gray-400 mb-2"
+                >
+                  RPC Port
+                </label>
+                <input
+                  type="number"
+                  value={rpcPort}
+                  min={1}
+                  max={65535}
+                  onChange={(e) => setRpcPort(Number(e.target.value))}
+                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Port for maker-cli operations (default 6103)
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
+            <h3 className="text-lg font-semibold mb-6">Tor Configuration</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">
+                  Tor Auth Password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showTorAuth ? "text" : "password"}
+                    value={torAuth}
+                    onChange={(e) => setTorAuth(e.target.value)}
+                    placeholder="Leave blank to keep current"
+                    className="w-full px-4 py-2.5 pr-12 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowTorAuth(!showTorAuth)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-100 transition-colors"
+                  >
+                    <EyeIcon open={showTorAuth} />
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Authentication password for Tor control port
+                </p>
+              </div>
+              <div>
+                <label
+                  htmlFor="socksPort"
+                  className="block text-sm text-gray-400 mb-2"
+                >
+                  SOCKS Port
+                </label>
+                <input
+                  type="number"
+                  value={socksPort}
+                  min={1}
+                  max={65535}
+                  onChange={(e) => setSocksPort(Number(e.target.value))}
+                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  SOCKS5 proxy port for Tor (default 9050)
+                </p>
+              </div>
+              <div>
+                <label
+                  htmlFor="controlPort"
+                  className="block text-sm text-gray-400 mb-2"
+                >
+                  Control Port
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={65535}
+                  value={controlPort}
+                  onChange={(e) => setControlPort(Number(e.target.value))}
+                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Control port for Tor interface (default 9051)
+                </p>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Swap & Fees tab ───────────────────────────────────────────────── */}
+      {activeTab === "swap" && (
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
+          <h3 className="text-lg font-semibold mb-6">
+            Swap & Fidelity Configuration
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm text-gray-400 mb-2">
-                ZMQ Endpoint
+              <label
+                htmlFor="minSwapAmount"
+                className="block text-sm text-gray-400 mb-2"
+              >
+                Minimum Swap Amount (sats)
               </label>
               <input
-                type="text"
-                value={zmq}
-                onChange={(e) => setZmq(e.target.value)}
-                placeholder="tcp://127.0.0.1:28332"
-                className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono text-sm"
+                type="number"
+                min={1}
+                value={minSwapAmount}
+                onChange={(e) => setMinSwapAmount(Number(e.target.value))}
+                className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="baseFee"
+                className="block text-sm text-gray-400 mb-2"
+              >
+                Required Confirmations
+              </label>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                value={requiredConfirms}
+                onChange={(e) => setRequiredConfirms(Number(e.target.value))}
+                className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
               />
               <p className="text-xs text-gray-500 mt-1">
-                Used for both zmqpubrawblock and zmqpubrawtx
+                Enter a whole number of funding confirmations required before
+                progressing a swap
               </p>
             </div>
-            <div className="bg-yellow-900/20 border border-yellow-800/30 rounded-lg p-3">
-              <p className="text-xs text-yellow-400">
-                <strong>Note:</strong> Both zmqpubrawblock and zmqpubrawtx must
-                use the same endpoint.
-              </p>
-            </div>
-          </div>
-          <div className="space-y-3">
-            <h4 className="text-sm font-medium text-gray-300">
-              bitcoin.conf snippet
-            </h4>
-            <div className="bg-gray-800 rounded-lg p-4 font-mono text-xs text-gray-300">
-              zmqpubrawblock={zmq || "tcp://127.0.0.1:28332"}
-              <br />
-              zmqpubrawtx={zmq || "tcp://127.0.0.1:28332"}
-            </div>
-            <button
-              type="button"
-              onClick={copyZmqConfig}
-              className="w-full bg-gray-800 hover:bg-gray-700 text-white py-2 rounded-lg text-sm transition-all"
-            >
-              {copied ? "Copied!" : "Copy ZMQ Config"}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Network Ports ─────────────────────────────────────────────────── */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
-        <h3 className="text-lg font-semibold mb-2">Network Ports</h3>
-        <p className="text-sm text-gray-400 mb-6">
-          Each maker must use unique ports to avoid clashes when running
-          multiple makers on the same machine.
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label
-              htmlFor="networkPort"
-              className="block text-sm text-gray-400 mb-2"
-            >
-              Network Port
-            </label>
-            <input
-              type="number"
-              value={networkPort}
-              min={1}
-              max={65535}
-              onChange={(e) => setNetworkPort(Number(e.target.value))}
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Port for coinswap client connections (default 6102)
-            </p>
-          </div>
-          <div>
-            <label
-              htmlFor="rpcPort"
-              className="block text-sm text-gray-400 mb-2"
-            >
-              RPC Port
-            </label>
-            <input
-              type="number"
-              value={rpcPort}
-              min={1}
-              max={65535}
-              onChange={(e) => setRpcPort(Number(e.target.value))}
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Port for maker-cli operations (default 6103)
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Tor ──────────────────────────────────────────────────────────── */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
-        <h3 className="text-lg font-semibold mb-6">Tor Configuration</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm text-gray-400 mb-2">
-              Tor Auth Password
-            </label>
-            <div className="relative">
-              <input
-                type={showTorAuth ? "text" : "password"}
-                value={torAuth}
-                onChange={(e) => setTorAuth(e.target.value)}
-                placeholder="Leave blank to keep current"
-                className="w-full px-4 py-2.5 pr-12 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100"
-              />
-              <button
-                type="button"
-                onClick={() => setShowTorAuth(!showTorAuth)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-100 transition-colors"
+            <div>
+              <label
+                htmlFor="baseFee"
+                className="block text-sm text-gray-400 mb-2"
               >
-                <EyeIcon open={showTorAuth} />
-              </button>
+                Base Fee (sats)
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={baseFee}
+                placeholder="1000"
+                onChange={(e) => setBaseFee(Number(e.target.value))}
+                className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
+              />
             </div>
-            <p className="text-xs text-gray-500 mt-1">
-              Authentication password for Tor control port
-            </p>
-          </div>
-          <div>
-            <label
-              htmlFor="socksPort"
-              className="block text-sm text-gray-400 mb-2"
-            >
-              SOCKS Port
-            </label>
-            <input
-              type="number"
-              value={socksPort}
-              min={1}
-              max={65535}
-              onChange={(e) => setSocksPort(Number(e.target.value))}
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              SOCKS5 proxy port for Tor (default 9050)
-            </p>
-          </div>
-          <div>
-            <label
-              htmlFor="controlPort"
-              className="block text-sm text-gray-400 mb-2"
-            >
-              Control Port
-            </label>
-            <input
-              type="number"
-              min={1}
-              max={65535}
-              value={controlPort}
-              onChange={(e) => setControlPort(Number(e.target.value))}
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Control port for Tor interface (default 9051)
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Swap & Fidelity ───────────────────────────────────────────────── */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
-        <h3 className="text-lg font-semibold mb-6">
-          Swap & Fidelity Configuration
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label
-              htmlFor="minSwapAmount"
-              className="block text-sm text-gray-400 mb-2"
-            >
-              Minimum Swap Amount (sats)
-            </label>
-            <input
-              type="number"
-              min={1}
-              value={minSwapAmount}
-              onChange={(e) => setMinSwapAmount(Number(e.target.value))}
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="baseFee"
-              className="block text-sm text-gray-400 mb-2"
-            >
-              Required Confirmations
-            </label>
-            <input
-              type="number"
-              min={0}
-              step={1}
-              value={requiredConfirms}
-              onChange={(e) => setRequiredConfirms(Number(e.target.value))}
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Enter a whole number of funding confirmations required before
-              progressing a swap
-            </p>
-          </div>
-          <div>
-            <label
-              htmlFor="baseFee"
-              className="block text-sm text-gray-400 mb-2"
-            >
-              Base Fee (sats)
-            </label>
-            <input
-              type="number"
-              min={0}
-              value={baseFee}
-              placeholder="1000"
-              onChange={(e) => setBaseFee(Number(e.target.value))}
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="amountRelativeFeePct"
-              className="block text-sm text-gray-400 mb-2"
-            >
-              Amount Relative Fee (decimal)
-            </label>
-            <input
-              type="number"
-              min={0}
-              max={1}
-              step="0.001"
-              value={amountRelativeFeePct}
-              placeholder="0.025"
-              onChange={(e) => setAmountRelativeFeePct(Number(e.target.value))}
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Enter a decimal from 0 to 1. Example: `0.025` = `2.5%`
-            </p>
-          </div>
-          <div>
-            <label
-              htmlFor="timeRelativeFeePct"
-              className="block text-sm text-gray-400 mb-2"
-            >
-              Time Relative Fee (decimal)
-            </label>
-            <input
-              type="number"
-              min={0}
-              max={1}
-              step="0.001"
-              value={timeRelativeFeePct}
-              placeholder="0.001"
-              onChange={(e) => setTimeRelativeFeePct(Number(e.target.value))}
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Enter a decimal from 0 to 1. Example: `0.001` = `0.1%`
-            </p>
-          </div>
-          <div>
-            <label
-              htmlFor="fidelityAmount"
-              className="block text-sm text-gray-400 mb-2"
-            >
-              Fidelity Amount (sats)
-            </label>
-            <input
-              type="number"
-              min={1}
-              value={fidelityAmount}
-              placeholder="10000"
-              onChange={(e) => setFidelityAmount(Number(e.target.value))}
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="fidelityTimelock"
-              className="block text-sm text-gray-400 mb-2"
-            >
-              Fidelity Timelock (blocks)
-            </label>
-            <input
-              type="number"
-              min={12960}
-              max={25920}
-              value={fidelityTimelock}
-              placeholder="15000"
-              onChange={(e) => setFidelityTimelock(Number(e.target.value))}
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Must be between 12960 and 25920 blocks
-            </p>
+            <div>
+              <label
+                htmlFor="amountRelativeFeePct"
+                className="block text-sm text-gray-400 mb-2"
+              >
+                Amount Relative Fee (decimal)
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={1}
+                step="0.001"
+                value={amountRelativeFeePct}
+                placeholder="0.025"
+                onChange={(e) =>
+                  setAmountRelativeFeePct(Number(e.target.value))
+                }
+                className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Enter a decimal from 0 to 1. Example: `0.025` = `2.5%`
+              </p>
+            </div>
+            <div>
+              <label
+                htmlFor="timeRelativeFeePct"
+                className="block text-sm text-gray-400 mb-2"
+              >
+                Time Relative Fee (decimal)
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={1}
+                step="0.001"
+                value={timeRelativeFeePct}
+                placeholder="0.001"
+                onChange={(e) => setTimeRelativeFeePct(Number(e.target.value))}
+                className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Enter a decimal from 0 to 1. Example: `0.001` = `0.1%`
+              </p>
+            </div>
+            <div>
+              <label
+                htmlFor="fidelityAmount"
+                className="block text-sm text-gray-400 mb-2"
+              >
+                Fidelity Amount (sats)
+              </label>
+              <input
+                type="number"
+                min={1}
+                value={fidelityAmount}
+                placeholder="10000"
+                onChange={(e) => setFidelityAmount(Number(e.target.value))}
+                className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="fidelityTimelock"
+                className="block text-sm text-gray-400 mb-2"
+              >
+                Fidelity Timelock (blocks)
+              </label>
+              <input
+                type="number"
+                min={12960}
+                max={25920}
+                value={fidelityTimelock}
+                placeholder="15000"
+                onChange={(e) => setFidelityTimelock(Number(e.target.value))}
+                className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Must be between 12960 and 25920 blocks
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* ── Save ─────────────────────────────────────────────────────────── */}
       {saveResult && (
