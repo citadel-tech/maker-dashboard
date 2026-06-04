@@ -40,6 +40,7 @@ function mempoolTxUrl(txid?: string | null) {
 }
 
 
+
 function earnedSpread(report: SwapReportDto) {
   return Number(report.incoming_amount) - Number(report.outgoing_amount);
 }
