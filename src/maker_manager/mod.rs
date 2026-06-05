@@ -359,7 +359,7 @@ impl MakerManager {
             .data_directory
             .clone()
             .expect("maker data directory is initialized above");
-        MakerLogWriter::register_maker(&id, &data_dir)?;
+        MakerLogWriter::register_maker(&id, &data_dir, config.network_port)?;
         let wallet_name = config.wallet_name.clone().unwrap_or_else(|| id.clone());
         let network = self.infer_network(&config.rpc);
         let server_config = MakerServerConfig {

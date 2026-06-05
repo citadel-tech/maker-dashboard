@@ -25,9 +25,29 @@ impl Write for LogWriter {
                 Ok(buf.len())
             }
             LogWriter::Stdout(s) => {
-                let n = s.write(buf)?;
-                s.flush()?;
-                Ok(n)
+                let stripped = strip_ansi(buf);
+                let _ = (|| -> io::Result<()> {
+                    let Some(maker_id) = maker_id_from_log_line(&stripped) else {
+                        return Ok(());
+                    };
+                    let path = {
+                        let paths = log_paths().lock().unwrap();
+                        paths.get(&maker_id).cloned()
+                    };
+                    if let Some(path) = path {
+                        if let Some(parent) = path.parent() {
+                            fs::create_dir_all(parent)?;
+                        }
+                        OpenOptions::new()
+                            .create(true)
+                            .append(true)
+                            .open(path)?
+                            .write_all(&stripped)?;
+                    }
+                    Ok(())
+                })();
+                s.write_all(buf)?;
+                Ok(buf.len())
             }
         }
     }
@@ -52,9 +72,15 @@ pub struct MakerLogWriter;
 
 /// Global cache of maker log paths, keyed by maker id.
 static LOG_PATHS: OnceLock<Mutex<HashMap<String, PathBuf>>> = OnceLock::new();
+/// Global cache of maker ids, keyed by maker network port.
+static PORT_OWNERS: OnceLock<Mutex<HashMap<u16, String>>> = OnceLock::new();
 
 fn log_paths() -> &'static Mutex<HashMap<String, PathBuf>> {
     LOG_PATHS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn port_owners() -> &'static Mutex<HashMap<u16, String>> {
+    PORT_OWNERS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
 impl Default for MakerLogWriter {
@@ -77,16 +103,25 @@ impl MakerLogWriter {
             .map(|id| id.to_string())
     }
 
-    pub fn register_maker(id: &str, data_dir: &Path) -> io::Result<()> {
+    pub fn register_maker(id: &str, data_dir: &Path, network_port: u16) -> io::Result<()> {
         fs::create_dir_all(data_dir)?;
         let mut paths = log_paths().lock().unwrap();
         paths.insert(id.to_string(), data_dir.join("debug.log"));
+        drop(paths);
+
+        let mut owners = port_owners().lock().unwrap();
+        owners.retain(|_, owner| owner != id);
+        owners.insert(network_port, id.to_string());
         Ok(())
     }
 
     pub fn unregister_maker(id: &str) {
         let mut paths = log_paths().lock().unwrap();
         paths.remove(id);
+        drop(paths);
+
+        let mut owners = port_owners().lock().unwrap();
+        owners.retain(|_, owner| owner != id);
     }
 
     fn open_log_file(&self, maker_id: &str) -> io::Result<File> {
@@ -120,6 +155,37 @@ impl<'a> MakeWriter<'a> for MakerLogWriter {
             None => LogWriter::Stdout(io::stdout()),
         }
     }
+}
+
+fn maker_id_from_log_line(line: &[u8]) -> Option<String> {
+    let mut i = 0;
+    while i < line.len() {
+        if line[i] != b'[' {
+            i += 1;
+            continue;
+        }
+
+        let mut j = i + 1;
+        let mut port: u32 = 0;
+        let mut digits = 0;
+        while j < line.len() && line[j].is_ascii_digit() && digits < 5 {
+            port = port * 10 + u32::from(line[j] - b'0');
+            j += 1;
+            digits += 1;
+        }
+
+        if digits > 0 && j < line.len() && line[j] == b']' {
+            if let Ok(port) = u16::try_from(port) {
+                if let Some(id) = port_owners().lock().unwrap().get(&port).cloned() {
+                    return Some(id);
+                }
+            }
+        }
+
+        i += 1;
+    }
+
+    None
 }
 
 /// Efficiently reads the last `n` lines from a file by seeking from the end.
