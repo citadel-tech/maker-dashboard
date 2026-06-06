@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { ArrowDown, Check, Copy, Plus, X, Zap } from "lucide-react";
 import OnboardingWizard from "./onboarding";
 import BitcoindWidget from "../components/BitcoindWidget";
+import { ChangePasswordModal } from "../components/Nav";
 import {
   makers,
   wallet,
@@ -63,6 +64,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [copiedTor, setCopiedTor] = useState<string | null>(null);
   const [swapBannerDismissed, setSwapBannerDismissed] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
   const swapHistoryCache = useRef<Record<string, UtxoInfo[]>>({});
   const swapReportCache = useRef<Record<string, SwapReportDto[]>>({});
   const lastSwapRefreshAt = useRef(0);
@@ -312,10 +314,19 @@ export default function Home() {
                 </button>
               </div>
             </div>
-            <Link to="/addMaker" className="cs-btn primary">
-              <Plus size={15} />
-              Add new maker
-            </Link>
+            <div className="cs-actions">
+              <button
+                type="button"
+                onClick={() => setShowChangePassword(true)}
+                className="cs-btn primary"
+              >
+                Change password
+              </button>
+              <Link to="/addMaker" className="cs-btn primary">
+                <Plus size={15} />
+                Add new maker
+              </Link>
+            </div>
           </div>
 
           {visibleMakerRows.length === 0 ? (
@@ -474,6 +485,9 @@ export default function Home() {
           </div>
         </section>
       </main>
+      {showChangePassword && (
+        <ChangePasswordModal onClose={() => setShowChangePassword(false)} />
+      )}
     </div>
   );
 }
