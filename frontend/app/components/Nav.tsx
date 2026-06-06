@@ -3,6 +3,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { auth, ApiError } from "@/api";
 
+const MIN_PASSWORD_LENGTH = 8;
+
 function PasswordInput({
   value,
   onChange,
@@ -57,6 +59,10 @@ export function ChangePasswordModal({ onClose }: { onClose: () => void }) {
       setError("New passwords do not match");
       return;
     }
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+      return;
+    }
     setLoading(true);
     try {
       await auth.rotatePassword(oldPassword, newPassword);
@@ -65,7 +71,7 @@ export function ChangePasswordModal({ onClose }: { onClose: () => void }) {
       if (err instanceof ApiError && err.status === 401) {
         setError("Current password is incorrect");
       } else if (err instanceof ApiError && err.status === 400) {
-        setError("New password must differ from the current password");
+        setError(err.message);
       } else {
         setError("Failed to change password. Please try again.");
       }
