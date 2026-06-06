@@ -36,19 +36,19 @@ function parse(raw: string): ParsedLine | null {
 }
 
 const LEVEL_COLOR: Record<Exclude<Level, "ALL">, string> = {
-  INFO: "text-blue-400",
-  WARN: "text-yellow-400",
-  ERROR: "text-red-400",
-  DEBUG: "text-gray-500",
-  TRACE: "text-purple-400",
+  INFO: "info",
+  WARN: "warn",
+  ERROR: "error",
+  DEBUG: "debug",
+  TRACE: "trace",
 };
 
 const MSG_COLOR: Record<Exclude<Level, "ALL">, string> = {
-  INFO: "text-gray-200",
-  WARN: "text-yellow-200",
-  ERROR: "text-red-300",
-  DEBUG: "text-gray-500",
-  TRACE: "text-purple-300",
+  INFO: "info",
+  WARN: "warn",
+  ERROR: "error",
+  DEBUG: "debug",
+  TRACE: "trace",
 };
 
 const FILTER_STYLES: Record<Level, string> = {
@@ -153,7 +153,7 @@ export default function Logs({ id }: Props) {
             <button
               type="button"
               onClick={() => downloadLogs(id)}
-              className="text-xs px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-all"
+              className="cs-log-action"
             >
               Download
             </button>
@@ -177,7 +177,7 @@ export default function Logs({ id }: Props) {
         </div>
 
         {/* Filter bar */}
-        <div className="flex flex-wrap items-center gap-2 mb-3">
+        <div className="cs-log-filters">
           {LEVELS.map((lvl) => {
             const active = filter === lvl;
             const count = lvl === "ALL" ? logs.length : (counts[lvl] ?? 0);
@@ -186,7 +186,7 @@ export default function Logs({ id }: Props) {
                 key={lvl}
                 type="button"
                 onClick={() => setFilter(lvl)}
-                className={`text-xs px-3 py-1 rounded-lg font-mono transition-all ${
+                className={`cs-log-filter ${
                   active
                     ? FILTER_STYLES[lvl]
                     : "bg-gray-800 text-gray-400 hover:bg-gray-700"
@@ -204,7 +204,7 @@ export default function Logs({ id }: Props) {
         </div>
 
         {/* Log lines */}
-        <div className="bg-black rounded-lg p-4 font-mono text-xs space-y-px max-h-128 overflow-y-auto">
+        <div className="cs-log-console">
           {visibleLogs.length === 0 ? (
             <div className="text-gray-500">
               {logs.length === 0 ? "No logs yet…" : "No matching log lines."}
@@ -221,12 +221,18 @@ export default function Logs({ id }: Props) {
               }
               return (
                 <div key={i} className="flex gap-2 leading-5 min-w-0">
-                  <span className="shrink-0 text-gray-600">{p.time}</span>
-                  <span className={`shrink-0 w-11 ${LEVEL_COLOR[p.level]}`}>
+                  <span className="cs-log-time">{p.time}</span>
+                  <span
+                    className={`cs-log-level ${LEVEL_COLOR[p.level]}`}
+                    data-level={p.level}
+                  >
                     {p.level}
                   </span>
-                  <span className="shrink-0 text-gray-600">{p.thread}</span>
-                  <span className={`${MSG_COLOR[p.level]} break-all`}>
+                  <span className="cs-log-thread">{p.thread}</span>
+                  <span
+                    className={`cs-log-message ${MSG_COLOR[p.level]}`}
+                    data-level={p.level}
+                  >
                     {p.message}
                   </span>
                 </div>
@@ -248,7 +254,7 @@ export default function Logs({ id }: Props) {
           <button
             type="button"
             onClick={copyPath}
-            className="shrink-0 text-xs px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-all"
+            className="cs-log-action shrink-0"
           >
             {copied ? "Copied!" : "Copy path"}
           </button>

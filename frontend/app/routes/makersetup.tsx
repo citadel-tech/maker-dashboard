@@ -2,7 +2,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Bitcoin, Check, X } from "lucide-react";
 import Nav from "../components/Nav";
-import { makers, monitoring, wallet, streamLogs, ApiError } from "../api";
+import {
+  ApiError,
+  formatSats,
+  makers,
+  monitoring,
+  streamLogs,
+  wallet,
+} from "../api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -15,13 +22,13 @@ type SetupStage =
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-/** Parse the minimum BTC amount from a log line like:
+/** Parse the minimum amount from a log line like:
  *  "Send at least 0.00050324 BTC to bcrt1p..."
  */
-function parseMinAmount(logs: string[]): string | null {
+function parseMinAmount(logs: string[]): number | null {
   for (const line of [...logs].reverse()) {
     const match = line.match(/Send at least ([\d.]+) BTC/);
-    if (match) return match[1];
+    if (match) return Math.round(Number(match[1]) * 100_000_000);
   }
   return null;
 }
@@ -100,7 +107,7 @@ export default function MakerSetup() {
   const [stage, setStage] = useState<SetupStage>("starting");
   const [logs, setLogs] = useState<string[]>([]);
   const [depositAddress, setDepositAddress] = useState<string | null>(null);
-  const [minAmount, setMinAmount] = useState<string | null>(null);
+  const [minAmount, setMinAmount] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -580,7 +587,7 @@ export default function MakerSetup() {
                   <div className="text-sm">
                     <span className="text-gray-300">Send at least </span>
                     <span className="font-bold text-orange-400">
-                      {minAmount} BTC
+                      {formatSats(minAmount)}
                     </span>
                     <span className="text-gray-300">
                       {" "}

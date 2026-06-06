@@ -1,14 +1,25 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Check, LoaderCircle, X } from "lucide-react";
-import Nav from "../components/Nav";
+import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import {
+  ArrowLeft,
+  Check,
+  Eye,
+  EyeOff,
+  LoaderCircle,
+  Plus,
+  RefreshCw,
+  X,
+} from "lucide-react";
+import {
+  ApiError,
   makers,
   onboarding,
   type CreateMakerRequest,
   type StartupCheckKind,
-  ApiError,
 } from "../api";
+
+type CheckId = "bitcoin" | "rpc" | "rest" | "zmq" | "tor";
 
 type CheckState = {
   status: "idle" | "loading" | "success" | "error";
@@ -16,13 +27,134 @@ type CheckState = {
   detail?: string;
 };
 
+type PasswordField = "password" | "bitcoinPassword" | "torAuth";
+
+const CHECKS: Array<{
+  id: CheckId;
+  title: string;
+  desc: string;
+}> = [
+  {
+    id: "bitcoin",
+    title: "Bitcoin Core is running and fully synced",
+    desc: "Fully synced node - testnet, regtest, or signet work for testing.",
+  },
+  {
+    id: "rpc",
+    title: "Bitcoin Core RPC is enabled",
+    desc: "rpcuser, rpcpassword, and server=1 set in bitcoin.conf.",
+  },
+  {
+    id: "rest",
+    title: "Bitcoin Core REST is enabled",
+    desc: "Dashboard checks /rest/chaininfo.json - needs rest=1 in bitcoin.conf.",
+  },
+  {
+    id: "zmq",
+    title: "ZMQ notifications are configured",
+    desc: "zmqpubrawblock and zmqpubrawtx endpoints reachable on the configured port.",
+  },
+  {
+    id: "tor",
+    title: "Tor is running",
+    desc: "Required for taker discovery, fidelity bonds, and routing all swap requests.",
+  },
+];
+
+const EMPTY_CHECKS: Record<CheckId, CheckState> = {
+  bitcoin: { status: "idle" },
+  rpc: { status: "idle" },
+  rest: { status: "idle" },
+  zmq: { status: "idle" },
+  tor: { status: "idle" },
+};
+
+function Field({
+  label,
+  required,
+  optional,
+  hint,
+  className,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  optional?: boolean;
+  hint?: ReactNode;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={`cs-field ${className ?? ""}`}>
+      <div className="cs-field-label-row">
+        <label>
+          {label}
+          {required && <span className="cs-required"> *</span>}
+        </label>
+        {optional && <span>Optional</span>}
+      </div>
+      {children}
+      {hint && <p className="cs-hint">{hint}</p>}
+    </div>
+  );
+}
+
+function CheckRow({
+  row,
+  state,
+  onRun,
+}: {
+  row: (typeof CHECKS)[number];
+  state: CheckState;
+  onRun: () => void;
+}) {
+  const isLoading = state.status === "loading";
+  const isSuccess = state.status === "success";
+  const isError = state.status === "error";
+
+  return (
+    <div
+      className={`cs-add-check ${
+        isSuccess ? "success" : isError ? "error" : ""
+      }`}
+    >
+      <span className="cs-add-check-dot" aria-hidden="true">
+        {isLoading && <LoaderCircle size={14} className="cs-spin" />}
+        {isSuccess && <Check size={14} />}
+        {isError && <X size={14} />}
+      </span>
+      <div className="cs-add-check-body">
+        <strong>{row.title}</strong>
+        <p>{row.desc}</p>
+        {state.message && (
+          <span className={isError ? "cs-add-result error" : "cs-add-result"}>
+            {state.message}
+          </span>
+        )}
+        {state.detail && <span className="cs-add-detail">{state.detail}</span>}
+      </div>
+      <button
+        type="button"
+        className="cs-add-check-action"
+        disabled={isLoading}
+        onClick={onRun}
+      >
+        {isLoading
+          ? "Testing..."
+          : isSuccess
+            ? "Passed"
+            : isError
+              ? "Retry"
+              : "Click to test"}
+      </button>
+    </div>
+  );
+}
+
 export default function AddMaker() {
   const navigate = useNavigate();
-
   const [formData, setFormData] = useState({
     id: "",
-    rpcHost: "127.0.0.1",
-    rpcPort: "38332",
     bitcoinRpc: "127.0.0.1:38332",
     bitcoinUser: "user",
     bitcoinPassword: "password",
@@ -36,20 +168,14 @@ export default function AddMaker() {
     makerRpcPort: "",
     requiredConfirms: "1",
   });
-
   const [submitting, setSubmitting] = useState(false);
   const [loadingPorts, setLoadingPorts] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [checks, setChecks] = useState<
-    Record<"bitcoin" | "rpc" | "rest" | "zmq" | "tor", CheckState>
+  const [checks, setChecks] =
+    useState<Record<CheckId, CheckState>>(EMPTY_CHECKS);
+  const [showPassword, setShowPassword] = useState<
+    Record<PasswordField, boolean>
   >({
-    bitcoin: { status: "idle" },
-    rpc: { status: "idle" },
-    rest: { status: "idle" },
-    zmq: { status: "idle" },
-    tor: { status: "idle" },
-  });
-  const [showPassword, setShowPassword] = useState({
     password: false,
     bitcoinPassword: false,
     torAuth: false,
@@ -82,8 +208,18 @@ export default function AddMaker() {
     };
   }, []);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type, checked } = e.target;
+  const passedCount = useMemo(
+    () => Object.values(checks).filter((c) => c.status === "success").length,
+    [checks],
+  );
+
+  const isRunningAll = Object.values(checks).some(
+    (c) => c.status === "loading",
+  );
+  const allPassed = CHECKS.every((row) => checks[row.id].status === "success");
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const { name, value } = e.target;
 
     if (
       ["bitcoinRpc", "bitcoinUser", "bitcoinPassword", "zmq"].includes(name)
@@ -97,31 +233,21 @@ export default function AddMaker() {
       }));
     }
     if (["socksPort", "controlPort"].includes(name)) {
-      setChecks((prev) => ({
-        ...prev,
-        tor: { status: "idle" },
-      }));
+      setChecks((prev) => ({ ...prev, tor: { status: "idle" } }));
     }
 
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
-  };
-
-  async function runAllChecks() {
-    await Promise.all(
-      (["bitcoin", "rpc", "rest", "zmq", "tor"] as const).map((c) =>
-        runCheck(c),
-      ),
-    );
+    setFormData((prev) => ({ ...prev, [name]: value }));
   }
 
-  const isRunningAll = Object.values(checks).some(
-    (c) => c.status === "loading",
-  );
+  function togglePassword(field: PasswordField) {
+    setShowPassword((prev) => ({ ...prev, [field]: !prev[field] }));
+  }
 
-  async function runCheck(check: "bitcoin" | "rpc" | "rest" | "zmq" | "tor") {
+  async function runAllChecks() {
+    await Promise.all(CHECKS.map((row) => runCheck(row.id)));
+  }
+
+  async function runCheck(check: CheckId) {
     setChecks((prev) => ({
       ...prev,
       [check]: { status: "loading", message: "Running check..." },
@@ -161,17 +287,11 @@ export default function AddMaker() {
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
 
-    if (
-      checks.bitcoin.status !== "success" ||
-      checks.rpc.status !== "success" ||
-      checks.rest.status !== "success" ||
-      checks.zmq.status !== "success" ||
-      checks.tor.status !== "success"
-    ) {
+    if (!allPassed) {
       setError("Run and pass all pre-checks before adding a maker.");
       return;
     }
@@ -229,657 +349,392 @@ export default function AddMaker() {
     } finally {
       setSubmitting(false);
     }
-  };
+  }
 
-  const prereqs = [
-    {
-      id: "bitcoin" as const,
-      title: "Bitcoin Core is running and fully synced",
-      desc: "The maker needs a fully synced Bitcoin node to operate. Testnet, regtest, or signet work for testing.",
-      code: "bitcoin-cli getblockchaininfo",
-    },
-    {
-      id: "rpc" as const,
-      title: "Bitcoin Core RPC is enabled",
-      desc: "Add rpcuser and rpcpassword to your bitcoin.conf and restart Bitcoin Core.",
-      code: "rpcuser=youruser\nrpcpassword=yourpassword\nserver=1",
-    },
-    {
-      id: "rest" as const,
-      title: "Bitcoin Core REST is enabled",
-      desc: "The dashboard checks `/rest/chaininfo.json` on your Bitcoin Core port, so `rest=1` should be enabled in bitcoin.conf.",
-      code: "rest=1",
-    },
-    {
-      id: "zmq" as const,
-      title: "ZMQ notifications are configured",
-      desc: "ZMQ allows the maker to receive real-time block and transaction updates.",
-      code: "zmqpubrawblock=tcp://127.0.0.1:28332\nzmqpubrawtx=tcp://127.0.0.1:28332",
-    },
-    {
-      id: "tor" as const,
-      title: "Tor is running",
-      desc: "Tor is required — it's how takers discover your maker, how fidelity bonds are tied to your address, and how all swap requests are routed. Without Tor, your maker cannot participate in the network.",
-      code: "tor --version",
-    },
-  ];
+  const passwordType = (field: PasswordField) =>
+    showPassword[field] ? "text" : "password";
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100">
-      <Nav />
-
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 animate-slide-in-up">
-        {/* Header */}
-        <div className="mb-6 sm:mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <button
-              onClick={() => window.history.back()}
-              className="p-2 hover:bg-gray-800 rounded-lg transition-all duration-150 hover:-translate-x-0.5"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-            </button>
-            <h1 className="text-2xl sm:text-3xl font-bold">Add New Maker</h1>
+    <div className="cs-page">
+      <main className="cs-add-page">
+        <header className="cs-add-head">
+          <div>
+            <Link to="/" className="cs-add-back">
+              <ArrowLeft size={14} />
+              Back to dashboard
+            </Link>
+            <h1>Add New Maker</h1>
+            <p>Configure a new maker instance.</p>
           </div>
-          <p className="text-sm sm:text-base text-gray-400 ml-14">
-            Configure a new maker instance
-          </p>
-        </div>
+          <div className="cs-network-badge cs-add-network">
+            <span className="cs-dot" />
+            Signet · v0.4.2
+          </div>
+        </header>
 
-        {/* Error banner */}
         {error && (
-          <div className="mb-6 px-4 py-3 bg-red-900/40 border border-red-700 rounded-lg text-sm text-red-300 flex justify-between items-center">
+          <div className="cs-banner error">
             <span>{error}</span>
             <button
+              type="button"
+              className="cs-home-icon"
               onClick={() => setError(null)}
-              className="ml-4 text-red-400 hover:text-red-200 font-bold"
+              aria-label="Dismiss error"
             >
-              <X className="w-4 h-4" />
+              <X size={15} />
             </button>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Basic Info */}
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
-            <h3 className="text-lg font-semibold mb-4">Basic Information</h3>
-            <div className="space-y-4">
+        <form className="cs-add-layout" onSubmit={handleSubmit}>
+          <section className="cs-card cs-add-basic">
+            <div className="cs-card-head">
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-2">
-                  Maker ID *
-                </label>
+                <h2>Basic information</h2>
+                <p>
+                  Identifies this maker across logs, RPC calls, and dashboards.
+                </p>
+              </div>
+            </div>
+            <div className="cs-card-body cs-field-grid">
+              <Field
+                label="Maker ID"
+                required
+                hint="Unique identifier - used in all API calls. Cannot be changed later."
+                className="cs-span-2"
+              >
                 <input
-                  type="text"
+                  className="cs-input"
                   name="id"
                   value={formData.id}
                   onChange={handleChange}
-                  placeholder="e.g., maker-1"
+                  placeholder="e.g. maker-1"
                   required
-                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 placeholder-gray-500 font-mono text-sm"
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  Unique identifier for this maker. Used in all API calls —
-                  cannot be changed later.
-                </p>
-              </div>
+              </Field>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-400 mb-2">
-                  Data Directory
-                </label>
+              <Field
+                label="Data directory"
+                optional
+                hint={
+                  <>
+                    Where maker data is stored. Defaults to{" "}
+                    <code>~/.coinswap/&lt;id&gt;</code>
+                  </>
+                }
+                className="cs-span-2"
+              >
                 <input
-                  type="text"
+                  className="cs-input"
                   name="dataDir"
                   value={formData.dataDir}
                   onChange={handleChange}
-                  placeholder="e.g., ~/.coinswap/maker1 (leave blank for default)"
-                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 placeholder-gray-500 font-mono text-sm"
+                  placeholder="e.g. ~/.coinswap/maker-1 (leave blank for default)"
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  Directory where maker data will be stored. Defaults to{" "}
-                  <code className="bg-gray-800 px-1 rounded">
-                    ~/.coinswap/{"<id>"}
-                  </code>
-                </p>
-              </div>
+              </Field>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-400 mb-2">
-                  Maker Password
-                </label>
-                <div className="relative">
+              <Field
+                label="Maker password"
+                optional
+                hint="Encrypts the maker's wallet on disk."
+                className="cs-span-2"
+              >
+                <div className="cs-input-wrap">
                   <input
-                    type={showPassword.password ? "text" : "password"}
+                    className="cs-input"
+                    type={passwordType("password")}
                     name="password"
                     value={formData.password}
                     onChange={handleChange}
                     placeholder="Optional"
-                    className="w-full px-4 py-2.5 pr-10 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 placeholder-gray-500"
                   />
                   <button
                     type="button"
-                    onClick={() =>
-                      setShowPassword((p) => ({ ...p, password: !p.password }))
-                    }
-                    className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-200"
-                    tabIndex={-1}
+                    className="cs-eye"
+                    onClick={() => togglePassword("password")}
+                    aria-label="Toggle maker password visibility"
                   >
                     {showPassword.password ? (
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
-                        />
-                      </svg>
+                      <EyeOff size={16} />
                     ) : (
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                        />
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                        />
-                      </svg>
+                      <Eye size={16} />
                     )}
                   </button>
                 </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  Password to protect the maker's wallet
-                </p>
+              </Field>
+            </div>
+          </section>
+
+          <section className="cs-card cs-add-bitcoin">
+            <div className="cs-card-head">
+              <div>
+                <h2>Bitcoin connection</h2>
+                <p>Bitcoin Core RPC + ZMQ for chain state and notifications.</p>
               </div>
             </div>
-          </div>
-
-          {/* Bitcoin Connection */}
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
-            <h3 className="text-lg font-semibold mb-4">Bitcoin Connection</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-400 mb-2">
-                  Bitcoin RPC Endpoint *
-                </label>
+            <div className="cs-card-body cs-field-grid">
+              <Field
+                label="Bitcoin RPC endpoint"
+                required
+                hint="Format: host:port"
+                className="cs-span-2"
+              >
                 <input
-                  type="text"
+                  className="cs-input"
                   name="bitcoinRpc"
                   value={formData.bitcoinRpc}
                   onChange={handleChange}
-                  placeholder="127.0.0.1:18443"
+                  placeholder="127.0.0.1:38332"
                   required
-                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 placeholder-gray-500 font-mono text-sm"
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  Bitcoin Core RPC endpoint (host:port)
-                </p>
-              </div>
+              </Field>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-2">
-                    RPC Username *
-                  </label>
-                  <input
-                    type="text"
-                    name="bitcoinUser"
-                    value={formData.bitcoinUser}
-                    onChange={handleChange}
-                    placeholder="e.g., user"
-                    required
-                    className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 placeholder-gray-500 font-mono text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-2">
-                    RPC Password *
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showPassword.bitcoinPassword ? "text" : "password"}
-                      name="bitcoinPassword"
-                      value={formData.bitcoinPassword}
-                      onChange={handleChange}
-                      placeholder="e.g., password"
-                      required
-                      className="w-full px-4 py-2.5 pr-10 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 placeholder-gray-500 font-mono text-sm"
-                    />
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setShowPassword((p) => ({
-                          ...p,
-                          bitcoinPassword: !p.bitcoinPassword,
-                        }))
-                      }
-                      className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-200"
-                      tabIndex={-1}
-                    >
-                      {showPassword.bitcoinPassword ? (
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
-                          />
-                        </svg>
-                      ) : (
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                          />
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                          />
-                        </svg>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-400 mb-2">
-                  ZMQ Endpoint *
-                </label>
+              <Field label="RPC username" required>
                 <input
-                  type="text"
+                  className="cs-input"
+                  name="bitcoinUser"
+                  value={formData.bitcoinUser}
+                  onChange={handleChange}
+                  placeholder="user"
+                  required
+                />
+              </Field>
+
+              <Field label="RPC password" required>
+                <div className="cs-input-wrap">
+                  <input
+                    className="cs-input"
+                    type={passwordType("bitcoinPassword")}
+                    name="bitcoinPassword"
+                    value={formData.bitcoinPassword}
+                    onChange={handleChange}
+                    placeholder="password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="cs-eye"
+                    onClick={() => togglePassword("bitcoinPassword")}
+                    aria-label="Toggle RPC password visibility"
+                  >
+                    {showPassword.bitcoinPassword ? (
+                      <EyeOff size={16} />
+                    ) : (
+                      <Eye size={16} />
+                    )}
+                  </button>
+                </div>
+              </Field>
+
+              <Field
+                label="ZMQ endpoint"
+                required
+                hint="Subscribe to rawblock + rawtx notifications."
+                className="cs-span-2"
+              >
+                <input
+                  className="cs-input"
                   name="zmq"
                   value={formData.zmq}
                   onChange={handleChange}
                   placeholder="tcp://127.0.0.1:28332"
                   required
-                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 placeholder-gray-500 font-mono text-sm"
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  ZeroMQ endpoint for blockchain notifications
+              </Field>
+            </div>
+          </section>
+
+          <section className="cs-card cs-add-tor">
+            <div className="cs-card-head">
+              <div>
+                <h2>Tor configuration</h2>
+                <p>
+                  Ports must match your Tor instance. Auth password is required
+                  if your control port uses <code>HashedControlPassword</code>.
                 </p>
               </div>
             </div>
-          </div>
+            <div className="cs-card-body cs-field-grid">
+              <Field label="SOCKS port" required>
+                <input
+                  className="cs-input"
+                  type="number"
+                  name="socksPort"
+                  value={formData.socksPort}
+                  onChange={handleChange}
+                  placeholder="9050"
+                />
+              </Field>
 
-          {/* Tor Configuration */}
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
-            <h3 className="text-lg font-semibold mb-1">Tor Configuration</h3>
-            <p className="text-xs text-gray-500 mb-4">
-              Ports must match your Tor instance. Auth password is required if
-              your Tor control port uses{" "}
-              <code className="bg-gray-800 px-1 rounded">
-                HashedControlPassword
-              </code>
-              .
-            </p>
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-2">
-                    SOCKS Port
-                  </label>
+              <Field label="Control port" required>
+                <input
+                  className="cs-input"
+                  type="number"
+                  name="controlPort"
+                  value={formData.controlPort}
+                  onChange={handleChange}
+                  placeholder="9051"
+                />
+              </Field>
+
+              <Field
+                label="Tor auth password"
+                optional
+                hint="Leave blank if no auth configured."
+                className="cs-span-2"
+              >
+                <div className="cs-input-wrap">
                   <input
-                    type="number"
-                    name="socksPort"
-                    value={formData.socksPort}
-                    onChange={handleChange}
-                    placeholder="9050"
-                    className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 placeholder-gray-500 font-mono text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-2">
-                    Control Port
-                  </label>
-                  <input
-                    type="number"
-                    name="controlPort"
-                    value={formData.controlPort}
-                    onChange={handleChange}
-                    placeholder="9051"
-                    className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 placeholder-gray-500 font-mono text-sm"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-400 mb-2">
-                  Tor Auth Password
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassword.torAuth ? "text" : "password"}
+                    className="cs-input"
+                    type={passwordType("torAuth")}
                     name="torAuth"
                     value={formData.torAuth}
                     onChange={handleChange}
-                    placeholder="Leave blank if no auth configured"
-                    className="w-full px-4 py-2.5 pr-10 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 placeholder-gray-500"
+                    placeholder="Optional"
                   />
                   <button
                     type="button"
-                    onClick={() =>
-                      setShowPassword((p) => ({ ...p, torAuth: !p.torAuth }))
-                    }
-                    className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-200"
-                    tabIndex={-1}
+                    className="cs-eye"
+                    onClick={() => togglePassword("torAuth")}
+                    aria-label="Toggle Tor auth visibility"
                   >
                     {showPassword.torAuth ? (
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
-                        />
-                      </svg>
+                      <EyeOff size={16} />
                     ) : (
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                        />
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                        />
-                      </svg>
+                      <Eye size={16} />
                     )}
                   </button>
                 </div>
+              </Field>
+            </div>
+          </section>
+
+          <section className="cs-card cs-add-ports">
+            <div className="cs-card-head">
+              <div>
+                <h2>Maker network ports</h2>
+                <p>
+                  Ports this maker listens on. Must be unique across all makers
+                  running locally.
+                </p>
               </div>
             </div>
-          </div>
-
-          {/* Network Ports */}
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
-            <h3 className="text-lg font-semibold mb-1">Maker Network Ports</h3>
-            <p className="text-xs text-gray-500 mb-4">
-              Ports this maker listens on. Must be unique across all makers.
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-400 mb-2">
-                  Network Port
-                </label>
+            <div className="cs-card-body cs-field-grid">
+              <Field
+                label="Network port"
+                required
+                hint={
+                  loadingPorts
+                    ? "Finding an available port."
+                    : "Used by takers to connect."
+                }
+              >
                 <input
-                  type="number"
+                  className="cs-input"
                   name="networkPort"
                   value={formData.networkPort}
                   readOnly
-                  aria-readonly="true"
                   placeholder={
                     loadingPorts ? "Loading..." : "Assigned automatically"
                   }
-                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-500 font-mono text-sm cursor-not-allowed"
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  {loadingPorts
-                    ? "Finding an available port"
-                    : "Assigned automatically for client connections"}
-                </p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-400 mb-2">
-                  RPC Port
-                </label>
+              </Field>
+
+              <Field
+                label="RPC port"
+                required
+                hint={
+                  loadingPorts
+                    ? "Finding an available port."
+                    : "Used by maker-cli."
+                }
+              >
                 <input
-                  type="number"
+                  className="cs-input"
                   name="makerRpcPort"
                   value={formData.makerRpcPort}
                   readOnly
-                  aria-readonly="true"
                   placeholder={
                     loadingPorts ? "Loading..." : "Assigned automatically"
                   }
-                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-500 font-mono text-sm cursor-not-allowed"
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  {loadingPorts
-                    ? "Finding an available port"
-                    : "Assigned automatically for maker-cli operations"}
-                </p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-400 mb-2">
-                  Required Confirmations
-                </label>
+              </Field>
+
+              <Field
+                label="Required confirmations"
+                required
+                hint="Funding confirmations required before swaps continue."
+                className="cs-span-2"
+              >
                 <input
+                  className="cs-input"
                   type="number"
                   min="0"
                   name="requiredConfirms"
                   value={formData.requiredConfirms}
                   onChange={handleChange}
-                  placeholder="1"
-                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 placeholder-gray-500 font-mono text-sm"
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  Funding confirmations required before swaps continue
+              </Field>
+            </div>
+          </section>
+
+          <section className="cs-card cs-add-prechecks">
+            <div className="cs-card-head">
+              <div>
+                <h2>Pre-checks</h2>
+                <p>
+                  Run a live check against your current Bitcoin Core and Tor
+                  settings before adding the maker.
                 </p>
               </div>
             </div>
-          </div>
-
-          {/* Prerequisite Checks */}
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
-            <h3 className="text-lg font-semibold mb-2">Pre-checks</h3>
-            <p className="text-sm text-gray-400 mb-6">
-              Run all checks at once to verify your Bitcoin Core and Tor setup.
-            </p>
-
-            <button
-              type="button"
-              onClick={() => void runAllChecks()}
-              disabled={isRunningAll}
-              className="mb-6 w-full px-4 py-3 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 disabled:cursor-wait text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2"
-            >
-              {isRunningAll ? (
-                <>
-                  <LoaderCircle className="w-4 h-4 animate-spin" />
-                  Checking...
-                </>
-              ) : (
-                "Run All Checks"
-              )}
-            </button>
-
-            <div className="space-y-4">
-              {prereqs.map((prereq) => {
-                const state = checks[prereq.id];
-                const isLoading = state.status === "loading";
-                const isSuccess = state.status === "success";
-                const isError = state.status === "error";
-
-                return (
-                  <div
-                    key={prereq.id}
-                    className={`w-full rounded-xl border p-4 text-left transition-all ${
-                      isSuccess
-                        ? "border-emerald-500/70 bg-emerald-950/20"
-                        : isError
-                          ? "border-red-700/70 bg-red-950/20"
-                          : "border-gray-700 bg-gray-900"
-                    }`}
-                  >
-                    <div className="flex items-start gap-4">
-                      <div
-                        className={`mt-0.5 w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
-                          isSuccess
-                            ? "border-emerald-500 bg-emerald-500"
-                            : isError
-                              ? "border-red-500 bg-red-500/20"
-                              : isLoading
-                                ? "border-orange-400 text-orange-400"
-                                : "border-gray-600"
-                        }`}
-                      >
-                        {isLoading ? (
-                          <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
-                        ) : isSuccess ? (
-                          <Check className="w-3.5 h-3.5 text-white" />
-                        ) : isError ? (
-                          <X className="w-3.5 h-3.5 text-red-400" />
-                        ) : null}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
-                          <div className="font-semibold text-gray-100">
-                            {prereq.title}
-                          </div>
-                          <span className="text-xs font-medium text-gray-500">
-                            {isLoading
-                              ? "Checking..."
-                              : isSuccess
-                                ? "Passed"
-                                : isError
-                                  ? "Failed"
-                                  : "Not checked"}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-400 mb-2">
-                          {prereq.desc}
-                        </p>
-                        <div className="bg-black rounded-lg px-3 py-2 font-mono text-xs text-gray-300 whitespace-pre">
-                          {prereq.code}
-                        </div>
-                        {state.message && (
-                          <p
-                            className={`mt-3 text-sm ${
-                              isSuccess
-                                ? "text-emerald-300"
-                                : isError
-                                  ? "text-red-300"
-                                  : "text-gray-400"
-                            }`}
-                          >
-                            {state.message}
-                          </p>
-                        )}
-                        {state.detail && (
-                          <p className="mt-1 text-xs text-gray-500 break-words">
-                            {state.detail}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+            <div className="cs-card-body">
+              <div className="cs-add-checks">
+                {CHECKS.map((row) => (
+                  <CheckRow
+                    key={row.id}
+                    row={row}
+                    state={checks[row.id]}
+                    onRun={() => void runCheck(row.id)}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
+            <div className="cs-add-check-footer">
+              <span>
+                {CHECKS.length} checks ·{" "}
+                {passedCount > 0 ? `${passedCount} passed` : "not run"}
+              </span>
+              <button
+                type="button"
+                className={`cs-btn primary ${isRunningAll ? "spin" : ""}`}
+                disabled={isRunningAll}
+                onClick={() => void runAllChecks()}
+              >
+                <RefreshCw size={15} />
+                {isRunningAll ? "Testing..." : "Test all"}
+              </button>
+            </div>
+          </section>
 
-          {/* Actions */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            <button
-              type="button"
-              onClick={() => window.history.back()}
-              className="flex-1 px-6 py-3 border border-gray-700 rounded-lg hover:bg-gray-800 hover:border-orange-500 active:scale-[0.97] transition-all duration-150 font-semibold"
-            >
+          <div className="cs-add-actions">
+            <Link to="/" className="cs-btn ghost">
               Cancel
-            </button>
+            </Link>
             <button
               type="submit"
-              disabled={
-                submitting ||
-                loadingPorts ||
-                checks.bitcoin.status !== "success" ||
-                checks.rpc.status !== "success" ||
-                checks.rest.status !== "success" ||
-                checks.zmq.status !== "success" ||
-                checks.tor.status !== "success"
-              }
-              className="flex-1 px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 active:scale-[0.98] transition-all duration-150 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+              className="cs-btn primary"
+              disabled={submitting || loadingPorts}
             >
+              <Plus size={18} />
               {submitting
-                ? "Adding…"
+                ? "Adding maker..."
                 : loadingPorts
-                  ? "Assigning Ports…"
-                  : "Add Maker"}
+                  ? "Assigning ports..."
+                  : "Add maker"}
             </button>
           </div>
         </form>
-
-        {/* Help Text */}
-        <div className="mt-6 bg-blue-900/20 border border-blue-800/30 rounded-lg p-4">
-          <div className="flex gap-3">
-            <svg
-              className="w-5 h-5 text-blue-400 shrink-0 mt-0.5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-            <div className="text-sm text-blue-200">
-              <p className="font-semibold mb-1">Before adding a maker:</p>
-              <ul className="list-disc list-inside space-y-1 text-blue-300">
-                <li>Ensure Bitcoin Core is running and synced</li>
-                <li>The Maker ID must be unique and cannot be changed later</li>
-                <li>Both RPC username and password are required</li>
-                <li>
-                  ZMQ endpoint should match your Bitcoin Core configuration
-                </li>
-              </ul>
-            </div>
-          </div>
-        </div>
       </main>
     </div>
   );

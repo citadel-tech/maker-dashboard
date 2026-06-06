@@ -1,6 +1,6 @@
 import type { MakerInfoDetailed, BalanceInfo, MakerStatus } from "../../api";
 
-export type Tab = "dashboard" | "wallet" | "swaps" | "logs" | "settings";
+export type Tab = "dashboard" | "wallet" | "logs" | "settings";
 
 export interface MakerCoreData {
   id: string;

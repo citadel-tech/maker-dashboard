@@ -1,11 +1,14 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { Check, X as XIcon } from "lucide-react";
 import {
   makers,
   monitoring,
+  onboarding,
   type MakerInfoDetailed,
   type RpcStatusInfo,
+  type StartupCheckResponse,
 } from "../../api";
 
 interface Props {
@@ -95,6 +98,9 @@ export default function Settings({ id, onSaved }: Props) {
   const [rpcStatus, setRpcStatus] = useState<RpcStatusInfo | null>(null);
   const [rpcTesting, setRpcTesting] = useState(false);
   const [rpcTestError, setRpcTestError] = useState<string | null>(null);
+  const [torStatus, setTorStatus] = useState<StartupCheckResponse | null>(null);
+  const [torTesting, setTorTesting] = useState(false);
+  const [torTestError, setTorTestError] = useState<string | null>(null);
 
   // ── Load ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -201,6 +207,24 @@ export default function Settings({ id, onSaved }: Props) {
     }
   }
 
+  async function handleTestTor() {
+    setTorTesting(true);
+    setTorTestError(null);
+    setTorStatus(null);
+    try {
+      const status = await onboarding.startupCheck({
+        check: "tor",
+        socks_port: socksPort,
+        control_port: controlPort,
+      });
+      setTorStatus(status);
+    } catch (e: unknown) {
+      setTorTestError(e instanceof Error ? e.message : "Unknown error");
+    } finally {
+      setTorTesting(false);
+    }
+  }
+
   function copyZmqConfig() {
     navigator.clipboard
       .writeText(`zmqpubrawblock=${zmq}\nzmqpubrawtx=${zmq}`)
@@ -224,621 +248,678 @@ export default function Settings({ id, onSaved }: Props) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="cs-section">
+      <div className="cs-label">Settings · maker instance config</div>
+
       {loadError && (
-        <div className="bg-red-950 border border-red-800 text-red-300 rounded-xl p-4 text-sm">
-          Failed to load config: {loadError}
-        </div>
+        <div className="cs-banner warn">Failed to load config: {loadError}</div>
       )}
 
-      {/* ── Bitcoin Core RPC ──────────────────────────────────────────────── */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
-        <h3 className="text-lg font-semibold mb-6">Bitcoin Core RPC</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="sm:col-span-2">
-            <label className="block text-sm text-gray-400 mb-2">
-              RPC Endpoint
-            </label>
-            <input
-              type="text"
-              value={rpc}
-              onChange={(e) => setRpc(e.target.value)}
-              placeholder="127.0.0.1:18443"
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono text-sm"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              8332 mainnet · 18332 testnet · 18443 regtest · 38332 signet
-            </p>
+      <section className="cs-card">
+        <div className="cs-card-head">
+          <h2>Bitcoin Core RPC, ZMQ &amp; Tor Configuration</h2>
+          <span className="cs-card-meta">Edit · runtime config</span>
+        </div>
+
+        <div className="cs-subsection">
+          <div className="cs-subtitle text-[var(--cs-orange)]">
+            <span className="cs-pip" />
+            Bitcoin Core RPC
           </div>
-          <div>
-            <label className="block text-sm text-gray-400 mb-2">
-              RPC Username
-            </label>
-            <input
-              type="text"
-              value={rpcUser}
-              onChange={(e) => setRpcUser(e.target.value)}
-              placeholder="Leave blank to keep current"
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-400 mb-2">
-              RPC Password
-            </label>
-            <div className="relative">
+          <div className="cs-field-grid">
+            <div className="cs-field">
+              <label>RPC Endpoint</label>
               <input
-                type={showRpcPassword ? "text" : "password"}
-                value={rpcPassword}
-                onChange={(e) => setRpcPassword(e.target.value)}
-                placeholder="Leave blank to keep current"
-                className="w-full px-4 py-2.5 pr-12 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100"
+                type="text"
+                value={rpc}
+                onChange={(e) => setRpc(e.target.value)}
+                placeholder="127.0.0.1:38332"
+                className="cs-input"
               />
-              <button
-                type="button"
-                onClick={() => setShowRpcPassword(!showRpcPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-100 transition-colors"
-              >
-                <EyeIcon open={showRpcPassword} />
-              </button>
+              <p className="cs-hint">
+                Default ports — <code>8332</code> mainnet · <code>18332</code>{" "}
+                testnet · <code>38332</code> signet
+              </p>
             </div>
-            <p className="text-xs text-gray-500 mt-1">
-              Username and password must be provided together
-            </p>
-          </div>
-          <div>
-            <label className="block text-sm text-gray-400 mb-2">
-              Data Directory
-            </label>
-            <input
-              type="text"
-              value={dataDir}
-              onChange={(e) => setDataDir(e.target.value)}
-              placeholder="~/.coinswap/maker"
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono text-sm"
-            />
-          </div>
-          <div className="flex items-end">
-            <div className="flex items-center justify-between bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 w-full">
-              <div>
-                <div className="text-sm text-gray-200">Unified Protocol</div>
-                <div className="text-xs text-gray-500">
-                  Unified maker server
-                </div>
-              </div>
-              <div className="text-xs text-gray-500 font-medium">Always on</div>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* ── Test Connection ───────────────────────────────────────────────── */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
-        <div className="flex items-center gap-3 mb-6">
-          <h3 className="text-lg font-semibold">Test Connection</h3>
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-            <div className="flex justify-between items-center mb-4">
-              <div className="flex items-center gap-2">
-                <div
-                  className={`w-3 h-3 rounded-full ${
-                    rpcStatus === null
-                      ? "bg-gray-600"
-                      : rpcStatus.connected
-                        ? "bg-green-500"
-                        : "bg-red-500"
-                  }`}
+            <div className="cs-field">
+              <label>Data Directory</label>
+              <input
+                type="text"
+                value={dataDir}
+                onChange={(e) => setDataDir(e.target.value)}
+                placeholder="~/.coinswap/maker"
+                className="cs-input"
+              />
+              <p className="cs-hint">
+                Defaults to <code>~/.coinswap/&lt;id&gt;</code>
+              </p>
+            </div>
+
+            <div className="cs-field">
+              <label>RPC Username</label>
+              <input
+                type="text"
+                value={rpcUser}
+                onChange={(e) => setRpcUser(e.target.value)}
+                placeholder="Leave blank to keep current"
+                className="cs-input"
+              />
+              <p className="cs-hint">
+                Username and password must be provided together
+              </p>
+            </div>
+
+            <div className="cs-field">
+              <label>RPC Password</label>
+              <div className="cs-input-wrap">
+                <input
+                  type={showRpcPassword ? "text" : "password"}
+                  value={rpcPassword}
+                  onChange={(e) => setRpcPassword(e.target.value)}
+                  placeholder="Leave blank to keep current"
+                  className="cs-input"
                 />
-                <span className="text-sm text-gray-400">Connection Status</span>
+                <button
+                  type="button"
+                  onClick={() => setShowRpcPassword(!showRpcPassword)}
+                  className="cs-eye"
+                  aria-label={
+                    showRpcPassword ? "Hide RPC password" : "Show RPC password"
+                  }
+                >
+                  <EyeIcon open={showRpcPassword} />
+                </button>
               </div>
-              <span
-                className={`text-sm font-semibold ${
-                  rpcStatus === null
-                    ? "text-gray-500"
-                    : rpcStatus.connected
-                      ? "text-green-400"
-                      : "text-red-400"
-                }`}
-              >
-                {rpcStatus === null
-                  ? "Unknown"
-                  : rpcStatus.connected
-                    ? "Connected"
-                    : "Disconnected"}
-              </span>
+              <p className="cs-hint">Write-only field · current value hidden</p>
             </div>
-            <div className="space-y-2 text-xs">
-              {(
-                [
-                  [
-                    "Bitcoin Version",
-                    rpcStatus?.version !== undefined
-                      ? String(rpcStatus.version)
-                      : "--",
-                  ],
-                  ["Network", rpcStatus?.network ?? "--"],
-                  [
-                    "Block Height",
-                    rpcStatus?.block_height !== undefined
-                      ? rpcStatus.block_height.toLocaleString()
-                      : "--",
-                  ],
-                  [
-                    "Sync Progress",
-                    rpcStatus?.sync_progress !== undefined
-                      ? `${(rpcStatus.sync_progress * 100).toFixed(2)}%`
-                      : "--",
-                  ],
-                ] as [string, string][]
-              ).map(([label, val]) => (
-                <div key={label} className="flex justify-between">
-                  <span className="text-gray-500">{label}</span>
-                  <span
-                    className={val === "--" ? "text-gray-600" : "text-gray-300"}
-                  >
-                    {val}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="flex flex-col justify-center gap-3">
-            <p className="text-sm text-gray-400">
-              Tests connectivity to the configured Bitcoin Core RPC endpoint and
-              returns node info.
-            </p>
-            {rpcTestError && (
-              <p className="text-xs text-red-400">{rpcTestError}</p>
-            )}
-            <button
-              type="button"
-              onClick={handleTestConnection}
-              disabled={rpcTesting}
-              className="w-full py-3 bg-orange-600 hover:bg-orange-500 active:scale-[0.98] disabled:bg-gray-800 disabled:border disabled:border-dashed disabled:border-gray-600 disabled:text-gray-500 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-all duration-150"
-            >
-              {rpcTesting ? "Testing…" : "Test Connection"}
-            </button>
           </div>
         </div>
-      </div>
 
-      {/* ── ZMQ ──────────────────────────────────────────────────────────── */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
-        <h3 className="text-lg font-semibold mb-6">ZMQ Configuration</h3>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm text-gray-400 mb-2">
-                ZMQ Endpoint
-              </label>
+        <div className="cs-subsection">
+          <div className="cs-subtitle text-[var(--cs-blue)]">
+            <span className="cs-pip" />
+            ZMQ Configuration
+          </div>
+          <div className="cs-field-grid">
+            <div className="cs-field">
+              <label>ZMQ Endpoint</label>
               <input
                 type="text"
                 value={zmq}
                 onChange={(e) => setZmq(e.target.value)}
                 placeholder="tcp://127.0.0.1:28332"
-                className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono text-sm"
+                className="cs-input"
               />
-              <p className="text-xs text-gray-500 mt-1">
-                Used for both zmqpubrawblock and zmqpubrawtx
+              <p className="cs-hint">
+                Used for both <code>zmqpubrawblock</code> and{" "}
+                <code>zmqpubrawtx</code>
               </p>
             </div>
-            <div className="bg-yellow-900/20 border border-yellow-800/30 rounded-lg p-3">
-              <p className="text-xs text-yellow-400">
-                <strong>Note:</strong> Both zmqpubrawblock and zmqpubrawtx must
-                use the same endpoint.
+
+            <div className="cs-field">
+              <label>
+                bitcoin.conf snippet{" "}
+                <span className="cs-card-meta ml-2">Read-only</span>
+              </label>
+              <pre className="cs-code">{`zmqpubrawblock=${zmq || "tcp://127.0.0.1:28332"}
+zmqpubrawtx=${zmq || "tcp://127.0.0.1:28332"}`}</pre>
+            </div>
+
+            <div className="cs-span-2">
+              <div className="cs-banner warn">
+                <span>
+                  <strong>Note:</strong> Both <code>zmqpubrawblock</code> and{" "}
+                  <code>zmqpubrawtx</code> must use the same endpoint.
+                </span>
+              </div>
+            </div>
+
+            <div className="cs-span-2 flex flex-wrap items-center justify-between gap-3">
+              <p className="cs-hint">
+                Copy these lines into your <code>bitcoin.conf</code> and restart
+                Bitcoin Core.
               </p>
-            </div>
-          </div>
-          <div className="space-y-3">
-            <h4 className="text-sm font-medium text-gray-300">
-              bitcoin.conf snippet
-            </h4>
-            <div className="bg-gray-800 rounded-lg p-4 font-mono text-xs text-gray-300">
-              zmqpubrawblock={zmq || "tcp://127.0.0.1:28332"}
-              <br />
-              zmqpubrawtx={zmq || "tcp://127.0.0.1:28332"}
-            </div>
-            <button
-              type="button"
-              onClick={copyZmqConfig}
-              className="w-full bg-gray-800 hover:bg-gray-700 text-white py-2 rounded-lg text-sm transition-all"
-            >
-              {copied ? "Copied!" : "Copy ZMQ Config"}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Network Ports ─────────────────────────────────────────────────── */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
-        <h3 className="text-lg font-semibold mb-2">Network Ports</h3>
-        <p className="text-sm text-gray-400 mb-6">
-          Each maker must use unique ports to avoid clashes when running
-          multiple makers on the same machine.
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label
-              htmlFor="networkPort"
-              className="block text-sm text-gray-400 mb-2"
-            >
-              Network Port
-            </label>
-            <input
-              type="number"
-              value={networkPort}
-              min={1}
-              max={65535}
-              onChange={(e) => setNetworkPort(Number(e.target.value))}
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Port for coinswap client connections (default 6102)
-            </p>
-          </div>
-          <div>
-            <label
-              htmlFor="rpcPort"
-              className="block text-sm text-gray-400 mb-2"
-            >
-              RPC Port
-            </label>
-            <input
-              type="number"
-              value={rpcPort}
-              min={1}
-              max={65535}
-              onChange={(e) => setRpcPort(Number(e.target.value))}
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Port for maker-cli operations (default 6103)
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Tor ──────────────────────────────────────────────────────────── */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
-        <h3 className="text-lg font-semibold mb-6">Tor Configuration</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm text-gray-400 mb-2">
-              Tor Auth Password
-            </label>
-            <div className="relative">
-              <input
-                type={showTorAuth ? "text" : "password"}
-                value={torAuth}
-                onChange={(e) => setTorAuth(e.target.value)}
-                placeholder="Leave blank to keep current"
-                className="w-full px-4 py-2.5 pr-12 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100"
-              />
               <button
                 type="button"
-                onClick={() => setShowTorAuth(!showTorAuth)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-100 transition-colors"
+                onClick={copyZmqConfig}
+                className="cs-btn ghost sm"
               >
-                <EyeIcon open={showTorAuth} />
+                {copied ? "Copied" : "Copy ZMQ Config"}
               </button>
             </div>
-            <p className="text-xs text-gray-500 mt-1">
-              Authentication password for Tor control port
-            </p>
-          </div>
-          <div>
-            <label
-              htmlFor="socksPort"
-              className="block text-sm text-gray-400 mb-2"
-            >
-              SOCKS Port
-            </label>
-            <input
-              type="number"
-              value={socksPort}
-              min={1}
-              max={65535}
-              onChange={(e) => setSocksPort(Number(e.target.value))}
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              SOCKS5 proxy port for Tor (default 9050)
-            </p>
-          </div>
-          <div>
-            <label
-              htmlFor="controlPort"
-              className="block text-sm text-gray-400 mb-2"
-            >
-              Control Port
-            </label>
-            <input
-              type="number"
-              min={1}
-              max={65535}
-              value={controlPort}
-              onChange={(e) => setControlPort(Number(e.target.value))}
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Control port for Tor interface (default 9051)
-            </p>
           </div>
         </div>
-      </div>
 
-      {/* ── Swap & Fidelity ───────────────────────────────────────────────── */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
-        <h3 className="text-lg font-semibold mb-6">
-          Swap & Fidelity Configuration
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label
-              htmlFor="minSwapAmount"
-              className="block text-sm text-gray-400 mb-2"
-            >
-              Minimum Swap Amount (sats)
-            </label>
-            <input
-              type="number"
-              min={1}
-              value={minSwapAmount}
-              onChange={(e) => setMinSwapAmount(Number(e.target.value))}
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
-            />
+        <div className="cs-subsection">
+          <div className="cs-subtitle text-[var(--cs-purple)]">
+            <span className="cs-pip" />
+            Tor Configuration
           </div>
-          <div>
-            <label
-              htmlFor="baseFee"
-              className="block text-sm text-gray-400 mb-2"
-            >
-              Required Confirmations
-            </label>
-            <input
-              type="number"
-              min={0}
-              step={1}
-              value={requiredConfirms}
-              onChange={(e) => setRequiredConfirms(Number(e.target.value))}
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Enter a whole number of funding confirmations required before
-              progressing a swap
-            </p>
+          <div className="cs-field-grid cols-3">
+            <div className="cs-field">
+              <label>Tor Auth Password</label>
+              <div className="cs-input-wrap">
+                <input
+                  type={showTorAuth ? "text" : "password"}
+                  value={torAuth}
+                  onChange={(e) => setTorAuth(e.target.value)}
+                  placeholder="Leave blank if no auth configured"
+                  className="cs-input"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowTorAuth(!showTorAuth)}
+                  className="cs-eye"
+                  aria-label={
+                    showTorAuth ? "Hide Tor password" : "Show Tor password"
+                  }
+                >
+                  <EyeIcon open={showTorAuth} />
+                </button>
+              </div>
+              <p className="cs-hint">
+                Required if Tor uses <code>HashedControlPassword</code>
+              </p>
+            </div>
+
+            <div className="cs-field">
+              <label>SOCKS Port</label>
+              <input
+                type="number"
+                value={socksPort}
+                min={1}
+                max={65535}
+                onChange={(e) => setSocksPort(Number(e.target.value))}
+                className="cs-input"
+              />
+              <p className="cs-hint">
+                SOCKS proxy port — default <code>9050</code>
+              </p>
+            </div>
+
+            <div className="cs-field">
+              <label>Control Port</label>
+              <input
+                type="number"
+                min={1}
+                max={65535}
+                value={controlPort}
+                onChange={(e) => setControlPort(Number(e.target.value))}
+                className="cs-input"
+              />
+              <p className="cs-hint">
+                Tor control interface — default <code>9051</code>
+              </p>
+            </div>
           </div>
-          <div>
-            <label
-              htmlFor="baseFee"
-              className="block text-sm text-gray-400 mb-2"
-            >
-              Base Fee (sats)
-            </label>
-            <input
-              type="number"
-              min={0}
-              value={baseFee}
-              placeholder="1000"
-              onChange={(e) => setBaseFee(Number(e.target.value))}
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="amountRelativeFeePct"
-              className="block text-sm text-gray-400 mb-2"
-            >
-              Amount Relative Fee (decimal)
-            </label>
-            <input
-              type="number"
-              min={0}
-              max={1}
-              step="0.001"
-              value={amountRelativeFeePct}
-              placeholder="0.025"
-              onChange={(e) => setAmountRelativeFeePct(Number(e.target.value))}
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Enter a decimal from 0 to 1. Example: `0.025` = `2.5%`
-            </p>
-          </div>
-          <div>
-            <label
-              htmlFor="timeRelativeFeePct"
-              className="block text-sm text-gray-400 mb-2"
-            >
-              Time Relative Fee (decimal)
-            </label>
-            <input
-              type="number"
-              min={0}
-              max={1}
-              step="0.001"
-              value={timeRelativeFeePct}
-              placeholder="0.001"
-              onChange={(e) => setTimeRelativeFeePct(Number(e.target.value))}
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Enter a decimal from 0 to 1. Example: `0.001` = `0.1%`
-            </p>
-          </div>
-          <div>
-            <label
-              htmlFor="fidelityAmount"
-              className="block text-sm text-gray-400 mb-2"
-            >
-              Fidelity Amount (sats)
-            </label>
-            <input
-              type="number"
-              min={1}
-              value={fidelityAmount}
-              placeholder="10000"
-              onChange={(e) => setFidelityAmount(Number(e.target.value))}
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="fidelityTimelock"
-              className="block text-sm text-gray-400 mb-2"
-            >
-              Fidelity Timelock (blocks)
-            </label>
-            <input
-              type="number"
-              min={12960}
-              max={25920}
-              value={fidelityTimelock}
-              placeholder="15000"
-              onChange={(e) => setFidelityTimelock(Number(e.target.value))}
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg focus:border-orange-500 focus:outline-none focus:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-shadow duration-200 text-gray-100 font-mono"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Must be between 12960 and 25920 blocks
-            </p>
+
+          <div className="mt-[18px] flex flex-wrap items-start justify-between gap-4">
+            <div className="min-w-[260px] flex-1 rounded-[10px] border border-[var(--cs-border)] bg-[var(--cs-surface-3)] p-4">
+              <div className="mb-3 grid gap-3 border-b border-dashed border-[var(--cs-border)] pb-3 md:grid-cols-2">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="cs-label flex items-center gap-2">
+                    <span
+                      className={`cs-dot ${
+                        rpcStatus === null
+                          ? "text-[var(--cs-text-3)]"
+                          : rpcStatus.connected
+                            ? "text-[var(--cs-green)]"
+                            : "text-[var(--cs-red)]"
+                      }`}
+                    />
+                    Bitcoin
+                  </span>
+                  <span
+                    className={`cs-card-meta ${
+                      rpcStatus === null
+                        ? ""
+                        : rpcStatus.connected
+                          ? "text-[var(--cs-green)]"
+                          : "text-[var(--cs-red)]"
+                    }`}
+                  >
+                    {rpcStatus === null
+                      ? "Unknown"
+                      : rpcStatus.connected
+                        ? "Connected"
+                        : "Disconnected"}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between gap-3">
+                  <span className="cs-label flex items-center gap-2">
+                    <span
+                      className={`cs-dot ${
+                        torStatus === null
+                          ? "text-[var(--cs-text-3)]"
+                          : torStatus.success
+                            ? "text-[var(--cs-green)]"
+                            : "text-[var(--cs-red)]"
+                      }`}
+                    />
+                    Tor
+                  </span>
+                  <span
+                    className={`cs-card-meta ${
+                      torStatus === null
+                        ? ""
+                        : torStatus.success
+                          ? "text-[var(--cs-green)]"
+                          : "text-[var(--cs-red)]"
+                    }`}
+                  >
+                    {torStatus === null
+                      ? "Unknown"
+                      : torStatus.success
+                        ? "Reachable"
+                        : "Failed"}
+                  </span>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-2 text-[11px] sm:grid-cols-2">
+                {(
+                  [
+                    [
+                      "Bitcoin Version",
+                      rpcStatus?.version !== undefined
+                        ? String(rpcStatus.version)
+                        : "--",
+                    ],
+                    ["Network", rpcStatus?.network ?? "--"],
+                    [
+                      "Block Height",
+                      rpcStatus?.block_height !== undefined
+                        ? rpcStatus.block_height.toLocaleString()
+                        : "--",
+                    ],
+                    [
+                      "Sync Progress",
+                      rpcStatus?.sync_progress !== undefined
+                        ? `${(rpcStatus.sync_progress * 100).toFixed(2)}%`
+                        : "--",
+                    ],
+                  ] as [string, string][]
+                ).map(([label, val]) => (
+                  <div key={label} className="flex justify-between gap-3">
+                    <span className="cs-dim">{label}</span>
+                    <span className="cs-mono cs-muted">{val}</span>
+                  </div>
+                ))}
+              </div>
+              {torStatus && (
+                <div className="cs-diagnostic mt-3 rounded-md border border-[var(--cs-border)] bg-[rgba(255,255,255,0.03)] px-3 py-2">
+                  <div className="cs-label mb-1">Tor Result</div>
+                  <p className="m-0 cs-muted">{torStatus.message}</p>
+                  {torStatus.detail && (
+                    <p className="m-0 mt-1 cs-dim">{torStatus.detail}</p>
+                  )}
+                </div>
+              )}
+              {rpcTestError && (
+                <p className="mt-3 text-xs text-[var(--cs-red)]">
+                  {rpcTestError}
+                </p>
+              )}
+              {torTestError && (
+                <p className="mt-3 text-xs text-[var(--cs-red)]">
+                  {torTestError}
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-2 pt-1">
+              <button
+                type="button"
+                onClick={handleTestConnection}
+                disabled={rpcTesting}
+                className="cs-btn primary sm"
+              >
+                {rpcTesting ? "Testing..." : "Test Bitcoin"}
+              </button>
+              <button
+                type="button"
+                onClick={handleTestTor}
+                disabled={torTesting}
+                className="cs-btn primary sm"
+              >
+                {torTesting ? "Testing..." : "Test Tor"}
+              </button>
+            </div>
           </div>
         </div>
+      </section>
+
+      <section className="cs-card">
+        <div className="cs-card-head">
+          <h2>Network Ports</h2>
+          <span className="cs-card-meta">Unique per maker</span>
+        </div>
+        <div className="cs-card-body">
+          <p className="mb-4 text-[12.5px] cs-muted">
+            Each maker must use unique ports to avoid clashes when running
+            multiple makers on the same machine.
+          </p>
+          <div className="cs-field-grid">
+            <div className="cs-field">
+              <label htmlFor="networkPort">Network Port</label>
+              <input
+                id="networkPort"
+                type="number"
+                value={networkPort}
+                min={1}
+                max={65535}
+                onChange={(e) => setNetworkPort(Number(e.target.value))}
+                className="cs-input"
+              />
+              <p className="cs-hint">
+                For coinswap client connections (default <code>6102</code>)
+              </p>
+            </div>
+            <div className="cs-field">
+              <label htmlFor="rpcPort">RPC Port</label>
+              <input
+                id="rpcPort"
+                type="number"
+                value={rpcPort}
+                min={1}
+                max={65535}
+                onChange={(e) => setRpcPort(Number(e.target.value))}
+                className="cs-input"
+              />
+              <p className="cs-hint">
+                For maker-cli operations (default <code>6103</code>)
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="grid grid-cols-1 gap-[14px] xl:grid-cols-2">
+        <section className="cs-card">
+          <div className="cs-card-head">
+            <h2>Swap Settings</h2>
+            <span className="cs-card-meta">Pricing &amp; thresholds</span>
+          </div>
+          <div className="cs-card-body">
+            <div className="cs-field-grid">
+              <div className="cs-field">
+                <label htmlFor="minSwapAmount">Minimum Swap Amount</label>
+                <div className="cs-input-wrap">
+                  <input
+                    id="minSwapAmount"
+                    type="number"
+                    min={1}
+                    value={minSwapAmount}
+                    onChange={(e) => setMinSwapAmount(Number(e.target.value))}
+                    className="cs-input pr-16"
+                  />
+                  <span className="cs-unit">丰</span>
+                </div>
+                <p className="cs-hint">Smallest swap this maker will accept</p>
+              </div>
+
+              <div className="cs-field">
+                <label htmlFor="requiredConfirms">Required Confirmations</label>
+                <input
+                  id="requiredConfirms"
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={requiredConfirms}
+                  onChange={(e) => setRequiredConfirms(Number(e.target.value))}
+                  className="cs-input"
+                />
+                <p className="cs-hint">
+                  Funding confirmations before progressing a swap
+                </p>
+              </div>
+
+              <div className="cs-field">
+                <label htmlFor="baseFee">Base Fee</label>
+                <div className="cs-input-wrap">
+                  <input
+                    id="baseFee"
+                    type="number"
+                    min={0}
+                    value={baseFee}
+                    placeholder="1000"
+                    onChange={(e) => setBaseFee(Number(e.target.value))}
+                    className="cs-input pr-16"
+                  />
+                  <span className="cs-unit">丰</span>
+                </div>
+                <p className="cs-hint">Flat fee charged per swap</p>
+              </div>
+
+              <div className="cs-field">
+                <label htmlFor="amountRelativeFeePct">
+                  Amount Relative Fee
+                </label>
+                <input
+                  id="amountRelativeFeePct"
+                  type="number"
+                  min={0}
+                  max={1}
+                  step="0.001"
+                  value={amountRelativeFeePct}
+                  placeholder="0.025"
+                  onChange={(e) =>
+                    setAmountRelativeFeePct(Number(e.target.value))
+                  }
+                  className="cs-input"
+                />
+                <p className="cs-hint">
+                  Decimal 0–1 · <code>0.025</code> = 2.5%
+                </p>
+              </div>
+
+              <div className="cs-field cs-span-2">
+                <label htmlFor="timeRelativeFeePct">Time Relative Fee</label>
+                <input
+                  id="timeRelativeFeePct"
+                  type="number"
+                  min={0}
+                  max={1}
+                  step="0.001"
+                  value={timeRelativeFeePct}
+                  placeholder="0.001"
+                  onChange={(e) =>
+                    setTimeRelativeFeePct(Number(e.target.value))
+                  }
+                  className="cs-input"
+                />
+                <p className="cs-hint">
+                  Decimal 0–1 · <code>0.001</code> = 0.1% per block
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="cs-card">
+          <div className="cs-card-head">
+            <h2>Fidelity Bond</h2>
+            <span className="cs-card-meta">Reputation stake</span>
+          </div>
+          <div className="cs-card-body">
+            <div className="cs-field-grid">
+              <div className="cs-field cs-span-2">
+                <label htmlFor="fidelityAmount">Fidelity Amount</label>
+                <div className="cs-input-wrap">
+                  <input
+                    id="fidelityAmount"
+                    type="number"
+                    min={1}
+                    value={fidelityAmount}
+                    placeholder="10000"
+                    onChange={(e) => setFidelityAmount(Number(e.target.value))}
+                    className="cs-input pr-16"
+                  />
+                  <span className="cs-unit">丰</span>
+                </div>
+                <p className="cs-hint">
+                  Locked stake — higher amount → higher trust score
+                </p>
+              </div>
+
+              <div className="cs-field cs-span-2">
+                <label htmlFor="fidelityTimelock">Fidelity Timelock</label>
+                <div className="cs-input-wrap">
+                  <input
+                    id="fidelityTimelock"
+                    type="number"
+                    min={12960}
+                    max={25920}
+                    value={fidelityTimelock}
+                    placeholder="15000"
+                    onChange={(e) =>
+                      setFidelityTimelock(Number(e.target.value))
+                    }
+                    className="cs-input pr-20"
+                  />
+                  <span className="cs-unit">BLOCKS</span>
+                </div>
+                <p className="cs-hint">
+                  Must be between <code>12960</code> and <code>25920</code>{" "}
+                  blocks (~90 d – 180 d)
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
 
-      {/* ── Save ─────────────────────────────────────────────────────────── */}
       {saveResult && (
-        <div
-          className={`rounded-xl px-4 py-3 text-sm ${
-            saveResult.ok
-              ? "bg-green-950 border border-green-800 text-green-300"
-              : "bg-red-950 border border-red-800 text-red-300"
-          }`}
-        >
+        <div className={`cs-banner ${saveResult.ok ? "info" : "warn"}`}>
           {saveResult.msg}
         </div>
       )}
 
-      <div className="flex gap-3">
+      <div className="cs-save-bar">
+        <p className="cs-hint max-w-3xl">
+          Saving stops the maker, writes the new config to{" "}
+          <code>config.toml</code>, then restarts it automatically. Password
+          fields are write-only — leave blank to keep the current value.
+        </p>
         <button
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="flex-1 px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 active:scale-[0.98] transition-all duration-150 font-semibold disabled:opacity-50"
+          className="cs-btn primary sm"
         >
-          {saving ? "Saving…" : "Save & Restart Maker"}
+          {saving ? "Saving..." : "Save & Restart Maker"}
         </button>
       </div>
 
-      <div className="bg-blue-900/20 border border-blue-800/30 rounded-lg p-4">
-        <p className="text-xs text-blue-400">
-          <strong>Note:</strong> Saving stops the maker, writes the new config
-          to <code className="bg-blue-900/30 px-1 rounded">config.toml</code>,
-          then restarts it automatically. Password fields are write-only — leave
-          blank to keep the current value. Make sure each maker uses unique
-          network and RPC ports.
-        </p>
-      </div>
-
-      {/* ── Danger Zone ──────────────────────────────────────────────────── */}
-      <div className="bg-gray-900 border border-red-900/40 rounded-xl p-4 sm:p-6">
-        <h3 className="text-lg font-semibold text-red-400 mb-2">Danger Zone</h3>
-        <p className="text-sm text-gray-400 mb-4">
-          Remove this maker from the dashboard. This does not affect your funds
-          or on-chain state.
-        </p>
+      <section className="cs-danger-zone cs-rail">
+        <div>
+          <h2 className="m-0 text-[13px] font-semibold text-[var(--cs-red)]">
+            Danger Zone
+          </h2>
+          <p className="m-0 mt-1 text-[12.5px] cs-muted">
+            Remove this maker from the dashboard. Does not affect your funds or
+            on-chain state.
+          </p>
+        </div>
         <button
           type="button"
           onClick={() => setShowRemoveModal(true)}
-          className="px-6 py-2.5 bg-transparent border border-red-700 text-red-400 rounded-lg hover:bg-red-900/20 hover:shadow-md hover:shadow-red-500/20 active:scale-[0.97] transition-all duration-150 text-sm font-semibold"
+          className="cs-btn danger sm"
         >
           Remove Maker
         </button>
-      </div>
+      </section>
 
       {/* ── Remove Modal ─────────────────────────────────────────────────── */}
-      {showRemoveModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70">
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 max-w-md w-full shadow-2xl">
-            <h2 className="text-xl font-bold mb-1">Remove Maker</h2>
-            <p className="text-sm text-gray-400 mb-6">
-              Before you continue, please understand what this does and doesn't
-              do.
-            </p>
-            <div className="space-y-3 mb-6">
-              {[
-                {
-                  icon: <Check className="w-4 h-4" />,
-                  color: "text-green-400",
-                  text: (
-                    <>
-                      Removes <strong className="text-white">{id}</strong> from
-                      this dashboard
-                    </>
-                  ),
-                },
-                {
-                  icon: <Check className="w-4 h-4" />,
-                  color: "text-green-400",
-                  text: "Stops the maker process if it is currently running",
-                },
-                {
-                  icon: <XIcon className="w-4 h-4" />,
-                  color: "text-red-400",
-                  text: (
-                    <>
-                      <strong className="text-white">Does not</strong> delete
-                      your wallet or funds — those remain in the data directory
-                    </>
-                  ),
-                },
-                {
-                  icon: <XIcon className="w-4 h-4" />,
-                  color: "text-red-400",
-                  text: (
-                    <>
-                      <strong className="text-white">Does not</strong> affect
-                      any on-chain state, fidelity bonds, or coinswap history
-                    </>
-                  ),
-                },
-                {
-                  icon: <XIcon className="w-4 h-4" />,
-                  color: "text-red-400",
-                  text: 'Cannot undo blockchain transactions — nothing on-chain is ever "deleted"',
-                },
-              ].map((item, i) => (
-                <div key={i} className="flex gap-3 bg-gray-800 rounded-lg p-3">
-                  <span className={`${item.color} mt-0.5`}>{item.icon}</span>
-                  <p className="text-sm text-gray-300">{item.text}</p>
-                </div>
-              ))}
+      {showRemoveModal &&
+        createPortal(
+          <div className="cs-modal-backdrop">
+            <div className="cs-modal">
+              <h2 className="mb-1 text-xl font-bold">Remove Maker</h2>
+              <p className="mb-6 text-sm cs-muted">
+                Before you continue, please understand what this does and
+                doesn't do.
+              </p>
+              <div className="space-y-3 mb-6">
+                {[
+                  {
+                    icon: <Check className="w-4 h-4" />,
+                    color: "text-green-400",
+                    text: (
+                      <>
+                        Removes <strong className="text-white">{id}</strong>{" "}
+                        from this dashboard
+                      </>
+                    ),
+                  },
+                  {
+                    icon: <Check className="w-4 h-4" />,
+                    color: "text-green-400",
+                    text: "Stops the maker process if it is currently running",
+                  },
+                  {
+                    icon: <XIcon className="w-4 h-4" />,
+                    color: "text-red-400",
+                    text: (
+                      <>
+                        <strong className="text-white">Does not</strong> delete
+                        your wallet or funds — those remain in the data
+                        directory
+                      </>
+                    ),
+                  },
+                  {
+                    icon: <XIcon className="w-4 h-4" />,
+                    color: "text-red-400",
+                    text: (
+                      <>
+                        <strong className="text-white">Does not</strong> affect
+                        any on-chain state, fidelity bonds, or coinswap history
+                      </>
+                    ),
+                  },
+                  {
+                    icon: <XIcon className="w-4 h-4" />,
+                    color: "text-red-400",
+                    text: 'Cannot undo blockchain transactions — nothing on-chain is ever "deleted"',
+                  },
+                ].map((item, i) => (
+                  <div
+                    key={i}
+                    className="flex gap-3 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface-3)] p-3"
+                  >
+                    <span className={`${item.color} mt-0.5`}>{item.icon}</span>
+                    <p className="text-sm cs-muted">{item.text}</p>
+                  </div>
+                ))}
+              </div>
+              <p className="mb-6 text-xs cs-dim">
+                You can re-add this maker at any time by pointing to the same
+                data directory.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowRemoveModal(false)}
+                  disabled={removing}
+                  className="cs-btn ghost flex-1"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRemove}
+                  disabled={removing}
+                  className="cs-btn danger flex-1"
+                >
+                  {removing ? "Removing..." : "Yes, Remove Maker"}
+                </button>
+              </div>
             </div>
-            <p className="text-xs text-gray-500 mb-6">
-              You can re-add this maker at any time by pointing to the same data
-              directory.
-            </p>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setShowRemoveModal(false)}
-                disabled={removing}
-                className="flex-1 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 active:scale-[0.97] text-gray-100 rounded-lg transition-all duration-150 text-sm font-semibold disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleRemove}
-                disabled={removing}
-                className="flex-1 px-4 py-2.5 bg-red-700 hover:bg-red-600 active:scale-[0.97] text-white rounded-lg transition-all duration-150 text-sm font-semibold disabled:opacity-50"
-              >
-                {removing ? "Removing…" : "Yes, Remove Maker"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

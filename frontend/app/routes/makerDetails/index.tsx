@@ -1,12 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
-import { useParams } from "react-router-dom";
-import { Zap, Moon, Copy, Check } from "lucide-react";
-import Nav from "../../components/Nav";
+import { Link, useParams } from "react-router-dom";
+import { ChevronLeft, Play, RefreshCw, Square } from "lucide-react";
 import {
   makers,
   wallet,
   monitoring,
-  satsToBtc,
   type MakerInfoDetailed,
   type BalanceInfo,
   type MakerStatus,
@@ -22,7 +20,6 @@ import Settings from "./settings";
 const TABS: { id: Tab; label: string }[] = [
   { id: "dashboard", label: "Dashboard" },
   { id: "wallet", label: "Wallet" },
-  { id: "swaps", label: "Swap History" },
   { id: "logs", label: "Logs" },
   { id: "settings", label: "Settings" },
 ];
@@ -30,6 +27,12 @@ const TABS: { id: Tab; label: string }[] = [
 function truncateMiddle(value: string, start = 24, end = 18) {
   if (value.length <= start + end + 1) return value;
   return `${value.slice(0, start)}...${value.slice(-end)}`;
+}
+
+function torHostOnly(value: string) {
+  const onionEnd = value.indexOf(".onion");
+  if (onionEnd === -1) return value;
+  return value.slice(0, onionEnd + ".onion".length);
 }
 
 export default function MakerDetails() {
@@ -51,17 +54,10 @@ export default function MakerDetails() {
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [walletRefreshToken, setWalletRefreshToken] = useState(0);
-  const [copiedTor, setCopiedTor] = useState(false);
 
   function copyTorAddress() {
     if (!torAddress) return;
-    navigator.clipboard
-      .writeText(torAddress)
-      .then(() => {
-        setCopiedTor(true);
-        setTimeout(() => setCopiedTor(false), 2000);
-      })
-      .catch(() => {});
+    navigator.clipboard.writeText(torHostOnly(torAddress)).catch(() => {});
   }
 
   const loadCore = useCallback(async () => {
@@ -153,175 +149,96 @@ export default function MakerDetails() {
     isRunning,
   };
 
-  const swapLiquidity = balances ? `${satsToBtc(balances.swap)} BTC` : "—";
+  const torHostname = torAddress ? torHostOnly(torAddress) : null;
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100">
-      <Nav />
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 animate-slide-in-up">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => window.history.back()}
-              className="p-2 hover:bg-gray-800 rounded-lg transition-all duration-150 hover:-translate-x-0.5"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+    <div className="cs-page">
+      <main className="cs-main animate-slide-in-up">
+        <div className="cs-shell">
+          <div className="cs-content">
+            <div className="cs-page-head">
+              <Link
+                to="/"
+                className="cs-back"
+                aria-label="Back to main dashboard"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-            </button>
-            <div className="flex items-center gap-3">
-              <span
-                className={`w-3 h-3 rounded-full flex-shrink-0 ${
-                  isRunning
-                    ? "bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)] animate-pulse"
-                    : "bg-gray-600"
-                }`}
-              />
-              <div>
-                <h1 className="text-2xl sm:text-3xl font-bold">{id}</h1>
-                {info?.rpc && (
-                  <p className="text-sm text-gray-400">RPC: {info.rpc}</p>
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={handleSync}
-              disabled={syncLoading}
-              className="px-4 py-2 bg-gray-800 rounded-lg hover:bg-gray-700 active:scale-[0.97] transition-all duration-150 text-sm disabled:opacity-50"
-            >
-              {syncLoading ? "Syncing…" : "Sync Wallet"}
-            </button>
-            <button
-              onClick={handleStartStop}
-              disabled={actionLoading || loading}
-              className="px-4 py-2 border border-gray-700 rounded-lg hover:bg-gray-800 hover:border-orange-500 active:scale-[0.97] transition-all duration-150 text-sm disabled:opacity-50"
-            >
-              {actionLoading ? "…" : isRunning ? "Stop" : "Start"}
-            </button>
-          </div>
-        </div>
-
-        {syncMsg && (
-          <div className="mb-4 text-sm text-gray-300 bg-gray-800 px-4 py-2 rounded-lg">
-            {syncMsg}
-          </div>
-        )}
-
-        {error && (
-          <div className="mb-6">
-            <ErrorBanner message={error} />
-          </div>
-        )}
-
-        {/* Status Banner */}
-        <div
-          className={`bg-gradient-to-r ${
-            isRunning
-              ? "from-orange-600 to-orange-500"
-              : "from-gray-700 to-gray-600"
-          } rounded-xl p-4 sm:p-6 mb-6 sm:mb-8 animate-fade-in`}
-        >
-          <div className="flex flex-col sm:flex-row justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center text-2xl">
-                {isRunning ? (
-                  <Zap className="w-6 h-6" />
-                ) : (
-                  <Moon className="w-6 h-6" />
-                )}
-              </div>
-              <div>
-                <div className="text-sm text-orange-100 mb-1">Status</div>
-                <div className="text-xl sm:text-2xl font-bold text-white">
-                  {loading ? "Loading…" : isRunning ? "Running" : "Stopped"}
-                </div>
-              </div>
-            </div>
-            <div>
-              <div className="text-sm text-orange-100 mb-2">Swap Stats</div>
-              <div>
-                <div className="text-xs uppercase tracking-wide text-orange-100/80 mb-1">
-                  Swap Liquidity
-                </div>
-                <div className="text-lg sm:text-xl font-bold text-white">
-                  {swapLiquidity}
-                </div>
-              </div>
-            </div>
-            <div className="sm:max-w-xs flex flex-col items-start min-w-0">
-              <div className="text-sm text-orange-100 mb-1">Tor Hostname</div>
-              <div className="flex items-center gap-2 w-full">
+                <ChevronLeft className="h-4 w-4" />
+              </Link>
+              <div className="cs-heading">
+                <h1>{id}</h1>
                 <div
-                  className="text-xs sm:text-sm font-mono text-white bg-white/10 px-3 py-2 rounded-lg break-all flex-1"
-                  title={torAddress ?? undefined}
+                  className={`cs-subaddr ${torHostname ? "copyable" : ""}`}
+                  onClick={copyTorAddress}
+                  title={torHostname ?? info?.rpc ?? undefined}
                 >
-                  {torAddress ? truncateMiddle(torAddress) : "—"}
+                  {torHostname
+                    ? truncateMiddle(torHostname)
+                    : info?.rpc
+                      ? `RPC ${info.rpc}`
+                      : "Maker instance"}
                 </div>
-                {torAddress && (
-                  <button
-                    type="button"
-                    onClick={copyTorAddress}
-                    title={copiedTor ? "Copied!" : "Copy to clipboard"}
-                    className="shrink-0 p-1.5 bg-black/20 hover:bg-black/30 rounded-lg transition-all duration-150"
-                  >
-                    {copiedTor ? (
-                      <Check className="w-4 h-4 text-green-400" />
-                    ) : (
-                      <Copy className="w-4 h-4 text-white" />
-                    )}
-                  </button>
-                )}
+              </div>
+              <div className="cs-actions">
+                <button
+                  onClick={handleSync}
+                  disabled={syncLoading}
+                  className={`cs-btn ghost ${syncLoading ? "spin" : ""}`}
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  {syncLoading ? "Syncing..." : "Sync Wallet"}
+                </button>
+                <button
+                  onClick={handleStartStop}
+                  disabled={actionLoading || loading}
+                  className={`cs-btn ${isRunning ? "danger" : "start"}`}
+                >
+                  {isRunning ? (
+                    <Square className="h-3.5 w-3.5" fill="currentColor" />
+                  ) : (
+                    <Play className="h-3.5 w-3.5" fill="currentColor" />
+                  )}
+                  {actionLoading ? "..." : isRunning ? "Stop" : "Start"}
+                </button>
               </div>
             </div>
+
+            {syncMsg && <div className="cs-banner info">{syncMsg}</div>}
+
+            {error && <ErrorBanner message={error} />}
+
+            <nav className="cs-tabs" role="tablist" aria-label="Maker sections">
+              {TABS.map(({ id: tabId, label }) => (
+                <button
+                  key={tabId}
+                  onClick={() => setActiveTab(tabId)}
+                  className={`cs-tab ${activeTab === tabId ? "active" : ""}`}
+                  role="tab"
+                  aria-selected={activeTab === tabId}
+                >
+                  {label}
+                </button>
+              ))}
+            </nav>
+
+            {/* Tab Content */}
+            {activeTab === "dashboard" && (
+              <>
+                <Dashboard core={core} />
+                <Swaps id={id} />
+              </>
+            )}
+            {activeTab === "wallet" && (
+              <Wallet
+                id={id}
+                onBalanceRefresh={loadCore}
+                refreshToken={walletRefreshToken}
+              />
+            )}
+            {activeTab === "logs" && <Logs id={id} />}
+            {activeTab === "settings" && (
+              <Settings id={id} onSaved={() => setActiveTab("dashboard")} />
+            )}
           </div>
         </div>
-
-        {/* Tabs */}
-        <div className="border-b border-gray-800 mb-6 sm:mb-8 overflow-x-auto">
-          <div className="flex gap-1 min-w-max">
-            {TABS.map(({ id: tabId, label }) => (
-              <button
-                key={tabId}
-                onClick={() => setActiveTab(tabId)}
-                className={`px-4 sm:px-6 py-3 font-medium transition-all duration-150 rounded-t-md ${
-                  activeTab === tabId
-                    ? "text-orange-500 border-b-2 border-orange-500"
-                    : "text-gray-400 hover:text-gray-100 hover:bg-gray-800/50"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Tab Content */}
-        {activeTab === "dashboard" && <Dashboard core={core} />}
-        {activeTab === "wallet" && (
-          <Wallet
-            id={id}
-            onBalanceRefresh={loadCore}
-            refreshToken={walletRefreshToken}
-          />
-        )}
-        {activeTab === "swaps" && <Swaps id={id} />}
-        {activeTab === "logs" && <Logs id={id} />}
-        {activeTab === "settings" && (
-          <Settings id={id} onSaved={() => setActiveTab("dashboard")} />
-        )}
       </main>
     </div>
   );
