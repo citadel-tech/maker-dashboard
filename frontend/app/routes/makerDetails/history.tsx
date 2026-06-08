@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { ExternalLink, FileText } from "lucide-react";
-import { formatSats, monitoring, type SwapReportDto } from "../../api";
+import { monitoring, type SwapReportDto } from "../../api";
 import { LoadingCard, ErrorBanner } from "./components";
+import { SatsAmount } from "../../components/SatsAmount";
 
 interface Props {
   id: string;
@@ -29,9 +30,12 @@ function shortId(value: string, start = 12, end = 8) {
 }
 
 function feeLabel(report: SwapReportDto) {
-  return report.fee_paid_or_earned >= 0
-    ? `+${formatSats(report.fee_paid_or_earned)}`
-    : formatSats(report.fee_paid_or_earned);
+  return (
+    <SatsAmount
+      sats={report.fee_paid_or_earned}
+      showPlus={report.fee_paid_or_earned >= 0}
+    />
+  );
 }
 
 function statusClass(report: SwapReportDto) {
@@ -44,7 +48,7 @@ function Metric({
   accent,
 }: {
   label: string;
-  value: string;
+  value: ReactNode;
   accent?: "orange" | "green" | "red" | "blue";
 }) {
   return (
@@ -99,11 +103,15 @@ function ReportRow({
         </div>
         <div>
           <span>Incoming</span>
-          <strong>{formatSats(report.incoming_amount)}</strong>
+          <strong>
+            <SatsAmount sats={report.incoming_amount} />
+          </strong>
         </div>
         <div>
           <span>Outgoing</span>
-          <strong>{formatSats(report.outgoing_amount)}</strong>
+          <strong>
+            <SatsAmount sats={report.outgoing_amount} />
+          </strong>
         </div>
         <div>
           <span>Duration</span>
@@ -182,9 +190,7 @@ export default function Swaps({ id }: Props) {
         <Metric
           label="Net maker revenue"
           value={
-            stats.earned >= 0
-              ? `+${formatSats(stats.earned)}`
-              : formatSats(stats.earned)
+            <SatsAmount sats={stats.earned} showPlus={stats.earned >= 0} />
           }
           accent={stats.earned >= 0 ? "green" : "red"}
         />

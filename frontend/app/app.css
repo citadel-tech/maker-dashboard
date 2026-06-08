@@ -337,8 +337,9 @@ select {
 
 .cs-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
-  overflow-x: auto;
+  overflow-x: hidden;
   border-bottom: 1px solid var(--cs-border);
   padding: 0;
   margin-left: 50px;
@@ -499,6 +500,65 @@ select {
   letter-spacing: 0.04em;
 }
 
+.cs-sats-amount {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.cs-sats-symbol {
+  display: inline-block;
+  position: relative;
+  flex: 0 0 auto;
+  width: 0.72em;
+  height: 1em;
+  margin-left: 0.24em;
+  color: currentColor;
+  font-size: 0.72em;
+  vertical-align: middle;
+}
+
+.cs-sats-symbol::before,
+.cs-sats-symbol::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  width: 0.14em;
+  height: 0.14em;
+  border-radius: 1px;
+  background: currentColor;
+  transform: translateX(-50%);
+}
+
+.cs-sats-symbol::before {
+  top: 0;
+}
+
+.cs-sats-symbol::after {
+  bottom: 0;
+}
+
+.cs-sats-symbol span {
+  position: absolute;
+  left: 0.04em;
+  right: 0.04em;
+  height: 0.1em;
+  border-radius: 1px;
+  background: currentColor;
+}
+
+.cs-sats-symbol span:nth-child(1) {
+  top: 0.245em;
+}
+
+.cs-sats-symbol span:nth-child(2) {
+  top: 0.45em;
+}
+
+.cs-sats-symbol span:nth-child(3) {
+  top: 0.655em;
+}
+
 .cs-muted {
   color: var(--cs-text-2);
 }
@@ -536,10 +596,15 @@ select {
 
 .cs-balance-top {
   flex: 1;
-  display: grid;
-  grid-template-columns: 1fr 1px 1fr;
-  align-items: stretch;
-  padding: 26px 28px 22px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 28px;
+  background: linear-gradient(
+    135deg,
+    rgba(232, 80, 2, 0.08),
+    rgba(255, 181, 71, 0.02)
+  );
 }
 
 .cs-vdiv {
@@ -563,16 +628,47 @@ select {
   border-top: 1px solid var(--cs-border);
   background: linear-gradient(
     135deg,
-    rgba(232, 80, 2, 0.1),
-    rgba(255, 84, 27, 0.02)
+    rgba(42, 130, 218, 0.1),
+    rgba(42, 130, 218, 0.02)
   );
   padding: 22px 28px 24px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(190px, 0.72fr);
+  align-items: center;
+  gap: 24px;
+}
+
+.cs-balance-top .cs-value {
+  font-size: 44px;
+  font-weight: 700;
+  letter-spacing: -0.035em;
 }
 
 .cs-balance-bottom .cs-value {
   font-size: 44px;
   font-weight: 700;
   letter-spacing: -0.035em;
+}
+
+.cs-balance-swap-split {
+  display: grid;
+  gap: 14px;
+  padding-left: 24px;
+  border-left: 1px solid var(--cs-border);
+}
+
+.cs-balance-swap-split > div {
+  display: grid;
+  gap: 6px;
+}
+
+.cs-balance-swap-split strong {
+  color: var(--cs-text);
+  font-family: var(--cs-mono);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
 }
 
 .cs-share-bar {
@@ -588,6 +684,31 @@ select {
 .cs-share-bar span {
   display: block;
   height: 100%;
+}
+
+.cs-balance-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-top: 14px;
+}
+
+.cs-balance-breakdown span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  color: var(--cs-text-3);
+  font-family: var(--cs-mono);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.cs-balance-breakdown b {
+  color: var(--cs-text-3);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
 }
 
 .cs-stat-card {
@@ -801,10 +922,9 @@ select {
   padding: 17px 18px;
 }
 
-.cs-maker-report-metric span,
-.cs-maker-report-row-details span,
+.cs-maker-report-metric > span,
+.cs-maker-report-row-details > div > span,
 .cs-maker-report-block-head,
-.cs-maker-report-fee-lines span,
 .cs-maker-report-maker-fees > span,
 .cs-maker-report-total span {
   display: block;
@@ -1159,7 +1279,6 @@ a.cs-maker-report-artifact:focus-visible {
   flex: 0 0 auto;
   color: var(--cs-text-3);
 }
-
 
 .cs-maker-report-artifact code {
   color: var(--cs-text-2);
@@ -1725,7 +1844,6 @@ a.cs-maker-report-artifact:focus-visible {
   background: #374151;
 }
 
-
 .cs-log-filter {
   min-height: 27px;
   border-radius: 8px;
@@ -1957,8 +2075,19 @@ a.cs-maker-report-artifact:focus-visible {
   }
 
   .cs-balance-top {
+    padding: 24px;
+  }
+
+  .cs-balance-bottom {
     grid-template-columns: 1fr;
-    gap: 18px;
+  }
+
+  .cs-balance-swap-split {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding-top: 18px;
+    padding-left: 0;
+    border-top: 1px solid var(--cs-border);
+    border-left: 0;
   }
 
   .cs-vdiv {
@@ -2686,6 +2815,57 @@ a.cs-maker-report-artifact:focus-visible {
   font-size: 10px;
   font-weight: 500;
   letter-spacing: 0.04em;
+}
+
+/* ─── Maker setup ─────────────────────────────────────────────────────────── */
+
+.cs-maker-setup-page,
+.cs-maker-setup-page button,
+.cs-maker-setup-page input,
+.cs-maker-setup-page textarea,
+.cs-maker-setup-page select {
+  font-family: var(--cs-sans);
+  letter-spacing: 0;
+}
+
+.cs-maker-setup-page header a {
+  font-family: var(--cs-sans);
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1.1;
+}
+
+.cs-maker-setup-page header button {
+  color: var(--cs-text-2);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.cs-maker-setup-page h1,
+.cs-maker-setup-page h2 {
+  font-family: var(--cs-sans);
+  font-weight: 750;
+  letter-spacing: 0;
+}
+
+.cs-maker-setup-page p,
+.cs-maker-setup-page span,
+.cs-maker-setup-page button {
+  font-family: var(--cs-sans);
+}
+
+.cs-maker-setup-page .font-mono {
+  font-family: var(--cs-mono);
+  letter-spacing: 0;
+}
+
+.cs-maker-setup-page main > div:first-child p,
+.cs-maker-setup-page main > div:nth-child(2) span,
+.cs-maker-setup-page main > div:last-child > div:first-child span,
+.cs-maker-setup-page main > div:last-child > div:first-child div {
+  font-family: var(--cs-mono);
+  letter-spacing: 0.02em;
 }
 
 @media (max-width: 1120px) {

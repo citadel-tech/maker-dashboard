@@ -7,6 +7,7 @@ export interface MakerCoreData {
   info: MakerInfoDetailed | null;
   status: MakerStatus | null;
   balances: BalanceInfo | null;
+  contractUtxoCount: number | null;
   earningsSats: number;
   swapReportCount: number;
   torAddress: string | null;

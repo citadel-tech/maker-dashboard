@@ -24,6 +24,22 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "settings", label: "Settings" },
 ];
 
+const CORE_REQUEST_TIMEOUT_MS = 8_000;
+
+function withTimeout<T>(
+  promise: Promise<T>,
+  label: string,
+  timeoutMs = CORE_REQUEST_TIMEOUT_MS,
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      reject(new Error(`${label} timed out after ${timeoutMs / 1000}s`));
+    }, timeoutMs);
+
+    promise.then(resolve, reject).finally(() => window.clearTimeout(timeout));
+  });
+}
+
 function truncateMiddle(value: string, start = 24, end = 18) {
   if (value.length <= start + end + 1) return value;
   return `${value.slice(0, start)}...${value.slice(-end)}`;
@@ -44,6 +60,9 @@ export default function MakerDetails() {
   const [info, setInfo] = useState<MakerInfoDetailed | null>(null);
   const [status, setStatus] = useState<MakerStatus | null>(null);
   const [balances, setBalances] = useState<BalanceInfo | null>(null);
+  const [contractUtxoCount, setContractUtxoCount] = useState<number | null>(
+    null,
+  );
   const [earningsSats, setEarningsSats] = useState(0);
   const [swapReportCount, setSwapReportCount] = useState(0);
   const [torAddress, setTorAddress] = useState<string | null>(null);
@@ -65,16 +84,27 @@ export default function MakerDetails() {
     setLoading(true);
     setError(null);
     try {
-      const [infoData, statusData, balanceData, reportsData] =
-        await Promise.allSettled([
-          makers.get(id),
-          monitoring.status(id),
-          wallet.balance(id),
-          monitoring.swapReports(id),
-        ]);
+      const [
+        infoData,
+        statusData,
+        balanceData,
+        reportsData,
+        contractUtxosData,
+      ] = await Promise.allSettled([
+        withTimeout(makers.get(id), "Maker info"),
+        withTimeout(monitoring.status(id), "Maker status"),
+        withTimeout(wallet.balance(id), "Wallet balance"),
+        withTimeout(monitoring.swapReports(id), "Swap reports"),
+        withTimeout(wallet.contractUtxos(id), "Contract UTXOs"),
+      ]);
       if (infoData.status === "fulfilled") setInfo(infoData.value);
       if (statusData.status === "fulfilled") setStatus(statusData.value);
       if (balanceData.status === "fulfilled") setBalances(balanceData.value);
+      if (contractUtxosData.status === "fulfilled") {
+        setContractUtxoCount(contractUtxosData.value.length);
+      } else {
+        setContractUtxoCount(null);
+      }
       if (reportsData.status === "fulfilled") {
         setSwapReportCount(reportsData.value.length);
         setEarningsSats(
@@ -86,6 +116,23 @@ export default function MakerDetails() {
       } else {
         setSwapReportCount(0);
         setEarningsSats(0);
+      }
+
+      const failures = [
+        infoData,
+        statusData,
+        balanceData,
+        reportsData,
+        contractUtxosData,
+      ].filter((result) => result.status === "rejected");
+      if (failures.length > 0) {
+        const firstFailure = failures[0];
+        setError(
+          firstFailure.status === "rejected" &&
+            firstFailure.reason instanceof Error
+            ? firstFailure.reason.message
+            : "Some maker data failed to load",
+        );
       }
 
       monitoring
@@ -141,6 +188,7 @@ export default function MakerDetails() {
     info,
     status,
     balances,
+    contractUtxoCount,
     earningsSats,
     swapReportCount,
     torAddress,

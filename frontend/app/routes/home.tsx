@@ -8,13 +8,13 @@ import {
   makers,
   wallet,
   monitoring,
-  formatSats,
   type MakerInfoDetailed,
   type BalanceInfo,
   type MakerState,
   type SwapReportDto,
   type UtxoInfo,
 } from "../api.ts";
+import { SatsAmount } from "../components/SatsAmount";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -158,9 +158,6 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
-
-
-
   function copyTor(id: string, torAddress: string) {
     const text = torHostOnly(torAddress);
     navigator.clipboard
@@ -231,7 +228,9 @@ export default function Home() {
             <article className="cs-home-metric orange">
               <span className="cs-home-rail" />
               <span className="cs-label">Spendable</span>
-              <strong>{formatSats(totalSpendableSats)}</strong>
+              <strong>
+                <SatsAmount sats={totalSpendableSats} />
+              </strong>
               <span>
                 {makerRows.length} maker{makerRows.length !== 1 ? "s" : ""}
               </span>
@@ -240,8 +239,7 @@ export default function Home() {
               <span className="cs-home-rail" />
               <span className="cs-label">Net earnings</span>
               <strong>
-                {totalEarningsSats >= 0 ? "+" : ""}
-                {formatSats(totalEarningsSats).replace("-", "")}
+                <SatsAmount sats={totalEarningsSats} showPlus />
               </strong>
               <span>
                 {totalSwaps} swap report{totalSwaps === 1 ? "" : "s"}
@@ -389,19 +387,27 @@ export default function Home() {
                       <div className="cs-home-balances">
                         <div className="spend">
                           <span>Spendable</span>
-                          <strong>{formatSats(maker.balance.spendable)}</strong>
+                          <strong>
+                            <SatsAmount sats={maker.balance.spendable} />
+                          </strong>
                         </div>
                         <div>
                           <span>Regular</span>
-                          <strong>{formatSats(maker.balance.regular)}</strong>
+                          <strong>
+                            <SatsAmount sats={maker.balance.regular} />
+                          </strong>
                         </div>
                         <div className="swap">
                           <span>Swap</span>
-                          <strong>{formatSats(maker.balance.swap)}</strong>
+                          <strong>
+                            <SatsAmount sats={maker.balance.swap} />
+                          </strong>
                         </div>
                         <div className="fidelity">
                           <span>Fidelity</span>
-                          <strong>{formatSats(maker.balance.fidelity)}</strong>
+                          <strong>
+                            <SatsAmount sats={maker.balance.fidelity} />
+                          </strong>
                         </div>
                       </div>
                     ) : (
@@ -477,7 +483,7 @@ export default function Home() {
                       </div>
                       <code title={s.addr}>{truncateMiddle(s.addr)}</code>
                       <strong className="cs-home-activity-amount">
-                        +{formatSats(s.amount)}
+                        <SatsAmount sats={s.amount} showPlus />
                       </strong>
                       <span className="cs-pill green">Swap</span>
                     </div>

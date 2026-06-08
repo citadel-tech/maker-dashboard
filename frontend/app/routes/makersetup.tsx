@@ -2,14 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Bitcoin, Check, X } from "lucide-react";
 import Nav from "../components/Nav";
-import {
-  ApiError,
-  formatSats,
-  makers,
-  monitoring,
-  streamLogs,
-  wallet,
-} from "../api";
+import { SatsAmount } from "../components/SatsAmount";
+import { ApiError, makers, monitoring, streamLogs, wallet } from "../api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -404,7 +398,7 @@ export default function MakerSetup() {
   const currentIndex = stageOrder.indexOf(stage);
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100">
+    <div className="cs-maker-setup-page min-h-screen bg-gray-950 text-gray-100">
       <Nav />
 
       <main className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
@@ -587,7 +581,7 @@ export default function MakerSetup() {
                   <div className="text-sm">
                     <span className="text-gray-300">Send at least </span>
                     <span className="font-bold text-orange-400">
-                      {formatSats(minAmount)}
+                      <SatsAmount sats={minAmount} />
                     </span>
                     <span className="text-gray-300">
                       {" "}
