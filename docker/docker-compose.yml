@@ -46,7 +46,7 @@ services:
     ports:
       - "19050:9050"
       - "19051:9051"
-      - "${DASHBOARD_PORT:-3000}:${DASHBOARD_PORT:-3000}"
+      - "${MAKER_DASHBOARD_PORT:-3000}:${MAKER_DASHBOARD_PORT:-3000}"
       - "${BITCOIN_RPC_PORT:-38332}:${BITCOIN_RPC_PORT:-38332}"
       - "${BITCOIN_ZMQ_PORT:-28332}:${BITCOIN_ZMQ_PORT:-28332}"
     restart: unless-stopped
@@ -70,10 +70,10 @@ services:
       - dashboard-config:/root/.config/maker-dashboard
       - coinswap-data:/root/.coinswap
     environment:
-      - DASHBOARD_HOST=0.0.0.0
-      - DASHBOARD_PORT=${DASHBOARD_PORT:-3000}
-      - DASHBOARD_LOG_FILTER=${DASHBOARD_LOG_FILTER:-tower_http=debug,info}
-      - DASHBOARD_NO_COLOR=true
+      - MAKER_DASHBOARD_HOST=0.0.0.0
+      - MAKER_DASHBOARD_PORT=${MAKER_DASHBOARD_PORT:-3000}
+      - MAKER_DASHBOARD_LOG_FILTER=${MAKER_DASHBOARD_LOG_FILTER:-tower_http=debug,info}
+      - MAKER_DASHBOARD_NO_COLOR=true
     restart: unless-stopped
 
 volumes:

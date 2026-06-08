@@ -151,15 +151,15 @@ Runtime options can be set with CLI flags or environment variables:
 
 | Flag                       | Env var                            | Default                            | Description                                |
 | -------------------------- | ---------------------------------- | ---------------------------------- | ------------------------------------------ |
-| `--host`                   | `DASHBOARD_HOST`                   | `127.0.0.1`                        | IP address to bind to                      |
-| `--port`                   | `DASHBOARD_PORT`                   | `3000`                             | Port to listen on                          |
-| `--frontend-path`          | `DASHBOARD_FRONTEND_PATH`          | `frontend/build/client`            | Directory containing built frontend assets |
-| `--spa-index`              | `DASHBOARD_SPA_INDEX`              | `frontend/build/client/index.html` | SPA fallback file                          |
-| `--allow-remote`           | `DASHBOARD_ALLOW_REMOTE`           | `false`                            | Allow non-localhost requests               |
-| `--disable-secure-cookies` | `DASHBOARD_DISABLE_SECURE_COOKIES` | `false`                            | Allow session cookies over plain HTTP      |
-| `--log-filter`             | `DASHBOARD_LOG_FILTER`             | `tower_http=debug,info`            | Tracing filter directive                   |
-| `--no-color`               | `DASHBOARD_NO_COLOR`               | `false`                            | Disable ANSI colors in logs                |
-| `--config-dir`             | `DASHBOARD_CONFIG_DIR`             | platform default                   | Dashboard config directory                 |
+| `--host`                   | `MAKER_DASHBOARD_HOST`                   | `127.0.0.1`                        | IP address to bind to                      |
+| `--port`                   | `MAKER_DASHBOARD_PORT`                   | `3000`                             | Port to listen on                          |
+| `--frontend-path`          | `MAKER_DASHBOARD_FRONTEND_PATH`          | `frontend/build/client`            | Directory containing built frontend assets |
+| `--spa-index`              | `MAKER_DASHBOARD_SPA_INDEX`              | `frontend/build/client/index.html` | SPA fallback file                          |
+| `--allow-remote`           | `MAKER_DASHBOARD_ALLOW_REMOTE`           | `false`                            | Allow non-localhost requests               |
+| `--disable-secure-cookies` | `MAKER_DASHBOARD_DISABLE_SECURE_COOKIES` | `false`                            | Allow session cookies over plain HTTP      |
+| `--log-filter`             | `MAKER_DASHBOARD_LOG_FILTER`             | `tower_http=debug,info`            | Tracing filter directive                   |
+| `--no-color`               | `MAKER_DASHBOARD_NO_COLOR`               | `false`                            | Disable ANSI colors in logs                |
+| `--config-dir`             | `MAKER_DASHBOARD_CONFIG_DIR`             | platform default                   | Dashboard config directory                 |
 
 By default the dashboard only accepts connections from the local machine. If you enable `--allow-remote`, place a TLS-terminating reverse proxy in front. the built-in password auth is the only protection on the wire. If you must access the dashboard over plain HTTP, use `--disable-secure-cookies` so browsers keep the login session cookie.
 

@@ -27,5 +27,5 @@ services:
       - ${APP_DATA_DIR}/data/config:/root/.config/maker-dashboard
       - ${APP_DATA_DIR}/data/coinswap:/root/.coinswap
     environment:
-      DASHBOARD_HOST: 0.0.0.0
-      DASHBOARD_PORT: "3000"
+      MAKER_DASHBOARD_HOST: 0.0.0.0
+      MAKER_DASHBOARD_PORT: "3000"
