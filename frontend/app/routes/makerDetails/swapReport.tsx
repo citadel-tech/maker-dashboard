@@ -1,8 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Download, ExternalLink, Home } from "lucide-react";
-import { formatSats, monitoring, type SwapReportDto } from "../../api";
+import {
+  ArrowDownLeft,
+  ArrowLeft,
+  ArrowUpRight,
+  Download,
+  ExternalLink,
+  Home,
+} from "lucide-react";
+import { monitoring, type SwapReportDto } from "../../api";
 import { ErrorBanner, LoadingCard } from "./components";
+import { SatsAmount } from "../../components/SatsAmount";
 
 function formatDate(timestamp: number) {
   return new Date(timestamp * 1000).toLocaleString();
@@ -23,9 +31,12 @@ function shortId(value: string, start = 12, end = 8) {
 }
 
 function feeLabel(report: SwapReportDto) {
-  return report.fee_paid_or_earned >= 0
-    ? `+${formatSats(report.fee_paid_or_earned)}`
-    : formatSats(report.fee_paid_or_earned);
+  return (
+    <SatsAmount
+      sats={report.fee_paid_or_earned}
+      showPlus={report.fee_paid_or_earned >= 0}
+    />
+  );
 }
 
 function fundingTxids(report: SwapReportDto) {
@@ -61,7 +72,7 @@ function Metric({
   accent,
 }: {
   label: string;
-  value: string;
+  value: ReactNode;
   accent?: "orange" | "green" | "red" | "blue";
 }) {
   return (
@@ -77,36 +88,50 @@ function Artifact({
   value,
   accent,
   href,
+  direction,
 }: {
   label: string;
   value?: string | null;
   accent?: "orange" | "blue" | "green";
   href?: string;
+  direction?: "incoming" | "outgoing";
 }) {
   if (!value) return null;
 
-  const content = (
-    <>
-      <h4>
-        <span>{label}</span>
-        {href && <ExternalLink size={15} aria-hidden="true" />}
-      </h4>
-      <code>{value}</code>
-    </>
-  );
-
-  return href ? (
-    <a
-      className={`cs-maker-report-artifact ${accent ?? ""}`}
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      title={`Open ${label} in Mempool`}
-    >
-      {content}
-    </a>
-  ) : (
-    <div className={`cs-maker-report-artifact ${accent ?? ""}`}>{content}</div>
+  return (
+    <div className={`cs-maker-report-artifact ${accent ?? ""}`}>
+      {direction && (
+        <span
+          className={`cs-maker-report-artifact-direction ${direction}`}
+          aria-label={direction}
+          title={direction === "incoming" ? "Incoming" : "Outgoing"}
+        >
+          {direction === "incoming" ? (
+            <ArrowDownLeft size={20} />
+          ) : (
+            <ArrowUpRight size={20} />
+          )}
+        </span>
+      )}
+      <div className="cs-maker-report-artifact-copy">
+        <h4>
+          <span>{label}</span>
+        </h4>
+        <code>{value}</code>
+      </div>
+      {href && (
+        <a
+          className="cs-maker-report-mempool-link"
+          href={href}
+          target="_blank"
+          rel="noreferrer"
+          aria-label={`Open ${label} in Mempool`}
+          title={`Open ${label} in Mempool`}
+        >
+          <ExternalLink size={20} aria-hidden="true" />
+        </a>
+      )}
+    </div>
   );
 }
 
@@ -194,12 +219,14 @@ function MakerSwapReportPageContent({
                 value={report.incoming_contract_txid}
                 href={mempoolTxUrl(report.incoming_contract_txid)}
                 accent="blue"
+                direction="incoming"
               />
               <Artifact
                 label="Outgoing contract tx"
                 value={report.outgoing_contract_txid}
                 href={mempoolTxUrl(report.outgoing_contract_txid)}
                 accent="orange"
+                direction="outgoing"
               />
               {recoveryTxids.map((txid, index) => (
                 <Artifact
@@ -227,17 +254,17 @@ function MakerSwapReportPageContent({
             <div className="cs-maker-report-flow">
               <Metric
                 label="Incoming contract amount"
-                value={formatSats(report.incoming_amount)}
+                value={<SatsAmount sats={report.incoming_amount} />}
                 accent="blue"
               />
               <Metric
                 label="Outgoing contract amount"
-                value={formatSats(report.outgoing_amount)}
+                value={<SatsAmount sats={report.outgoing_amount} />}
                 accent="orange"
               />
               <Metric
                 label="Earned spread"
-                value={formatSats(spread)}
+                value={<SatsAmount sats={spread} />}
                 accent={spread >= 0 ? "green" : "red"}
               />
             </div>
@@ -262,12 +289,12 @@ function MakerSwapReportPageContent({
               />
               <Metric
                 label="Incoming"
-                value={formatSats(report.incoming_amount)}
+                value={<SatsAmount sats={report.incoming_amount} />}
                 accent="blue"
               />
               <Metric
                 label="Outgoing"
-                value={formatSats(report.outgoing_amount)}
+                value={<SatsAmount sats={report.outgoing_amount} />}
                 accent="orange"
               />
               <Metric

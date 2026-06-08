@@ -21,6 +21,8 @@ export interface MakerInfoDetailed {
   state: MakerState;
   rpc: string;
   zmq: string;
+  rpc_user: string;
+  rpc_password: string;
   wallet_name?: string;
   data_directory?: string;
   network_port: number;
@@ -429,9 +431,9 @@ export function satsToBtc(sats: number): string {
   return (sats / 1e8).toFixed(8);
 }
 
-export const SATS_SYMBOL = "丰";
+export const SATS_SYMBOL = "sats";
 
-/** Format satoshis with the sats symbol used in the dashboard UI. */
+/** Format satoshis for plain text. Use SatsAmount for the dashboard symbol. */
 export function formatSats(sats: number): string {
   const sign = sats < 0 ? "-" : "";
   return `${sign}${Math.abs(Math.round(sats)).toLocaleString()} ${SATS_SYMBOL}`;

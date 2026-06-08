@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import type { CSSProperties } from "react";
 import { Copy, RefreshCw, Send, WalletCards } from "lucide-react";
-import { formatSats, wallet, type UtxoInfo } from "../../api";
+import { wallet, type UtxoInfo } from "../../api";
+import { SatsAmount, SatsSymbol } from "../../components/SatsAmount";
 
 interface Props {
   id: string;
@@ -279,7 +280,9 @@ export default function Wallet({ id, onBalanceRefresh, refreshToken }: Props) {
             <div className="cs-field mb-4">
               <div className="flex items-center justify-between gap-3">
                 <label>Amount</label>
-                <span className="cs-card-meta">丰</span>
+                <span className="cs-card-meta">
+                  <SatsSymbol />
+                </span>
               </div>
               <div className="flex min-h-[62px] items-center gap-3 rounded-[12px] border border-[var(--cs-border)] bg-[var(--cs-surface-3)] px-4">
                 <input
@@ -291,7 +294,9 @@ export default function Wallet({ id, onBalanceRefresh, refreshToken }: Props) {
                   step="1"
                   className="min-w-0 flex-1 border-0 bg-transparent p-0 font-mono text-[22px] text-[var(--cs-text)] outline-none"
                 />
-                <span className="cs-card-meta">丰</span>
+                <span className="cs-card-meta">
+                  <SatsSymbol />
+                </span>
               </div>
             </div>
 
@@ -306,7 +311,10 @@ export default function Wallet({ id, onBalanceRefresh, refreshToken }: Props) {
                   min="1"
                   className="cs-input"
                 />
-                <span className="cs-unit">sat/vB</span>
+                <span className="cs-unit">
+                  <SatsSymbol />
+                  /vB
+                </span>
               </div>
             </div>
 
@@ -337,7 +345,7 @@ export default function Wallet({ id, onBalanceRefresh, refreshToken }: Props) {
             <span className="cs-card-meta">{utxoRows.length} unspent</span>
           </div>
           <span className="cs-card-meta">
-            Total · {formatSats(totalUtxoSats)}
+            Total · <SatsAmount sats={totalUtxoSats} />
           </span>
         </div>
         <div className="cs-card-body">
@@ -404,8 +412,8 @@ export default function Wallet({ id, onBalanceRefresh, refreshToken }: Props) {
                       <td className="max-w-[260px] truncate cs-mono text-xs">
                         {u.addr}
                       </td>
-                      <td className="cs-value text-[13px] text-[var(--cs-orange)]">
-                        {formatSats(u.amount)}
+                      <td className="cs-mono text-xs text-[var(--cs-orange)]">
+                        <SatsAmount sats={u.amount} />
                       </td>
                       <td>
                         <span className="cs-pill capitalize">

@@ -198,6 +198,8 @@ pub struct MakerInfoDetailed {
     pub state: MakerStateDto,
     pub rpc: String,
     pub zmq: String,
+    pub rpc_user: String,
+    pub rpc_password: String,
     pub wallet_name: Option<String>,
     pub data_directory: Option<String>,
     pub network_port: u16,
@@ -216,30 +218,38 @@ pub struct MakerInfoDetailed {
 
 impl From<ManagerMakerInfo> for MakerInfoDetailed {
     fn from(info: ManagerMakerInfo) -> Self {
+        let config = info.config;
+        let (rpc_user, rpc_password) = match &config.auth {
+            Some((user, password)) => (user.clone(), password.clone()),
+            None => ("user".to_string(), "password".to_string()),
+        };
+
         Self {
             id: info.id,
             state: info.state.into(),
-            rpc: info.config.rpc,
-            zmq: info.config.zmq,
-            wallet_name: info.config.wallet_name,
-            data_directory: info.config.data_directory.and_then(|d| {
+            rpc: config.rpc,
+            zmq: config.zmq,
+            rpc_user,
+            rpc_password,
+            wallet_name: config.wallet_name,
+            data_directory: config.data_directory.and_then(|d| {
                 if let Ok(path) = d.canonicalize() {
                     return path.to_str().map(str::to_string);
                 }
                 d.to_str().map(str::to_string)
             }),
-            network_port: info.config.network_port,
-            rpc_port: info.config.rpc_port,
-            socks_port: info.config.socks_port,
-            control_port: info.config.control_port,
-            min_swap_amount: info.config.min_swap_amount,
-            fidelity_amount: info.config.fidelity_amount,
-            fidelity_timelock: info.config.fidelity_timelock,
-            required_confirms: info.config.required_confirms,
-            base_fee: info.config.base_fee,
-            amount_relative_fee_pct: info.config.amount_relative_fee_pct,
-            time_relative_fee_pct: info.config.time_relative_fee_pct,
-            nostr_relays: info.config.nostr_relays,
+            network_port: config.network_port,
+            rpc_port: config.rpc_port,
+            socks_port: config.socks_port,
+            control_port: config.control_port,
+            min_swap_amount: config.min_swap_amount,
+            fidelity_amount: config.fidelity_amount,
+            fidelity_timelock: config.fidelity_timelock,
+            required_confirms: config.required_confirms,
+            base_fee: config.base_fee,
+            amount_relative_fee_pct: config.amount_relative_fee_pct,
+            time_relative_fee_pct: config.time_relative_fee_pct,
+            nostr_relays: config.nostr_relays,
         }
     }
 }

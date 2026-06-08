@@ -10,10 +10,30 @@ import {
   type RpcStatusInfo,
   type StartupCheckResponse,
 } from "../../api";
+import { SatsSymbol } from "../../components/SatsAmount";
 
 interface Props {
   id: string;
   onSaved?: () => void;
+}
+
+function portFromEndpoint(value: string | undefined, fallback: number) {
+  if (!value) return fallback;
+  const match = value.match(/:(\d+)(?:\/)?$/);
+  const port = match ? Number(match[1]) : Number(value);
+  return Number.isInteger(port) && port > 0 ? port : fallback;
+}
+
+function bitcoinRpcEndpoint(port: number) {
+  return `127.0.0.1:${port}`;
+}
+
+function zmqEndpoint(port: number) {
+  return `tcp://127.0.0.1:${port}`;
+}
+
+function isValidPort(value: number) {
+  return Number.isInteger(value) && value >= 1 && value <= 65535;
 }
 
 function EyeIcon({ open }: { open: boolean }) {
@@ -60,8 +80,8 @@ export default function Settings({ id, onSaved }: Props) {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // ── Bitcoin Core RPC ──────────────────────────────────────────────────────
-  const [rpc, setRpc] = useState("");
-  const [zmq, setZmq] = useState("");
+  const [bitcoinRpcPort, setBitcoinRpcPort] = useState(38332);
+  const [zmqPort, setZmqPort] = useState(28332);
   const [rpcUser, setRpcUser] = useState("");
   const [rpcPassword, setRpcPassword] = useState("");
   const [dataDir, setDataDir] = useState("");
@@ -92,7 +112,6 @@ export default function Settings({ id, onSaved }: Props) {
     ok: boolean;
     msg: string;
   } | null>(null);
-  const [copied, setCopied] = useState(false);
   const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [rpcStatus, setRpcStatus] = useState<RpcStatusInfo | null>(null);
@@ -107,8 +126,10 @@ export default function Settings({ id, onSaved }: Props) {
     makers
       .get(id)
       .then((info: MakerInfoDetailed) => {
-        setRpc(info.rpc ?? "");
-        setZmq(info.zmq ?? "");
+        setBitcoinRpcPort(portFromEndpoint(info.rpc, 38332));
+        setZmqPort(portFromEndpoint(info.zmq, 28332));
+        setRpcUser(info.rpc_user || "user");
+        setRpcPassword(info.rpc_password || "password");
         setDataDir(info.data_directory ?? "");
         setNetworkPort(info.network_port ?? 6102);
         setRpcPort(info.rpc_port ?? 6103);
@@ -121,17 +142,20 @@ export default function Settings({ id, onSaved }: Props) {
         setTimeRelativeFeePct(info.time_relative_fee_pct ?? 0.001);
         setFidelityAmount(info.fidelity_amount ?? 10000);
         setFidelityTimelock(info.fidelity_timelock ?? 15000);
-        // passwords / ports not returned by API — keep defaults
       })
       .catch((e: Error) => setLoadError(e.message));
   }, [id]);
 
   function validate(): string | null {
     if (
-      networkPort === 0 ||
-      rpcPort === 0 ||
-      socksPort === 0 ||
-      controlPort === 0
+      ![
+        networkPort,
+        rpcPort,
+        bitcoinRpcPort,
+        zmqPort,
+        socksPort,
+        controlPort,
+      ].every(isValidPort)
     )
       return "Port values must be between 1 and 65535";
     if (new Set([networkPort, rpcPort]).size !== 2)
@@ -157,8 +181,8 @@ export default function Settings({ id, onSaved }: Props) {
     setSaveResult(null);
     try {
       await makers.updateConfig(id, {
-        rpc: rpc || undefined,
-        zmq: zmq || undefined,
+        rpc: bitcoinRpcEndpoint(bitcoinRpcPort),
+        zmq: zmqEndpoint(zmqPort),
         rpc_user: rpcUser || undefined,
         rpc_password: rpcPassword || undefined,
         tor_auth: torAuth || undefined,
@@ -180,7 +204,6 @@ export default function Settings({ id, onSaved }: Props) {
         ok: true,
         msg: "Config saved — maker is stopping, rewriting config.toml, and restarting…",
       });
-      setRpcPassword("");
       setTorAuth("");
       setTimeout(() => onSaved?.(), 2000);
     } catch (e) {
@@ -225,16 +248,6 @@ export default function Settings({ id, onSaved }: Props) {
     }
   }
 
-  function copyZmqConfig() {
-    navigator.clipboard
-      .writeText(`zmqpubrawblock=${zmq}\nzmqpubrawtx=${zmq}`)
-      .then(() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      })
-      .catch(() => {});
-  }
-
   async function handleRemove() {
     setRemoving(true);
     try {
@@ -268,12 +281,13 @@ export default function Settings({ id, onSaved }: Props) {
           </div>
           <div className="cs-field-grid">
             <div className="cs-field">
-              <label>RPC Endpoint</label>
+              <label>RPC Port</label>
               <input
-                type="text"
-                value={rpc}
-                onChange={(e) => setRpc(e.target.value)}
-                placeholder="127.0.0.1:38332"
+                type="number"
+                value={bitcoinRpcPort}
+                min={1}
+                max={65535}
+                onChange={(e) => setBitcoinRpcPort(Number(e.target.value))}
                 className="cs-input"
               />
               <p className="cs-hint">
@@ -283,16 +297,17 @@ export default function Settings({ id, onSaved }: Props) {
             </div>
 
             <div className="cs-field">
-              <label>Data Directory</label>
+              <label>ZMQ Port</label>
               <input
-                type="text"
-                value={dataDir}
-                onChange={(e) => setDataDir(e.target.value)}
-                placeholder="~/.coinswap/maker"
+                type="number"
+                value={zmqPort}
+                min={1}
+                max={65535}
+                onChange={(e) => setZmqPort(Number(e.target.value))}
                 className="cs-input"
               />
               <p className="cs-hint">
-                Defaults to <code>~/.coinswap/&lt;id&gt;</code>
+                Used for raw block and raw transaction ZMQ publishers
               </p>
             </div>
 
@@ -302,12 +317,9 @@ export default function Settings({ id, onSaved }: Props) {
                 type="text"
                 value={rpcUser}
                 onChange={(e) => setRpcUser(e.target.value)}
-                placeholder="Leave blank to keep current"
+                placeholder=""
                 className="cs-input"
               />
-              <p className="cs-hint">
-                Username and password must be provided together
-              </p>
             </div>
 
             <div className="cs-field">
@@ -317,7 +329,7 @@ export default function Settings({ id, onSaved }: Props) {
                   type={showRpcPassword ? "text" : "password"}
                   value={rpcPassword}
                   onChange={(e) => setRpcPassword(e.target.value)}
-                  placeholder="Leave blank to keep current"
+                  placeholder=""
                   className="cs-input"
                 />
                 <button
@@ -331,62 +343,20 @@ export default function Settings({ id, onSaved }: Props) {
                   <EyeIcon open={showRpcPassword} />
                 </button>
               </div>
-              <p className="cs-hint">Write-only field · current value hidden</p>
             </div>
-          </div>
-        </div>
 
-        <div className="cs-subsection">
-          <div className="cs-subtitle text-[var(--cs-blue)]">
-            <span className="cs-pip" />
-            ZMQ Configuration
-          </div>
-          <div className="cs-field-grid">
-            <div className="cs-field">
-              <label>ZMQ Endpoint</label>
+            <div className="cs-field cs-span-2">
+              <label>Data Directory</label>
               <input
                 type="text"
-                value={zmq}
-                onChange={(e) => setZmq(e.target.value)}
-                placeholder="tcp://127.0.0.1:28332"
+                value={dataDir}
+                onChange={(e) => setDataDir(e.target.value)}
+                placeholder="~/.coinswap/maker"
                 className="cs-input"
               />
               <p className="cs-hint">
-                Used for both <code>zmqpubrawblock</code> and{" "}
-                <code>zmqpubrawtx</code>
+                Defaults to <code>~/.coinswap/&lt;id&gt;</code>
               </p>
-            </div>
-
-            <div className="cs-field">
-              <label>
-                bitcoin.conf snippet{" "}
-                <span className="cs-card-meta ml-2">Read-only</span>
-              </label>
-              <pre className="cs-code">{`zmqpubrawblock=${zmq || "tcp://127.0.0.1:28332"}
-zmqpubrawtx=${zmq || "tcp://127.0.0.1:28332"}`}</pre>
-            </div>
-
-            <div className="cs-span-2">
-              <div className="cs-banner warn">
-                <span>
-                  <strong>Note:</strong> Both <code>zmqpubrawblock</code> and{" "}
-                  <code>zmqpubrawtx</code> must use the same endpoint.
-                </span>
-              </div>
-            </div>
-
-            <div className="cs-span-2 flex flex-wrap items-center justify-between gap-3">
-              <p className="cs-hint">
-                Copy these lines into your <code>bitcoin.conf</code> and restart
-                Bitcoin Core.
-              </p>
-              <button
-                type="button"
-                onClick={copyZmqConfig}
-                className="cs-btn ghost sm"
-              >
-                {copied ? "Copied" : "Copy ZMQ Config"}
-              </button>
             </div>
           </div>
         </div>
@@ -612,9 +582,7 @@ zmqpubrawtx=${zmq || "tcp://127.0.0.1:28332"}`}</pre>
                 onChange={(e) => setNetworkPort(Number(e.target.value))}
                 className="cs-input"
               />
-              <p className="cs-hint">
-                For coinswap client connections (default <code>6102</code>)
-              </p>
+              <p className="cs-hint">Used for swap request from clients</p>
             </div>
             <div className="cs-field">
               <label htmlFor="rpcPort">RPC Port</label>
@@ -628,7 +596,7 @@ zmqpubrawtx=${zmq || "tcp://127.0.0.1:28332"}`}</pre>
                 className="cs-input"
               />
               <p className="cs-hint">
-                For maker-cli operations (default <code>6103</code>)
+                Used for internal maker management operations
               </p>
             </div>
           </div>
@@ -654,7 +622,9 @@ zmqpubrawtx=${zmq || "tcp://127.0.0.1:28332"}`}</pre>
                     onChange={(e) => setMinSwapAmount(Number(e.target.value))}
                     className="cs-input pr-16"
                   />
-                  <span className="cs-unit">丰</span>
+                  <span className="cs-unit">
+                    <SatsSymbol />
+                  </span>
                 </div>
                 <p className="cs-hint">Smallest swap this maker will accept</p>
               </div>
@@ -687,7 +657,9 @@ zmqpubrawtx=${zmq || "tcp://127.0.0.1:28332"}`}</pre>
                     onChange={(e) => setBaseFee(Number(e.target.value))}
                     className="cs-input pr-16"
                   />
-                  <span className="cs-unit">丰</span>
+                  <span className="cs-unit">
+                    <SatsSymbol />
+                  </span>
                 </div>
                 <p className="cs-hint">Flat fee charged per swap</p>
               </div>
@@ -756,7 +728,9 @@ zmqpubrawtx=${zmq || "tcp://127.0.0.1:28332"}`}</pre>
                     onChange={(e) => setFidelityAmount(Number(e.target.value))}
                     className="cs-input pr-16"
                   />
-                  <span className="cs-unit">丰</span>
+                  <span className="cs-unit">
+                    <SatsSymbol />
+                  </span>
                 </div>
                 <p className="cs-hint">
                   Locked stake — higher amount → higher trust score
