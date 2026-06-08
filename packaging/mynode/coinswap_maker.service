@@ -16,10 +16,10 @@ ExecStart=docker run --rm \
   --network host \
   --volume /mnt/hdd/mynode/coinswap_maker/config:/root/.config/maker-dashboard \
   --volume /mnt/hdd/mynode/coinswap_maker/coinswap:/root/.coinswap \
-  --env DASHBOARD_HOST=127.0.0.1 \
-  --env DASHBOARD_PORT=14200 \
-  --env DASHBOARD_LOG_FILTER=tower_http=debug,info \
-  --env DASHBOARD_NO_COLOR=true \
+  --env MAKER_DASHBOARD_HOST=127.0.0.1 \
+  --env MAKER_DASHBOARD_PORT=14200 \
+  --env MAKER_DASHBOARD_LOG_FILTER=tower_http=debug,info \
+  --env MAKER_DASHBOARD_NO_COLOR=true \
   coinswap/maker-dashboard:master
 ExecStartPost=/bin/bash -c 'if [ -f /usr/bin/service_scripts/post_coinswap_maker.sh ]; then /bin/bash /usr/bin/service_scripts/post_coinswap_maker.sh; fi'
 ExecStop=docker stop -t 60 coinswap_maker

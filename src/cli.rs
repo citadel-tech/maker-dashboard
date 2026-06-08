@@ -13,18 +13,18 @@ use clap::Parser;
 )]
 pub struct Cli {
     /// IP address to bind the server to
-    #[arg(long, default_value = "127.0.0.1", env = "DASHBOARD_HOST")]
+    #[arg(long, default_value = "127.0.0.1", env = "MAKER_DASHBOARD_HOST")]
     pub host: IpAddr,
 
     /// Port to listen on
-    #[arg(short, long, default_value_t = 3000, env = "DASHBOARD_PORT")]
+    #[arg(short, long, default_value_t = 3000, env = "MAKER_DASHBOARD_PORT")]
     pub port: u16,
 
     /// Path to the frontend static files directory
     #[arg(
         long,
         default_value = "frontend/build/client",
-        env = "DASHBOARD_FRONTEND_PATH"
+        env = "MAKER_DASHBOARD_FRONTEND_PATH"
     )]
     pub frontend_path: PathBuf,
 
@@ -32,19 +32,19 @@ pub struct Cli {
     #[arg(
         long,
         default_value = "frontend/build/client/index.html",
-        env = "DASHBOARD_SPA_INDEX"
+        env = "MAKER_DASHBOARD_SPA_INDEX"
     )]
     pub spa_index: PathBuf,
 
     /// Allow requests from non-localhost addresses (enabled by default for security)
-    #[arg(long, default_value_t = true, env = "DASHBOARD_ALLOW_REMOTE")]
+    #[arg(long, default_value_t = true, env = "MAKER_DASHBOARD_ALLOW_REMOTE")]
     pub allow_remote: bool,
 
     /// Disable the Secure attribute on session cookies for plain HTTP deployments.
     #[arg(
         long,
         default_value_t = false,
-        env = "DASHBOARD_DISABLE_SECURE_COOKIES"
+        env = "MAKER_DASHBOARD_DISABLE_SECURE_COOKIES"
     )]
     pub disable_secure_cookies: bool,
 
@@ -52,15 +52,15 @@ pub struct Cli {
     #[arg(
         long,
         default_value = "tower_http=debug,info",
-        env = "DASHBOARD_LOG_FILTER"
+        env = "MAKER_DASHBOARD_LOG_FILTER"
     )]
     pub log_filter: String,
 
     /// Disable ANSI colors in log output (useful for log files / CI)
-    #[arg(long, default_value_t = false, env = "DASHBOARD_NO_COLOR")]
+    #[arg(long, default_value_t = false, env = "MAKER_DASHBOARD_NO_COLOR")]
     pub no_color: bool,
 
     /// Application config and data directory. Stores maker configs and wallet data.
-    #[arg(long, env = "DASHBOARD_CONFIG_DIR")]
+    #[arg(long, env = "MAKER_DASHBOARD_CONFIG_DIR")]
     pub config_dir: Option<PathBuf>,
 }

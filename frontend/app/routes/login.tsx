@@ -51,7 +51,7 @@ export default function Login() {
               <p>
                 Update your{" "}
                 <code className="font-mono bg-yellow-900/60 px-1 rounded">
-                  DASHBOARD_PASSWORD
+                  MAKER_DASHBOARD_PASSWORD
                 </code>{" "}
                 environment variable (or password file) to your new password
                 before restarting the dashboard.

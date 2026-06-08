@@ -19,8 +19,8 @@ docker run -d \
   --network host \
   --volume ~/.config/maker-dashboard:/root/.config/maker-dashboard \
   --volume ~/.coinswap:/root/.coinswap \
-  --env DASHBOARD_HOST=127.0.0.1 \
-  --env DASHBOARD_PORT=3000 \
+  --env MAKER_DASHBOARD_HOST=127.0.0.1 \
+  --env MAKER_DASHBOARD_PORT=3000 \
   coinswap/maker-dashboard:master
 ```
 
