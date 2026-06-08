@@ -191,6 +191,54 @@ On first setup, the maker may need funds to create a fidelity bond. You can use 
 
 ## Docker
 
+### Run From The Published Image
+
+Pre-built images are published to Docker Hub at
+[`coinswap/maker-dashboard`](https://hub.docker.com/r/coinswap/maker-dashboard).
+Available tags: `latest` (newest stable release), `master` (latest `main`
+build), `vX.Y.Z` (specific release), and `sha-<commit>` (specific commit). Images
+are multi-arch (`linux/amd64`, `linux/arm64`) and signed with cosign.
+
+The published image contains only the dashboard. You must already have a
+Bitcoin Core node and Tor reachable from the container. The simplest way to let
+the dashboard reach services on your host is host networking:
+
+```sh
+docker run -d \
+  --name maker-dashboard \
+  --network host \
+  -v maker-dashboard-config:/home/appuser/.config/maker-dashboard \
+  coinswap/maker-dashboard:latest
+```
+
+If you prefer port mapping over host networking, bind the dashboard to all
+interfaces inside the container and publish the port. Point makers at your host's
+Bitcoin/Tor endpoints (e.g. `host.docker.internal` on Docker Desktop):
+
+```sh
+docker run -d \
+  --name maker-dashboard \
+  -p 3000:3000 \
+  -v maker-dashboard-config:/home/appuser/.config/maker-dashboard \
+  coinswap/maker-dashboard:latest \
+  ./maker-dashboard --host 0.0.0.0 --disable-secure-cookies
+```
+
+The named volume persists `auth.json` and your encrypted maker configs across
+container restarts and upgrades. To upgrade, pull a newer tag and recreate the
+container:
+
+```sh
+docker pull coinswap/maker-dashboard:latest
+docker rm -f maker-dashboard
+# re-run the docker run command above
+```
+
+Then open `http://localhost:3000` and, on first run, visit
+`http://localhost:3000/setup` to choose a password.
+
+### Run The Full Stack (Build From Source)
+
 Run the full stack (bitcoind, tor, dashboard) with Docker Compose:
 
 ```sh
