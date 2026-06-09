@@ -3,7 +3,7 @@ name: Update coinswap dependency
 on:
   schedule:
     # Daily at 06:00 UTC
-    - cron: '0 6 * * *'
+    - cron: "0 6 * * *"
   workflow_dispatch:
 
 permissions:
@@ -106,6 +106,8 @@ jobs:
         with:
           branch: automated/update-coinswap
           base: main
+          author: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+          committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
           commit-message: "chore(deps): bump coinswap to ${{ steps.revs.outputs.latest_short }}"
           title: "chore(deps): bump coinswap to ${{ steps.revs.outputs.latest_short }}"
           body: |
@@ -116,8 +118,6 @@ jobs:
             **Diff:** https://github.com/citadel-tech/coinswap/compare/${{ steps.revs.outputs.current }}...${{ steps.revs.outputs.latest_short }}
 
             Reviewers were requested from [`.github/MAINTAINERS`](../blob/main/.github/MAINTAINERS). Let CI run on this PR to surface any breakage from the upstream changes before merging.
-
-            > If this workflow ever fails to push the PR, ensure *Settings → Actions → General → Workflow permissions* has **Allow GitHub Actions to create and approve pull requests** enabled.
           labels: |
             dependencies
             automated
