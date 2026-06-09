@@ -43,7 +43,7 @@ function fundingTxids(report: SwapReportDto) {
   return report.funding_txids.flatMap((group) => group);
 }
 
-const MEMPOOL_TX_BASE_URL = "http://170.75.166.88:8080/tx";
+const MEMPOOL_TX_BASE_URL = "https://mempool.citadelfoss.xyz/tx";
 
 function mempoolTxUrl(txid?: string | null) {
   if (!txid) return undefined;

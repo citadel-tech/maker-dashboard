@@ -47,6 +47,13 @@ Install the platform-specific native build tools before running `cargo build` or
 brew install automake autoconf libtool pkg-config openssl
 ```
 
+On Debian/Ubuntu:
+
+```sh
+# Debian/Ubuntu
+sudo apt-get install -y build-essential cmake pkg-config libssl-dev autoconf automake libtool file
+```
+
 On Windows, install the MSYS2 toolchain and add `C:\msys64\usr\bin` to your
 `PATH`:
 

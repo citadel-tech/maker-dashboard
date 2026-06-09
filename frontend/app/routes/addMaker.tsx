@@ -151,7 +151,7 @@ function CheckRow({
   );
 }
 
-export default function AddMaker() {
+export default function AddMaker({ firstRun = false }: { firstRun?: boolean }) {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     id: "",
@@ -359,12 +359,18 @@ export default function AddMaker() {
       <main className="cs-add-page">
         <header className="cs-add-head">
           <div>
-            <Link to="/" className="cs-add-back">
-              <ArrowLeft size={14} />
-              Back to dashboard
-            </Link>
-            <h1>Add New Maker</h1>
-            <p>Configure a new maker instance.</p>
+            {!firstRun && (
+              <Link to="/" className="cs-add-back">
+                <ArrowLeft size={14} />
+                Back to dashboard
+              </Link>
+            )}
+            <h1>{firstRun ? "Create First Maker" : "Add New Maker"}</h1>
+            <p>
+              {firstRun
+                ? "Run the same live checks, then configure your first maker instance."
+                : "Configure a new maker instance."}
+            </p>
           </div>
           <div className="cs-network-badge cs-add-network">
             <span className="cs-dot" />
