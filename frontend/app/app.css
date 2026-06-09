@@ -2239,61 +2239,39 @@ a.cs-maker-report-artifact:focus-visible {
 
 .cs-bitcoind-widget {
   position: relative;
-  overflow: hidden;
-  min-height: 82px;
   border: 1px solid var(--cs-border);
   border-radius: 12px;
   background: var(--cs-surface-2);
-  padding: 16px 14px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 14px;
-}
-
-.cs-bitcoind-copy {
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  min-width: 0;
+  gap: 0;
 }
 
-.cs-bitcoind-head {
-  min-height: 24px;
-}
-
-.cs-bitcoind-controls {
+.cs-bitcoind-top {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
+  justify-content: space-between;
+  gap: 8px;
 }
 
-.cs-bitcoind-controls select {
-  width: 92px;
-  min-height: 28px;
-  border: 1px solid var(--cs-border);
-  border-radius: 999px;
-  background: var(--cs-surface-3);
-  color: var(--cs-text-2);
-  padding: 0 8px;
-  font-family: var(--cs-mono);
-  font-size: 10.5px;
+.cs-bitcoind-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+}
+
+.cs-bitcoind-status strong {
+  color: var(--cs-text);
+  font-size: 14px;
   font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.cs-bitcoind-main {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  line-height: 1.1;
 }
 
 .cs-bitcoind-dot {
-  width: 11px;
-  height: 11px;
+  width: 10px;
+  height: 10px;
   border-radius: 999px;
   flex: 0 0 auto;
   background: var(--cs-text-3);
@@ -2301,45 +2279,89 @@ a.cs-maker-report-artifact:focus-visible {
 
 .cs-bitcoind-dot.running {
   background: var(--cs-orange);
-  box-shadow: 0 0 12px rgba(232, 80, 2, 0.75);
+  box-shadow: 0 0 10px rgba(232, 80, 2, 0.7);
 }
 
-.cs-bitcoind-main > div {
-  min-width: 0;
+.cs-bitcoind-sub-row {
   display: flex;
-  flex-direction: column;
-  gap: 3px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 13px;
 }
 
-.cs-bitcoind-main strong {
-  color: var(--cs-text);
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 1.1;
-}
-
-.cs-bitcoind-main p {
+.cs-bitcoind-sub {
   margin: 0;
   color: var(--cs-text-3);
   font-family: var(--cs-mono);
   font-size: 11px;
   line-height: 1.25;
-  white-space: nowrap;
 }
 
-.cs-bitcoind-error {
-  grid-column: 1 / -1;
-  min-width: 0;
+.cs-bitcoind-stop-btn {
+  min-height: 26px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 77, 90, 0.32);
+  border-radius: 999px;
+  background: rgba(255, 77, 90, 0.08);
   color: var(--cs-red);
   font-family: var(--cs-mono);
   font-size: 10.5px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  cursor: pointer;
 }
 
-.cs-bitcoind-controls button {
-  min-width: 76px;
+.cs-bitcoind-stop-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+/* Start controls — animate out when running */
+.cs-bitcoind-start-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  max-height: 52px;
+  opacity: 1;
+  margin-top: 10px;
+  transform: translateY(0);
+  transition:
+    max-height 0.22s ease,
+    opacity 0.18s ease,
+    margin-top 0.22s ease,
+    transform 0.22s ease;
+}
+
+.cs-bitcoind-start-wrap.cs-start-exit {
+  max-height: 0;
+  opacity: 0;
+  margin-top: 0;
+  transform: translateY(-6px);
+  pointer-events: none;
+}
+
+.cs-bitcoind-start-wrap select {
+  width: 92px;
+  min-height: 36px;
+  border: 1px solid var(--cs-border);
+  border-radius: 999px;
+  background: var(--cs-surface-3);
+  color: var(--cs-text-2);
+  padding: 0 10px;
+  font-family: var(--cs-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.cs-bitcoind-start-wrap button {
+  flex: 1;
   min-height: 36px;
   border: 1px solid transparent;
   border-radius: 999px;
@@ -2349,24 +2371,28 @@ a.cs-maker-report-artifact:focus-visible {
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  flex: 0 0 auto;
 }
 
-.cs-bitcoind-controls button.primary {
+.cs-bitcoind-start-wrap button.primary {
   background: var(--cs-orange);
   color: white;
 }
 
-.cs-bitcoind-controls button.danger {
-  border-color: rgba(255, 77, 90, 0.32);
-  background: rgba(255, 77, 90, 0.08);
-  color: var(--cs-red);
-}
-
-.cs-bitcoind-controls button:disabled,
-.cs-bitcoind-controls select:disabled {
+.cs-bitcoind-start-wrap button:disabled,
+.cs-bitcoind-start-wrap select:disabled {
   cursor: wait;
   opacity: 0.55;
+}
+
+.cs-bitcoind-error {
+  min-width: 0;
+  color: var(--cs-red);
+  font-family: var(--cs-mono);
+  font-size: 10.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 6px;
 }
 
 .cs-home-banner {
@@ -2902,21 +2928,6 @@ a.cs-maker-report-artifact:focus-visible {
   .cs-home-metrics,
   .cs-home-makers {
     grid-template-columns: 1fr;
-  }
-
-  .cs-bitcoind-widget {
-    align-items: stretch;
-    grid-template-columns: 1fr;
-  }
-
-  .cs-bitcoind-controls {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .cs-bitcoind-controls select,
-  .cs-bitcoind-controls button {
-    width: 100%;
   }
 
   .cs-home-section-head,
