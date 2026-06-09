@@ -143,7 +143,7 @@ From the web UI you can:
 - Update maker configuration
 - Remove a maker registration from the dashboard without deleting its wallet data
 
-Registered makers are restored on dashboard restart, but they are **not auto-started**. They come back in the stopped state until you start them again.
+Registered makers are restored on dashboard restart. If **Auto-start makers** is enabled in the dashboard, restored makers start automatically after login/startup; if it is disabled, they come back stopped until you start them again.
 
 ## Configuration
 

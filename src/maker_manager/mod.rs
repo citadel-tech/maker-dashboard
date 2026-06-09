@@ -17,7 +17,7 @@ use coinswap::maker::{MakerServer, MakerServerConfig};
 use coinswap::wallet::RPCConfig;
 use maker_pool::{MakerId, MakerPool};
 use message::{MessageRequest, MessageResponse};
-use persistence::PersistenceManager;
+use persistence::{DashboardSettings, PersistenceManager};
 
 /// Configuration for creating a new maker.
 #[derive(Debug, Clone)]
@@ -107,6 +107,7 @@ pub struct MakerManager {
     /// True iff the encryption key has been provided AND configs have been loaded.
     /// `false` between startup and login when `makers.json` exists encrypted but no key is known.
     unlocked: bool,
+    settings: DashboardSettings,
 }
 
 impl MakerManager {
@@ -115,11 +116,12 @@ impl MakerManager {
 
     /// Creates a new MakerManager with persistence at the given config directory.
     ///
-    /// Loads any previously saved maker configs and re-initializes them (but does NOT start servers).
+    /// Loads any previously saved maker configs and re-initializes them. If the
+    /// persisted auto-start setting is enabled, restored maker servers are started.
     ///
     /// Behavior:
     /// - If `enc_key` is `Some`, attempts to load and re-initialize previously
-    ///   saved makers (they are NOT started).
+    ///   saved makers, then auto-starts them when the setting is enabled.
     /// - If `enc_key` is `None` AND `makers.json` does not exist (or is the
     ///   legacy plaintext format), behaves as the `Some` case above.
     /// - If `enc_key` is `None` AND `makers.json` is an encrypted envelope,
@@ -148,6 +150,7 @@ impl MakerManager {
         tor_manager: TorManager,
     ) -> Result<Self> {
         let persistence = PersistenceManager::new(config_dir.clone(), enc_key)?;
+        let settings = persistence.load_settings()?;
 
         let mut mgr = Self {
             pool: MakerPool::new(),
@@ -157,6 +160,7 @@ impl MakerManager {
             bitcoind_network: None,
             tor_manager,
             unlocked: false,
+            settings,
         };
 
         // Decide whether we can load now or must defer until unlock().
@@ -173,6 +177,9 @@ impl MakerManager {
         if can_load {
             let saved_configs = mgr.persistence.load()?;
             mgr.restore_makers(saved_configs);
+            if mgr.settings.auto_start_makers {
+                mgr.auto_start_restored_makers();
+            }
             mgr.unlocked = true;
         }
 
@@ -193,7 +200,7 @@ impl MakerManager {
         value.get("v") == Some(&serde_json::json!(1)) && value.get("data").is_some()
     }
 
-    /// Restore previously registered makers (init only, not started).
+    /// Restore previously registered makers (init only; auto-start happens after this).
     fn restore_makers(&mut self, saved_configs: HashMap<MakerId, MakerConfig>) {
         let mut normalized_any = false;
         for (id, config) in saved_configs {
@@ -220,6 +227,20 @@ impl MakerManager {
         }
     }
 
+    fn auto_start_restored_makers(&mut self) {
+        let restored_ids: Vec<MakerId> = self.configs.keys().cloned().collect();
+        for id in restored_ids {
+            if self.pool.contains(&id) {
+                match self.pool.start_server(&id) {
+                    Ok(()) => tracing::info!("Maker '{}' auto-started after restore", id),
+                    Err(e) => {
+                        tracing::warn!("Maker '{}' restored but failed to auto-start: {}", id, e)
+                    }
+                }
+            }
+        }
+    }
+
     /// Provides the AES key and loads configs from disk if not already done.
     /// Idempotent: a second call (with the same or different key) is a no-op
     /// once the manager is already unlocked.
@@ -233,6 +254,9 @@ impl MakerManager {
         self.persistence.update_enc_key(Some(key));
         let saved_configs = self.persistence.load()?;
         self.restore_makers(saved_configs);
+        if self.settings.auto_start_makers {
+            self.auto_start_restored_makers();
+        }
         self.unlocked = true;
 
         // If makers.json doesn't exist yet (fresh setup), persist an empty
@@ -256,6 +280,15 @@ impl MakerManager {
     /// Exposed for the first-run setup handler to refuse overwriting state.
     pub fn persistence_state_file_exists(&self) -> bool {
         self.persistence.state_file_exists()
+    }
+
+    pub fn auto_start_makers(&self) -> bool {
+        self.settings.auto_start_makers
+    }
+
+    pub fn set_auto_start_makers(&mut self, enabled: bool) -> Result<()> {
+        self.settings.auto_start_makers = enabled;
+        self.persistence.save_settings(&self.settings)
     }
 
     /// Returns the default coinswap data directory for a maker.
@@ -889,6 +922,26 @@ mod tests {
         assert_ne!(network_port, 9051);
         assert_ne!(rpc_port, 9050);
         assert_ne!(rpc_port, 9051);
+    }
+
+    #[test]
+    fn auto_start_setting_persists() {
+        let config_dir = std::env::temp_dir().join(format!(
+            "maker-manager-settings-test-{}",
+            std::process::id()
+        ));
+        if config_dir.exists() {
+            std::fs::remove_dir_all(&config_dir).unwrap();
+        }
+        std::fs::create_dir_all(&config_dir).unwrap();
+
+        let mut manager = MakerManager::new_for_testing(config_dir.clone(), None).unwrap();
+        assert!(manager.auto_start_makers());
+
+        manager.set_auto_start_makers(false).unwrap();
+
+        let manager = MakerManager::new_for_testing(config_dir, None).unwrap();
+        assert!(!manager.auto_start_makers());
     }
 }
 

@@ -68,6 +68,40 @@ async fn suggested_ports_skip_taken_defaults() {
 }
 
 #[tokio::test]
+async fn auto_start_setting_defaults_to_enabled() {
+    let (status, body) = get(test_app(), "/makers/auto-start").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        body,
+        json!({ "success": true, "data": { "enabled": true } })
+    );
+}
+
+#[tokio::test]
+async fn auto_start_setting_can_be_updated() {
+    let app = test_app();
+
+    let (put_status, put_body) = put(
+        app.clone(),
+        "/makers/auto-start",
+        json!({ "enabled": false }),
+    )
+    .await;
+    assert_eq!(put_status, StatusCode::OK);
+    assert_eq!(
+        put_body,
+        json!({ "success": true, "data": { "enabled": false } })
+    );
+
+    let (get_status, get_body) = get(app, "/makers/auto-start").await;
+    assert_eq!(get_status, StatusCode::OK);
+    assert_eq!(
+        get_body,
+        json!({ "success": true, "data": { "enabled": false } })
+    );
+}
+
+#[tokio::test]
 async fn list_and_count_stay_empty_after_failed_create() {
     let app = test_app();
     // This fails because there is no Bitcoin node at 127.0.0.1:19998

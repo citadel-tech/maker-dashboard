@@ -62,6 +62,8 @@ export default function Home() {
   const [makerFilter, setMakerFilter] = useState<MakerFilter>("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [autoStartMakers, setAutoStartMakers] = useState(true);
+  const [autoStartSaving, setAutoStartSaving] = useState(false);
   const [copiedTor, setCopiedTor] = useState<string | null>(null);
   const [swapBannerDismissed, setSwapBannerDismissed] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
@@ -152,11 +154,39 @@ export default function Home() {
 
   useEffect(() => {
     loadMakers(true);
+    makers
+      .autoStartSettings()
+      .then((settings) => setAutoStartMakers(settings.enabled))
+      .catch((err) =>
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Failed to load maker startup setting",
+        ),
+      );
     const interval = setInterval(() => {
       void loadMakers();
     }, 15_000);
     return () => clearInterval(interval);
   }, []);
+
+  async function toggleAutoStartMakers(enabled: boolean) {
+    setAutoStartSaving(true);
+    setAutoStartMakers(enabled);
+    try {
+      const settings = await makers.updateAutoStartSettings(enabled);
+      setAutoStartMakers(settings.enabled);
+    } catch (err) {
+      setAutoStartMakers(!enabled);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to save maker startup setting",
+      );
+    } finally {
+      setAutoStartSaving(false);
+    }
+  }
 
   function copyTor(id: string, torAddress: string) {
     const text = torHostOnly(torAddress);
@@ -316,6 +346,18 @@ export default function Home() {
               </div>
             </div>
             <div className="cs-actions">
+              <label className="cs-toggle">
+                <span>Auto-start makers</span>
+                <input
+                  type="checkbox"
+                  checked={autoStartMakers}
+                  disabled={autoStartSaving}
+                  onChange={(event) =>
+                    void toggleAutoStartMakers(event.target.checked)
+                  }
+                  aria-label="Auto-start makers on startup"
+                />
+              </label>
               <button
                 type="button"
                 onClick={() => setShowChangePassword(true)}

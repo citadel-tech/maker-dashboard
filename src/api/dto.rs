@@ -176,6 +176,16 @@ pub struct SuggestedMakerPorts {
 }
 
 #[derive(Debug, Serialize, ToSchema)]
+pub struct MakerAutoStartSettings {
+    pub enabled: bool,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct UpdateMakerAutoStartSettingsRequest {
+    pub enabled: bool,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum MakerStateDto {
     Running,
