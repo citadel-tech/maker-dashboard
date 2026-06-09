@@ -109,42 +109,51 @@ export default function BitcoindWidget() {
 
   return (
     <div className="cs-bitcoind-widget">
-      <div className="cs-bitcoind-copy">
-        <div className="cs-bitcoind-head">
-          <span className="cs-label">Bitcoin Core</span>
-        </div>
-        <div className="cs-bitcoind-main">
+      <div className="cs-bitcoind-top">
+        <span className="cs-label">Bitcoin Core</span>
+        <div className="cs-bitcoind-status">
           <span
             className={`cs-bitcoind-dot ${status.running ? "running" : ""}`}
             aria-hidden="true"
           />
-          <div>
-            <strong>{status.running ? "Running" : "Stopped"}</strong>
-            <p>{statusLabel}</p>
-          </div>
+          <strong>{status.running ? "Running" : "Stopped"}</strong>
         </div>
       </div>
 
-      <div className="cs-bitcoind-controls">
-        {!status.running && (
-          <select
-            value={network}
-            onChange={(e) => setNetwork(e.target.value as "regtest" | "signet")}
-            disabled={pending}
-            aria-label="Bitcoin Core network"
+      <div className="cs-bitcoind-sub-row">
+        <p className="cs-bitcoind-sub">{statusLabel}</p>
+        {status.running && (
+          <button
+            type="button"
+            disabled={pending || !canStop}
+            onClick={toggle}
+            className="cs-bitcoind-stop-btn danger"
+            title={stopTitle}
           >
-            <option value="regtest">regtest</option>
-            <option value="signet">signet</option>
-          </select>
+            {pending ? "…" : "Stop"}
+          </button>
         )}
+      </div>
+
+      <div
+        className={`cs-bitcoind-start-wrap${status.running ? " cs-start-exit" : ""}`}
+      >
+        <select
+          value={network}
+          onChange={(e) => setNetwork(e.target.value as "regtest" | "signet")}
+          disabled={pending}
+          aria-label="Bitcoin Core network"
+        >
+          <option value="regtest">regtest</option>
+          <option value="signet">signet</option>
+        </select>
         <button
           type="button"
-          disabled={pending || (status.running && !canStop)}
+          disabled={pending}
           onClick={toggle}
-          className={status.running ? "danger" : "primary"}
-          title={stopTitle}
+          className="primary"
         >
-          {pending ? "..." : status.running ? "Stop" : "Start"}
+          {pending ? "…" : "Start"}
         </button>
       </div>
 
