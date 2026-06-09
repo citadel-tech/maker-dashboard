@@ -145,6 +145,24 @@ struct StoredState {
     makers: HashMap<MakerId, StoredMakerConfig>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DashboardSettings {
+    #[serde(default = "default_auto_start_makers")]
+    pub auto_start_makers: bool,
+}
+
+fn default_auto_start_makers() -> bool {
+    true
+}
+
+impl Default for DashboardSettings {
+    fn default() -> Self {
+        Self {
+            auto_start_makers: default_auto_start_makers(),
+        }
+    }
+}
+
 /// Handles persisting maker configurations to disk.
 ///
 /// This only manages the dashboard's own config (e.g. `~/.config/maker-dashboard/makers.json`).
@@ -175,10 +193,63 @@ impl PersistenceManager {
         self.config_dir.join("makers.json")
     }
 
+    fn settings_file(&self) -> PathBuf {
+        self.config_dir.join("settings.json")
+    }
+
     /// Returns true if `makers.json` already exists on disk.
     /// Used by the first-run setup handler to refuse overwriting existing state.
     pub fn state_file_exists(&self) -> bool {
         self.state_file().exists()
+    }
+
+    pub fn load_settings(&self) -> Result<DashboardSettings> {
+        let path = self.settings_file();
+        if !path.exists() {
+            return Ok(DashboardSettings::default());
+        }
+
+        let raw = fs::read(&path)
+            .with_context(|| format!("Failed to read settings file: {}", path.display()))?;
+        serde_json::from_slice(&raw)
+            .with_context(|| format!("Failed to parse settings file: {}", path.display()))
+    }
+
+    pub fn save_settings(&self, settings: &DashboardSettings) -> Result<()> {
+        let payload =
+            serde_json::to_vec_pretty(settings).context("Failed to serialize settings")?;
+        let path = self.settings_file();
+        let tmp_path = path.with_extension("tmp");
+
+        let _ = fs::remove_file(&tmp_path);
+        {
+            use std::io::Write as _;
+            let mut opts = fs::OpenOptions::new();
+            opts.write(true).create_new(true);
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::OpenOptionsExt;
+                opts.mode(0o600);
+            }
+            let mut file = opts.open(&tmp_path).with_context(|| {
+                format!("Failed to open temp settings file: {}", tmp_path.display())
+            })?;
+            file.write_all(&payload)
+                .with_context(|| format!("Failed to write settings file: {}", path.display()))?;
+            file.sync_all().with_context(|| {
+                format!("Failed to fsync settings file: {}", tmp_path.display())
+            })?;
+        }
+
+        fs::rename(&tmp_path, &path).with_context(|| {
+            format!(
+                "Failed to atomically rename {} -> {}",
+                tmp_path.display(),
+                path.display()
+            )
+        })?;
+
+        Ok(())
     }
 
     /// Saves all maker configs to disk
