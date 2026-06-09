@@ -1,5 +1,11 @@
 # VPS deployment
 
+> ⚠️ **Not stable yet. Use at your own risk.** This deployment setup is still
+> experimental and has not been hardened for production. It manages hot wallets
+> holding real Bitcoin, and misconfiguration can lead to permanent loss of
+> funds. Do not run it with funds you cannot afford to lose, and keep your own
+> backups of wallet seeds and `/var/lib/maker-dashboard-coinswap`.
+
 Run Maker Dashboard on a Linux VPS. CI signs each image; the VPS verifies the
 signature before restarting.
 
@@ -43,12 +49,23 @@ sudo install -m 0755 deploy/notify-matrix.sh         /usr/local/bin/
 sudo install -m 0644 deploy/maker-dashboard.service  /etc/systemd/system/
 ```
 
-Create the data directory. The container runs as UID `1000`:
+Create the two data directories. The container runs as UID `1000`:
 
 ```sh
+# auth.json + encrypted maker configs
 sudo mkdir -p /var/lib/maker-dashboard
 sudo chown 1000:1000 /var/lib/maker-dashboard
+
+# maker wallets, fidelity bonds, swap history, per-maker Tor keys
+sudo mkdir -p /var/lib/maker-dashboard-coinswap
+sudo chown 1000:1000 /var/lib/maker-dashboard-coinswap
 ```
+
+> Both must be persistent host mounts. The service runs the container with
+> `--rm`, so anything written inside the container (the maker `~/.coinswap`
+> tree in particular) is destroyed on every restart/update. Mounting
+> `/var/lib/maker-dashboard-coinswap` to `~/.coinswap` is what keeps wallet
+> funds and fidelity bonds alive across deploys. **Back this directory up.**
 
 Pull and verify the first image:
 
@@ -267,8 +284,15 @@ repo was renamed (set `REPO=newowner/newrepo`), or someone pushed an
 unsigned image manually. Investigate before deploying.
 
 **Container exits on start:** check `journalctl -u maker-dashboard.service
--n 50`. Usually: port 3000 already bound, or `/var/lib/maker-dashboard` not
-owned by `1000:1000`.
+-n 50`. Usually: port 3000 already bound, or `/var/lib/maker-dashboard` /
+`/var/lib/maker-dashboard-coinswap` not owned by `1000:1000`.
+
+**Makers lost wallets / "unable to decrypt" after an update:** the
+`/var/lib/maker-dashboard-coinswap` -> `~/.coinswap` mount is missing, so the
+maker wallet tree was living in the container's `--rm` layer and got wiped on
+restart. Add the mount (see the unit file), recreate the dir owned by
+`1000:1000`, and restore wallets from your seed backup. Wallet data destroyed
+this way is not recoverable from the host.
 
 **Matrix notifications not arriving:** test the notifier and the underlying
 client directly:

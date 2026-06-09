@@ -13,6 +13,7 @@ REPO="citadel-tech/maker-dashboard"
 WORKFLOW_PATH=".github/workflows/docker-publish.yml"
 BRANCH="main"
 DATA_DIR="/var/lib/maker-dashboard"
+WALLET_DIR="/var/lib/maker-dashboard-coinswap"
 MC_DIR="/etc/maker-dashboard/matrix-commander"
 MC_CREDS="${MC_DIR}/credentials.json"
 MC_STORE="${MC_DIR}/store"
@@ -113,10 +114,18 @@ info "scripts in /usr/local/bin/, units in /etc/systemd/system/"
 
 # ---------------------------------------------------------- data dir ----
 
-bold "3. Data directory ${DATA_DIR}"
+bold "3. Data directories"
+# Dashboard config (auth.json + encrypted makers.json).
 mkdir -p "$DATA_DIR"
 chown 1000:1000 "$DATA_DIR"
-info "owned by uid 1000 (container's appuser)"
+info "${DATA_DIR} -> ~/.config/maker-dashboard (auth + maker configs)"
+# Maker wallets, fidelity bonds, swap history, per-maker Tor keys. MUST be a
+# persistent mount: the service runs the container with --rm, so anything left
+# inside the container's ~/.coinswap is destroyed on every restart/update.
+mkdir -p "$WALLET_DIR"
+chown 1000:1000 "$WALLET_DIR"
+info "${WALLET_DIR} -> ~/.coinswap (wallets, fidelity bonds, swap history)"
+info "both owned by uid 1000 (container's appuser)"
 
 # ------------------------------------------------ Matrix (optional) ----
 
