@@ -2,15 +2,19 @@
 # Reverse of setup.sh: stop/disable/remove the deploy artifacts, leaving the
 # host clean enough to re-run setup.sh from scratch.
 #
-# Preserves /var/lib/maker-dashboard/ (dashboard data — maker configs, wallets,
-# logs) by default. Other state (Matrix credentials, ntfy topic, forwarder
-# cursor, cached Docker image) is removed interactively.
+# Preserves the data dirs by default:
+#   /var/lib/maker-dashboard/          - auth.json + encrypted maker configs
+#   /var/lib/maker-dashboard-coinswap/ - maker WALLETS, fidelity bonds, swap
+#                                        history, per-maker Tor keys
+# Other state (Matrix credentials, ntfy topic, forwarder cursor, cached Docker
+# image) is removed interactively.
 #
 # Run as root: sudo deploy/teardown.sh
 
 set -uo pipefail
 
 DATA_DIR="/var/lib/maker-dashboard"
+WALLET_DIR="/var/lib/maker-dashboard-coinswap"
 MC_DIR="/etc/maker-dashboard/matrix-commander"
 NTFY_ENV="/etc/maker-dashboard/ntfy.env"
 FORWARDER_STATE="/var/lib/maker-dashboard-forwarder"
@@ -157,8 +161,14 @@ fi
 
 bold "Done"
 if [ -d "$DATA_DIR" ]; then
-    info "Preserved: ${DATA_DIR} (your maker configs, wallets, logs)."
-    info "  To wipe data too: sudo rm -rf ${DATA_DIR}"
+    info "Preserved: ${DATA_DIR} (auth.json + encrypted maker configs)."
+fi
+if [ -d "$WALLET_DIR" ]; then
+    warn "Preserved: ${WALLET_DIR} (maker WALLETS, fidelity bonds, swap history)."
+    warn "  This holds your funds. Back it up before deleting anything."
+fi
+if [ -d "$DATA_DIR" ] || [ -d "$WALLET_DIR" ]; then
+    info "  To wipe ALL data: sudo rm -rf ${DATA_DIR} ${WALLET_DIR}"
 fi
 info "cosign was NOT removed (broadly useful; setup.sh skips it if present)."
 echo
