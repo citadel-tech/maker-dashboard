@@ -83,6 +83,85 @@ select {
   padding: 28px 0 36px;
 }
 
+.cs-auth-page {
+  min-height: 100vh;
+  width: min(100%, 520px);
+  margin: 0 auto;
+  padding: 32px 24px;
+  display: grid;
+  place-items: center;
+}
+
+.cs-auth-card {
+  width: 100%;
+  border-radius: 18px;
+  background: var(--cs-surface-1);
+  box-shadow: var(--cs-shell-shadow);
+}
+
+.cs-auth-head {
+  position: relative;
+  padding: 32px 32px 24px;
+  border-bottom: 1px solid var(--cs-border);
+}
+
+.cs-auth-mark {
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(232, 80, 2, 0.32);
+  border-radius: 12px;
+  background: rgba(232, 80, 2, 0.1);
+  color: var(--cs-orange-hover);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cs-auth-badge {
+  position: absolute;
+  top: 32px;
+  right: 32px;
+}
+
+.cs-auth-head h1 {
+  margin: 22px 0 0;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+}
+
+.cs-auth-head p {
+  margin: 9px 0 0;
+  max-width: 360px;
+  color: var(--cs-text-2);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.cs-auth-form {
+  display: grid;
+  gap: 16px;
+  padding: 24px 32px 28px;
+}
+
+.cs-auth-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 15px 32px 28px;
+  color: var(--cs-text-3);
+  font-family: var(--cs-mono);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.cs-auth-note svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--cs-green);
+}
+
 .cs-main {
   width: min(1320px, calc(100% - 48px));
   margin: 0 auto;
@@ -1523,6 +1602,11 @@ a.cs-maker-report-artifact:focus-visible {
   border-color: var(--cs-border-strong);
 }
 
+.cs-input:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+
 .cs-input-wrap {
   position: relative;
   display: flex;
@@ -1550,6 +1634,11 @@ a.cs-maker-report-artifact:focus-visible {
 .cs-eye:hover {
   background: rgba(255, 255, 255, 0.04);
   color: var(--cs-text);
+}
+
+.cs-eye:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .cs-unit {
@@ -2771,6 +2860,71 @@ a.cs-maker-report-artifact:focus-visible {
   line-height: 1.5;
 }
 
+.cs-first-run-page {
+  justify-content: flex-start;
+}
+
+.cs-first-run-hero {
+  border: 1px solid var(--cs-border);
+  border-radius: 14px;
+  background: var(--cs-surface-2);
+  padding: 26px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.cs-first-run-hero h2 {
+  margin: 9px 0 0;
+  max-width: 620px;
+  color: var(--cs-text);
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.12;
+}
+
+.cs-first-run-hero p {
+  margin: 12px 0 0;
+  max-width: 690px;
+  color: var(--cs-text-2);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.cs-first-run-hero .cs-btn {
+  min-height: 46px;
+  padding-inline: 20px;
+  flex: 0 0 auto;
+}
+
+.cs-first-run-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.cs-first-run-card {
+  min-height: 150px;
+  justify-content: flex-start;
+}
+
+.cs-first-run-card svg {
+  color: var(--cs-orange);
+}
+
+.cs-first-run-card h3 {
+  margin-top: 4px;
+}
+
+.cs-first-run-card p {
+  margin: 0;
+  color: var(--cs-text-2);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
 .cs-home-activity {
   overflow: hidden;
   border: 1px solid var(--cs-border);
@@ -2953,8 +3107,19 @@ a.cs-maker-report-artifact:focus-visible {
   }
 
   .cs-home-metrics,
-  .cs-home-makers {
+  .cs-home-makers,
+  .cs-first-run-grid {
     grid-template-columns: 1fr;
+  }
+
+  .cs-first-run-hero {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 22px;
+  }
+
+  .cs-first-run-hero h2 {
+    font-size: 23px;
   }
 
   .cs-home-section-head,
@@ -3021,18 +3186,17 @@ a.cs-maker-report-artifact:focus-visible {
 .cs-add-head h1 {
   margin: 8px 0 0;
   color: #fff;
-  font-size: 45px;
-  font-weight: 800;
+  font-size: 38px;
+  font-weight: 700;
   letter-spacing: 0;
-  line-height: 1;
+  line-height: 1.05;
   text-transform: uppercase;
-  text-shadow: 2px 2px 0 rgba(91, 141, 239, 0.8);
 }
 
 .cs-add-head p {
-  margin: 14px 0 0;
-  color: #b9bfcc;
-  font-size: 16px;
+  margin: 13px 0 0;
+  color: var(--cs-text-2);
+  font-size: 13px;
 }
 
 .cs-add-back {
@@ -3058,14 +3222,14 @@ a.cs-maker-report-artifact:focus-visible {
 
 .cs-add-network {
   margin-top: 5px;
-  padding: 7px 18px 7px 12px;
+  padding: 7px 13px 7px 10px;
   border-color: rgba(255, 181, 71, 0.32);
   background: rgba(255, 181, 71, 0.1);
   box-shadow:
     0 0 0 1px rgba(255, 181, 71, 0.08) inset,
     0 0 18px rgba(255, 181, 71, 0.13);
   color: #ffb547;
-  font-size: 12px;
+  font-size: 10.5px;
   font-weight: 700;
 }
 
@@ -3101,17 +3265,16 @@ a.cs-maker-report-artifact:focus-visible {
 
 .cs-add-page .cs-card-head h2 {
   color: #fff;
-  font-size: 20px;
-  font-weight: 800;
-  letter-spacing: 0;
-  text-shadow: 1.5px 1.5px 0 rgba(91, 141, 239, 0.75);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .cs-add-page .cs-card-head p {
   margin: 7px 0 0;
-  color: #c0c4d1;
-  font-size: 15.5px;
-  line-height: 1.45;
+  color: var(--cs-text-2);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .cs-add-page .cs-card-head code {
@@ -3140,11 +3303,10 @@ a.cs-maker-report-artifact:focus-visible {
 }
 
 .cs-field-label-row label {
-  color: #fff;
-  font-size: 15px;
-  font-weight: 800;
-  letter-spacing: 0;
-  text-shadow: 1px 1px 0 rgba(91, 141, 239, 0.7);
+  color: var(--cs-text-2);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
 }
 
 .cs-field-label-row > span {
@@ -3156,14 +3318,14 @@ a.cs-maker-report-artifact:focus-visible {
 }
 
 .cs-add-page .cs-input {
-  min-height: 51px;
-  border-radius: 9px;
+  min-height: 43px;
+  border-radius: 8px;
   border-color: rgba(255, 255, 255, 0.1);
   background: #1f1f25;
   color: #fff;
-  font-size: 15px;
-  font-weight: 650;
-  padding: 13px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 11px 13px;
 }
 
 .cs-add-page .cs-input::placeholder {
@@ -3195,10 +3357,10 @@ a.cs-maker-report-artifact:focus-visible {
 }
 
 .cs-add-actions .cs-btn {
-  min-height: 64px;
+  min-height: 46px;
   border-radius: 999px;
-  font-size: 16px;
-  font-weight: 800;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .cs-add-actions .cs-btn.ghost {
@@ -3270,19 +3432,18 @@ a.cs-maker-report-artifact:focus-visible {
 }
 
 .cs-add-check-body strong {
-  font-size: 16px;
-  font-weight: 800;
+  font-size: 14px;
+  font-weight: 600;
   color: var(--cs-text);
-  text-shadow: 1px 1px 0 rgba(91, 141, 239, 0.7);
 }
 
 .cs-add-check-body p,
 .cs-add-result,
 .cs-add-detail {
   margin: 0;
-  color: #c0c4d1;
+  color: var(--cs-text-2);
   font-family: var(--cs-mono);
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.45;
 }
 
@@ -3371,6 +3532,33 @@ a.cs-maker-report-artifact:focus-visible {
 }
 
 @media (max-width: 760px) {
+  .cs-auth-page {
+    padding: 20px 14px;
+  }
+
+  .cs-auth-head,
+  .cs-auth-form {
+    padding-inline: 22px;
+  }
+
+  .cs-auth-head {
+    padding-top: 24px;
+  }
+
+  .cs-auth-badge {
+    position: static;
+    margin: 18px 0 0;
+  }
+
+  .cs-auth-head h1 {
+    margin-top: 18px;
+    font-size: 26px;
+  }
+
+  .cs-auth-note {
+    padding: 0 22px 24px;
+  }
+
   .cs-add-page {
     width: min(100% - 20px, 1320px);
     min-height: calc(100vh - 40px);

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, LockKeyhole, ShieldCheck } from "lucide-react";
 import { auth, ApiError } from "@/api";
 
 function PasswordInput({
@@ -20,7 +20,7 @@ function PasswordInput({
 }) {
   const [show, setShow] = useState(false);
   return (
-    <div className="relative">
+    <div className="cs-input-wrap">
       <input
         id={id}
         type={show ? "text" : "password"}
@@ -29,17 +29,18 @@ function PasswordInput({
         required
         autoFocus={autoFocus}
         disabled={disabled}
-        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 pr-10 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="cs-input"
         placeholder={placeholder ?? "••••••••"}
       />
       <button
         type="button"
         onClick={() => setShow((v) => !v)}
         disabled={disabled}
-        className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-400 hover:text-gray-200 disabled:opacity-50"
+        className="cs-eye"
+        aria-label={show ? "Hide password" : "Show password"}
         tabIndex={-1}
       >
-        {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+        {show ? <EyeOff size={16} /> : <Eye size={16} />}
       </button>
     </div>
   );
@@ -92,26 +93,24 @@ export default function Setup() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100 flex items-center justify-center px-4 py-8">
-      <div className="w-full max-w-sm animate-slide-in-up">
-        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-8 shadow-xl shadow-black/40">
-          <div className="mb-6 text-center">
-            <h1 className="text-2xl font-bold text-orange-500 tracking-tight">
-              First-run setup
-            </h1>
-            <p className="mt-2 text-sm text-gray-400 leading-relaxed">
-              Choose a password to initialize your dashboard.
-            </p>
+    <div className="cs-page">
+      <main className="cs-auth-page">
+        <section className="cs-auth-card cs-card">
+          <div className="cs-auth-head">
+            <span className="cs-auth-mark">
+              <LockKeyhole size={22} />
+            </span>
+            <span className="cs-network-badge cs-auth-badge">
+              <span className="cs-dot" />
+              First run
+            </span>
+            <h1>Coinswap Maker</h1>
+            <p>Choose a dashboard password before creating makers.</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label
-                htmlFor="new-password"
-                className="block text-xs text-gray-400 mb-1.5"
-              >
-                New password
-              </label>
+          <form onSubmit={handleSubmit} className="cs-auth-form">
+            <div className="cs-field">
+              <label htmlFor="new-password">New password</label>
               <PasswordInput
                 id="new-password"
                 value={password}
@@ -121,13 +120,8 @@ export default function Setup() {
               />
             </div>
 
-            <div>
-              <label
-                htmlFor="confirm-password"
-                className="block text-xs text-gray-400 mb-1.5"
-              >
-                Confirm password
-              </label>
+            <div className="cs-field">
+              <label htmlFor="confirm-password">Confirm password</label>
               <PasswordInput
                 id="confirm-password"
                 value={confirm}
@@ -136,24 +130,28 @@ export default function Setup() {
               />
             </div>
 
-            {error && (
-              <div className="px-3 py-2 bg-red-900/40 border border-red-700 rounded-lg text-sm text-red-300 animate-fade-in">
-                {error}
-              </div>
-            )}
+            {error && <div className="cs-banner error">{error}</div>}
 
             <button
               type="submit"
               disabled={
                 loading || password.length === 0 || confirm.length === 0
               }
-              className="w-full py-2.5 bg-orange-600 hover:bg-orange-700 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-semibold text-sm transition-all duration-150"
+              className="cs-btn primary block"
             >
               {loading ? "Initializing..." : "Initialize dashboard"}
             </button>
           </form>
-        </div>
-      </div>
+
+          <div className="cs-auth-note">
+            <ShieldCheck size={16} />
+            <span>
+              This password protects dashboard access and encrypts saved maker
+              configuration.
+            </span>
+          </div>
+        </section>
+      </main>
     </div>
   );
 }

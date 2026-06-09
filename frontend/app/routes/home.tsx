@@ -1,7 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowDown, Check, Copy, Plus, X, Zap } from "lucide-react";
-import OnboardingWizard from "./onboarding";
+import {
+  ArrowDown,
+  Check,
+  Coins,
+  Copy,
+  Globe,
+  Plus,
+  ShieldCheck,
+  X,
+  Zap,
+} from "lucide-react";
+import AddMaker from "./addMaker";
 import BitcoindWidget from "../components/BitcoindWidget";
 import { ChangePasswordModal } from "../components/Nav";
 import {
@@ -55,6 +65,72 @@ function torHostOnly(value: string) {
   return value.slice(0, idx + marker.length);
 }
 
+function FirstRunWelcome({ onStart }: { onStart: () => void }) {
+  const features = [
+    {
+      icon: ShieldCheck,
+      title: "Privacy-first",
+      desc: "Coinswap breaks transaction graph links without requiring a trusted coordinator.",
+    },
+    {
+      icon: Coins,
+      title: "Earn fees",
+      desc: "Provide maker liquidity and earn configured fees from successful swaps.",
+    },
+    {
+      icon: Globe,
+      title: "Tor native",
+      desc: "Makers advertise and communicate over Tor for taker discovery and swap traffic.",
+    },
+  ];
+
+  return (
+    <div className="cs-page">
+      <main className="cs-home-page cs-first-run-page">
+        <header className="cs-home-top">
+          <div className="cs-home-brand">
+            <span className="cs-network-badge cs-home-network">
+              <span className="cs-dot" />
+              Signet
+            </span>
+            <div className="cs-home-title-row">
+              <span className="cs-home-mark">C</span>
+              <h1>Coinswap Maker</h1>
+            </div>
+            <p>Set up your first maker and start operating liquidity.</p>
+          </div>
+        </header>
+
+        <section className="cs-first-run-hero">
+          <div>
+            <span className="cs-label">First maker setup</span>
+            <h2>Before you create a maker, run the live checks.</h2>
+            <p>
+              The next screen uses the same Add Maker flow as the dashboard:
+              Bitcoin Core details, Tor settings, pre-checks, and maker
+              configuration in one place.
+            </p>
+          </div>
+          <button type="button" className="cs-btn primary" onClick={onStart}>
+            <Plus size={17} />
+            Create first maker
+          </button>
+        </section>
+
+        <section className="cs-first-run-grid">
+          {features.map(({ icon: Icon, title, desc }) => (
+            <article key={title} className="cs-home-maker cs-first-run-card">
+              <Icon size={24} />
+              <h3>{title}</h3>
+              <p>{desc}</p>
+            </article>
+          ))}
+        </section>
+      </main>
+    </div>
+  );
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function Home() {
@@ -67,6 +143,7 @@ export default function Home() {
   const [copiedTor, setCopiedTor] = useState<string | null>(null);
   const [swapBannerDismissed, setSwapBannerDismissed] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
+  const [firstRunStarted, setFirstRunStarted] = useState(false);
   const swapHistoryCache = useRef<Record<string, UtxoInfo[]>>({});
   const swapReportCache = useRef<Record<string, SwapReportDto[]>>({});
   const lastSwapRefreshAt = useRef(0);
@@ -209,9 +286,12 @@ export default function Home() {
     );
   }
 
-  // No makers — show guided onboarding instead of empty dashboard
   if (makerRows.length === 0) {
-    return <OnboardingWizard />;
+    return firstRunStarted ? (
+      <AddMaker firstRun />
+    ) : (
+      <FirstRunWelcome onStart={() => setFirstRunStarted(true)} />
+    );
   }
 
   const totalSpendableSats = makerRows.reduce(
