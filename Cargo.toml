@@ -7,6 +7,10 @@ authors = ["Citadel-tech Team"]
 [features]
 # Enable with: cargo test --features integration-test
 integration-test = ["coinswap/integration-test"]
+# Compile the built frontend (frontend/build/client) into the binary so the
+# release artifact is self-contained. Requires the frontend to be built first.
+# Used by the release workflow; default builds keep serving from disk.
+embed-frontend = ["dep:rust-embed"]
 
 [dependencies]
 axum = "0.8"
@@ -32,6 +36,21 @@ aes-gcm = "0.10"
 rand = { version = "0.8", features = ["getrandom"] }
 base64 = "0.22"
 hex = "0.4"
+rust-embed = { version = "8", features = ["mime-guess"], optional = true }
+
+# Debian packaging metadata (cargo-deb). The frontend is embedded in the binary
+# via the `embed-frontend` feature, so the package only ships the binary.
+[package.metadata.deb]
+maintainer = "Citadel-tech Team"
+copyright = "2026, Citadel-tech Team"
+license-file = ["LICENSE", "0"]
+extended-description = "Dashboard for managing Coinswap maker nodes (liquidity providers in the Coinswap privacy protocol)."
+section = "utils"
+priority = "optional"
+assets = [
+    ["target/release/maker-dashboard", "usr/bin/", "755"],
+    ["README.md", "usr/share/doc/maker-dashboard/README", "644"],
+]
 
 [[test]]
 name = "api"

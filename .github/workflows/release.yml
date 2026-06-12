@@ -15,9 +15,8 @@ env:
 jobs:
   # ---------------------------------------------------------------------------
   # 1. Build the frontend once (architecture-independent) and share it as an
-  #    artifact. The backend serves these files from disk at runtime via
-  #    ServeDir (default MAKER_DASHBOARD_FRONTEND_PATH = frontend/build/client),
-  #    so every release tarball must ship this directory alongside the binary.
+  #    artifact. Each platform job downloads it into frontend/build/client so
+  #    `--features embed-frontend` can compile it into the binary.
   # ---------------------------------------------------------------------------
   frontend:
     name: Build frontend
@@ -45,8 +44,8 @@ jobs:
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
-  # 2. Build the Rust binary per target, then package binary + frontend into a
-  #    single self-contained tarball and attach it to a draft GitHub release.
+  # 2. Per-target: build a self-contained binary (frontend embedded) and
+  #    produce a tarball plus a native package (.deb on Linux, .pkg on macOS).
   # ---------------------------------------------------------------------------
   release:
     name: ${{ matrix.target }}
@@ -62,6 +61,10 @@ jobs:
           # the host arch the same way x86_64 does. Free for public repos.
           - os: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
+          - os: macos-13 # Intel runner
+            target: x86_64-apple-darwin
+          - os: macos-latest # Apple Silicon runner
+            target: aarch64-apple-darwin
 
     steps:
       - uses: actions/checkout@v4
@@ -76,10 +79,15 @@ jobs:
           field: package.version
 
       # libtor builds bundled Tor from source — these are its C build deps.
-      - name: Install build dependencies
+      - name: Install build dependencies (Linux)
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y automake autoconf libtool pkg-config libssl-dev
+
+      - name: Install build dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install automake autoconf libtool pkg-config openssl
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -90,58 +98,69 @@ jobs:
         with:
           key: ${{ matrix.target }}
 
-      - name: Build binary
-        run: cargo build --release --locked --target ${{ matrix.target }}
-
+      # Must happen BEFORE the build: rust-embed reads frontend/build/client at
+      # compile time when the embed-frontend feature is on.
       - name: Download frontend artifact
         uses: actions/download-artifact@v4
         with:
           name: frontend-build
           path: frontend/build/client
 
-      - name: Package
-        id: package
+      - name: Build binary (frontend embedded)
+        run: cargo build --release --locked --target ${{ matrix.target }} --features embed-frontend
+
+      - name: Package tarball
+        id: tarball
         shell: bash
         run: |
           version="${{ steps.get_version.outputs.value }}"
           name="maker-dashboard-v${version}-${{ matrix.target }}"
-          stage="$(mktemp -d)/${name}"
-          mkdir -p "$stage/frontend/build"
+          mkdir -p "dist/$name"
+          cp "target/${{ matrix.target }}/release/maker-dashboard" "dist/$name/"
+          cp README.md LICENSE "dist/$name/"
+          tar -czvf "$name.tar.gz" -C dist "$name"
+          echo "file=$name.tar.gz" >> "$GITHUB_OUTPUT"
 
-          cp "target/${{ matrix.target }}/release/maker-dashboard" "$stage/"
-          cp -r frontend/build/client "$stage/frontend/build/client"
-          cp README.md LICENSE "$stage/"
+      # --- Debian package -----------------------------------------------------
+      - name: Install cargo-deb
+        if: runner.os == 'Linux'
+        run: cargo install cargo-deb --locked
 
-          # Self-contained: running ./maker-dashboard from the extracted dir
-          # resolves the default frontend path (frontend/build/client). install.sh
-          # is provided for a system-wide (FHS) install.
-          cat > "$stage/install.sh" <<'EOF'
-          #!/bin/sh
-          set -e
-          PREFIX="${PREFIX:-/usr/local}"
-          install -Dm755 maker-dashboard "$PREFIX/bin/maker-dashboard"
-          rm -rf "$PREFIX/share/maker-dashboard/build/client"
-          mkdir -p "$PREFIX/share/maker-dashboard/build"
-          cp -r frontend/build/client "$PREFIX/share/maker-dashboard/build/client"
-          echo "Installed maker-dashboard to $PREFIX/bin"
-          echo "Run with:"
-          echo "  MAKER_DASHBOARD_FRONTEND_PATH=$PREFIX/share/maker-dashboard/build/client maker-dashboard"
-          EOF
-          chmod +x "$stage/install.sh"
+      - name: Build .deb
+        if: runner.os == 'Linux'
+        run: cargo deb --no-build --no-strip --target ${{ matrix.target }} --output .
 
-          tarball="${name}.tar.gz"
-          tar -czvf "$tarball" -C "$(dirname "$stage")" "$name"
-          echo "tarball=$tarball" >> "$GITHUB_OUTPUT"
+      # --- macOS installer package -------------------------------------------
+      - name: Build .pkg
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          version="${{ steps.get_version.outputs.value }}"
+          root="$(mktemp -d)/root"
+          mkdir -p "$root/usr/local/bin"
+          cp "target/${{ matrix.target }}/release/maker-dashboard" "$root/usr/local/bin/"
+          pkgbuild \
+            --root "$root" \
+            --identifier tech.citadel.maker-dashboard \
+            --version "$version" \
+            --install-location / \
+            "maker-dashboard-v${version}-${{ matrix.target }}.pkg"
 
-      - name: Upload build artifact
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}
-          path: ${{ steps.package.outputs.tarball }}
+          path: |
+            *.tar.gz
+            *.deb
+            *.pkg
 
       - name: Create release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           draft: true
-          files: ${{ steps.package.outputs.tarball }}
+          files: |
+            *.tar.gz
+            *.deb
+            *.pkg
