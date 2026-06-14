@@ -20,7 +20,15 @@ const NETWORK_DEFAULTS: Record<
   },
 };
 
-export default function BitcoindWidget() {
+const MAKER_REFRESH_DELAY_MS = 7_000;
+
+interface BitcoindWidgetProps {
+  onStatusChange?: () => void;
+}
+
+export default function BitcoindWidget({
+  onStatusChange,
+}: BitcoindWidgetProps) {
   const [status, setStatus] = useState<BitcoindStatusInfo>({
     running: false,
     managed: false,
@@ -90,7 +98,9 @@ export default function BitcoindWidget() {
       } else {
         const s = await bitcoind.start({ network });
         setStatus(s);
+        window.setTimeout(() => onStatusChange?.(), MAKER_REFRESH_DELAY_MS);
       }
+      onStatusChange?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Action failed");
     } finally {
