@@ -67,8 +67,8 @@ services:
       tor:
         condition: service_healthy
     volumes:
-      - dashboard-config:/root/.config/maker-dashboard
-      - coinswap-data:/root/.coinswap
+      - dashboard-config:/home/appuser/.config/maker-dashboard
+      - coinswap-data:/home/appuser/.coinswap
     environment:
       - MAKER_DASHBOARD_HOST=0.0.0.0
       - MAKER_DASHBOARD_PORT=${MAKER_DASHBOARD_PORT:-3000}
