@@ -177,9 +177,7 @@ impl MakerManager {
         if can_load {
             let saved_configs = mgr.persistence.load()?;
             mgr.restore_makers(saved_configs);
-            if mgr.settings.auto_start_makers {
-                mgr.auto_start_restored_makers();
-            }
+            mgr.auto_start_configured_makers();
             mgr.unlocked = true;
         }
 
@@ -227,15 +225,20 @@ impl MakerManager {
         }
     }
 
-    fn auto_start_restored_makers(&mut self) {
+    pub(crate) fn auto_start_configured_makers(&mut self) {
+        if !self.settings.auto_start_makers {
+            return;
+        }
+
         let restored_ids: Vec<MakerId> = self.configs.keys().cloned().collect();
         for id in restored_ids {
-            if self.pool.contains(&id) {
-                match self.pool.start_server(&id) {
-                    Ok(()) => tracing::info!("Maker '{}' auto-started after restore", id),
-                    Err(e) => {
-                        tracing::warn!("Maker '{}' restored but failed to auto-start: {}", id, e)
-                    }
+            match self.start_maker(&id) {
+                Ok(()) => {
+                    tracing::info!("Maker '{}' auto-started", id);
+                }
+                Err(MakerManagerError::AlreadyRunning(_)) => {}
+                Err(e) => {
+                    tracing::warn!("Maker '{}' failed to auto-start: {}", id, e);
                 }
             }
         }
@@ -254,9 +257,7 @@ impl MakerManager {
         self.persistence.update_enc_key(Some(key));
         let saved_configs = self.persistence.load()?;
         self.restore_makers(saved_configs);
-        if self.settings.auto_start_makers {
-            self.auto_start_restored_makers();
-        }
+        self.auto_start_configured_makers();
         self.unlocked = true;
 
         // If makers.json doesn't exist yet (fresh setup), persist an empty

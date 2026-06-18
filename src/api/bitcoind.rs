@@ -1,7 +1,9 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use axum::{extract::State, http::StatusCode, routing::get, routing::post, Json, Router};
 use tokio::sync::Mutex;
+use tokio::time::sleep;
 
 use crate::maker_manager::{MakerConfig, MakerManager};
 
@@ -9,6 +11,8 @@ use super::{
     dto::{ApiResponse, BitcoindStatusInfo, StartBitcoindRequest},
     AppState,
 };
+
+const MAKER_AUTO_START_RETRY_DELAY: Duration = Duration::from_secs(5);
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -66,6 +70,11 @@ fn probe_standard_ports() -> Option<String> {
         }
     }
     None
+}
+
+async fn auto_start_makers_after_bitcoind_start(state: Arc<Mutex<MakerManager>>) {
+    sleep(MAKER_AUTO_START_RETRY_DELAY).await;
+    state.lock().await.auto_start_configured_makers();
 }
 
 /// Get bitcoind status by probing RPC connectivity via any registered maker's config.
@@ -139,14 +148,17 @@ async fn start(
 ) -> (StatusCode, Json<ApiResponse<BitcoindStatusInfo>>) {
     let network = body.network.clone();
     match state.lock().await.start_bitcoind(body.network) {
-        Ok(()) => (
-            StatusCode::OK,
-            Json(ApiResponse::ok(BitcoindStatusInfo {
-                running: true,
-                network: Some(network),
-                managed: true,
-            })),
-        ),
+        Ok(()) => {
+            tokio::spawn(auto_start_makers_after_bitcoind_start(state.clone()));
+            (
+                StatusCode::OK,
+                Json(ApiResponse::ok(BitcoindStatusInfo {
+                    running: true,
+                    network: Some(network),
+                    managed: true,
+                })),
+            )
+        }
         Err(e) => (
             StatusCode::BAD_REQUEST,
             Json(ApiResponse::err(e.to_string())),

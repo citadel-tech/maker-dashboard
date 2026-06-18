@@ -356,7 +356,7 @@ export default function Home() {
                 {reportsPartial ? " · partial" : ""}
               </span>
             </article>
-            <BitcoindWidget />
+            <BitcoindWidget onStatusChange={() => void loadMakers(true)} />
           </div>
         </header>
 
