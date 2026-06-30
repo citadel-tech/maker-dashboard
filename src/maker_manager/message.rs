@@ -39,6 +39,8 @@ pub enum MessageRequest {
     SyncWallet,
     /// Request to fetch UTXOs for completed (swept) incoming swap coins.
     SweptSwapUtxo,
+    /// Request to verify the deniability proof for a specific swap.
+    VerifyDeniability { swap_id: String },
 }
 
 /// Enum representing RPC message responses.
@@ -92,6 +94,8 @@ pub enum MessageResponse {
         /// List of UTXOs that were swept from completed incoming swaps.
         utxos: Vec<UTXO>,
     },
+    /// Response to a VerifyDeniability request. True if proof is valid.
+    VerifyDeniabilityResult(bool),
 }
 
 impl std::fmt::Display for MessageResponse {
@@ -125,6 +129,7 @@ impl std::fmt::Display for MessageResponse {
             Self::FidelitySpend(txid) => write!(f, "{txid}"),
             Self::ServerError(e) => write!(f, "{e}"),
             Self::ListBonds(v) => write!(f, "{v}"),
+            Self::VerifyDeniabilityResult(valid) => write!(f, "{valid}"),
         }
     }
 }

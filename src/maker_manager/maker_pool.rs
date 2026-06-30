@@ -24,6 +24,12 @@ pub trait MakerWalletAccess: Send + Sync + 'static {
     fn wallet(&self) -> &RwLock<Wallet>;
     fn default_address_type(&self) -> AddressType;
     fn data_dir(&self) -> &std::path::Path;
+    fn verify_deniability(&self, swap_id: &str) -> Result<bool, std::io::Error> {
+        self.wallet()
+            .read()
+            .map_err(|e| std::io::Error::other(format!("wallet lock poisoned: {e}")))?
+            .verify_deniability(swap_id)
+    }
 }
 
 impl MakerWalletAccess for MakerServer {
@@ -256,6 +262,10 @@ fn handle_request(
                     .map(UTXO::from_utxo_data)
                     .collect(),
             },
+            Err(e) => MessageResponse::ServerError(e.to_string()),
+        },
+        MessageRequest::VerifyDeniability { swap_id } => match maker.verify_deniability(&swap_id) {
+            Ok(valid) => MessageResponse::VerifyDeniabilityResult(valid),
             Err(e) => MessageResponse::ServerError(e.to_string()),
         },
     })

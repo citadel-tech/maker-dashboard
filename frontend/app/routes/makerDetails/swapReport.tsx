@@ -148,6 +148,22 @@ function MakerSwapReportPageContent({
   const feeRate =
     report.incoming_amount > 0 ? (spread / report.incoming_amount) * 100 : 0;
 
+  type VerifyState = "idle" | "loading" | "valid" | "invalid" | "error";
+  const [verifyState, setVerifyState] = useState<VerifyState>("idle");
+  const [verifyError, setVerifyError] = useState<string | null>(null);
+
+  async function handleVerify() {
+    setVerifyState("loading");
+    setVerifyError(null);
+    try {
+      const valid = await monitoring.verifyDeniability(makerId, report.swap_id);
+      setVerifyState(valid ? "valid" : "invalid");
+    } catch (e) {
+      setVerifyError(e instanceof Error ? e.message : "Verification failed");
+      setVerifyState("error");
+    }
+  }
+
   return (
     <section className="cs-maker-report-page">
       <header className="cs-maker-report-head">
@@ -268,6 +284,86 @@ function MakerSwapReportPageContent({
                 accent={spread >= 0 ? "green" : "red"}
               />
             </div>
+          </section>
+
+          <section className="cs-maker-report-block">
+            <div className="cs-maker-report-block-head">
+              <span>Deniability proof</span>
+              <strong>
+                {report.deniability_proof
+                  ? report.deniability_proof.protocol
+                  : "—"}
+              </strong>
+            </div>
+            {report.deniability_proof ? (
+              <div className="cs-maker-report-proof">
+                <div className="cs-maker-report-proof-meta">
+                  <span data-label="Role">
+                    <span className="cs-sr-only">Role: </span>
+                    {report.deniability_proof.role}
+                  </span>
+                  <div className="cs-proof-sep" />
+                  <span data-label="Created">
+                    <span className="cs-sr-only">Created: </span>
+                    {formatDate(report.deniability_proof.created_at)}
+                  </span>
+                </div>
+                {report.deniability_proof.outgoing_swapcoin &&
+                  (() => {
+                    const raw = report.deniability_proof.outgoing_swapcoin;
+                    const sep = raw!.lastIndexOf(":");
+                    const txid = sep > 0 ? raw!.slice(0, sep) : raw!;
+                    return (
+                      <div className="cs-maker-report-artifacts">
+                        <Artifact
+                          label="Outgoing swapcoin"
+                          value={raw!}
+                          href={mempoolTxUrl(txid)}
+                          accent="orange"
+                          direction="outgoing"
+                        />
+                      </div>
+                    );
+                  })()}
+                <div className="cs-maker-report-proof-actions">
+                  <button
+                    type="button"
+                    className="cs-maker-report-verify-btn"
+                    onClick={handleVerify}
+                    disabled={verifyState === "loading"}
+                  >
+                    {verifyState === "loading"
+                      ? "Verifying…"
+                      : "Verify on-chain"}
+                  </button>
+                  {verifyState === "valid" && (
+                    <span className="cs-maker-report-verify-result valid">
+                      ✓ Valid
+                    </span>
+                  )}
+                  {verifyState === "invalid" && (
+                    <span className="cs-maker-report-verify-result invalid">
+                      ✗ Invalid
+                    </span>
+                  )}
+                  {verifyState === "error" && (
+                    <span className="cs-maker-report-verify-result error">
+                      {verifyError ?? "Error"}
+                    </span>
+                  )}
+                </div>
+                <details className="cs-maker-report-proof-details">
+                  <summary>Technical details</summary>
+                  <pre>
+                    {JSON.stringify(report.deniability_proof.proof, null, 2)}
+                  </pre>
+                </details>
+              </div>
+            ) : (
+              <p className="cs-maker-report-proof-none">
+                No deniability proof available for this swap.
+              </p>
+            )}
           </section>
 
           <div className="cs-maker-report-export">

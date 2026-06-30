@@ -116,6 +116,7 @@ impl FromRef<AppState> for bool {
         bitcoind::stop,
         onboarding::run_startup_check,
         monitoring::get_tor_status,
+        monitoring::verify_deniability,
         health_check,
     ),
     components(schemas(
@@ -140,6 +141,9 @@ impl FromRef<AppState> for bool {
         dto::BitcoindStatusInfo,
         dto::CombinedLogLine,
         dto::TorStatusInfo,
+        dto::VerifyDeniabilityRequest,
+        dto::VerifyDeniabilityResponse,
+        dto::DeniabilityProofDto,
     )),
     tags(
         (name = "makers", description = "Maker management"),

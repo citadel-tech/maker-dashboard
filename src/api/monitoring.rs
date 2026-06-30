@@ -12,7 +12,7 @@ use axum::{
         sse::{Event, KeepAlive, Sse},
         IntoResponse, Response,
     },
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
 use futures::{stream, StreamExt};
@@ -25,8 +25,9 @@ use crate::utils::log_writer::read_last_n_lines;
 
 use super::{
     dto::{
-        ApiResponse, CombinedLogLine, MakerStatus, RpcStatusInfo, SwapHistoryDto, SwapReportDto,
-        TorStatusInfo, UtxoInfo,
+        ApiResponse, CombinedLogLine, DeniabilityProofDto, MakerStatus, RpcStatusInfo,
+        SwapHistoryDto, SwapReportDto, TorStatusInfo, UtxoInfo, VerifyDeniabilityRequest,
+        VerifyDeniabilityResponse,
     },
     AppState,
 };
@@ -44,6 +45,7 @@ pub fn routes() -> Router<AppState> {
         .route("/makers/{id}/rpc-status", get(get_rpc_status))
         .route("/logs/combined", get(get_combined_logs))
         .route("/tor/status", get(get_tor_status))
+        .route("/makers/{id}/verify-deniability", post(verify_deniability))
 }
 
 /// Get operational status of a maker
@@ -270,6 +272,8 @@ struct WalletMakerReport {
     incoming_contract_txid: String,
     outgoing_contract_txid: String,
     timelock: u32,
+    #[serde(default)]
+    deniability_proof: Option<serde_json::Value>,
 }
 
 impl From<WalletMakerReport> for SwapReportDto {
@@ -307,6 +311,15 @@ impl From<WalletMakerReport> for SwapReportDto {
             output_swap_amounts: Vec::new(),
             output_change_utxos: Vec::new(),
             output_swap_utxos: Vec::new(),
+            deniability_proof: report.deniability_proof.and_then(
+                |v| match serde_json::from_value::<DeniabilityProofDto>(v) {
+                    Ok(proof) => Some(proof),
+                    Err(e) => {
+                        warn!("Failed to parse deniability proof: {e}");
+                        None
+                    }
+                },
+            ),
         }
     }
 }
@@ -707,6 +720,53 @@ async fn get_data_dir(
         Ok(MessageResponse::GetDataDirResp(path)) => (
             StatusCode::OK,
             Json(ApiResponse::ok(path.display().to_string())),
+        ),
+        Ok(MessageResponse::ServerError(e)) => {
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::err(e)))
+        }
+        Ok(other) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::err(format!("Unexpected response: {other}"))),
+        ),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::err(e.to_string())),
+        ),
+    }
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/makers/{id}/verify-deniability",
+    tag = "monitoring",
+    params(("id" = String, Path, description = "Maker ID")),
+    request_body = VerifyDeniabilityRequest,
+    responses(
+        (status = 200, description = "Proof verification result", body = ApiResponse<VerifyDeniabilityResponse>),
+        (status = 404, description = "Maker not found", body = ApiResponse<VerifyDeniabilityResponse>),
+        (status = 500, description = "Verification failed", body = ApiResponse<VerifyDeniabilityResponse>)
+    )
+)]
+async fn verify_deniability(
+    State(state): State<Arc<Mutex<MakerManager>>>,
+    Path(id): Path<String>,
+    Json(body): Json<VerifyDeniabilityRequest>,
+) -> (StatusCode, Json<ApiResponse<VerifyDeniabilityResponse>>) {
+    if !state.lock().await.has_maker(&id) {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(ApiResponse::err(format!("Maker '{id}' not found"))),
+        );
+    }
+    match state
+        .lock()
+        .await
+        .verify_deniability(&id, &body.swap_id)
+        .await
+    {
+        Ok(MessageResponse::VerifyDeniabilityResult(valid)) => (
+            StatusCode::OK,
+            Json(ApiResponse::ok(VerifyDeniabilityResponse { valid })),
         ),
         Ok(MessageResponse::ServerError(e)) => {
             (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::err(e)))

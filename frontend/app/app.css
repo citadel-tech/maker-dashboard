@@ -669,6 +669,18 @@ select {
   color: var(--cs-text-2);
 }
 
+.cs-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .cs-dim {
   color: var(--cs-text-3);
 }
@@ -1032,7 +1044,7 @@ select {
 .cs-maker-report-row-details > div > span,
 .cs-maker-report-block-head,
 .cs-maker-report-maker-fees > span,
-.cs-maker-report-total span {
+.cs-maker-report-total > span {
   display: block;
   color: var(--cs-text-3);
   font-family: var(--cs-mono);
@@ -1259,7 +1271,7 @@ select {
 .cs-maker-report-hero {
   display: grid;
   justify-items: center;
-  padding: 54px 0 38px;
+  padding: 28px 0 20px;
   text-align: center;
 }
 
@@ -1273,10 +1285,10 @@ select {
 }
 
 .cs-maker-report-hero strong {
-  margin: 16px 0 12px;
+  margin: 10px 0 8px;
   color: var(--cs-text);
   font-family: var(--cs-mono);
-  font-size: 54px;
+  font-size: 42px;
   line-height: 1;
 }
 
@@ -1289,7 +1301,7 @@ select {
 }
 
 .cs-maker-report-hero p {
-  margin: 0 0 24px;
+  margin: 0 0 16px;
   color: var(--cs-text-2);
   font-family: var(--cs-mono);
   font-size: 13px;
@@ -1318,6 +1330,7 @@ select {
 
 .cs-maker-report-block-head strong {
   color: var(--cs-text-2);
+  font-family: var(--cs-mono);
 }
 
 .cs-maker-report-artifacts {
@@ -1442,6 +1455,139 @@ a.cs-maker-report-artifact:focus-visible {
   font-size: 13px;
 }
 
+.cs-maker-report-proof {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.cs-maker-report-proof-meta {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 14px 16px;
+  border: 1px solid var(--cs-border);
+  border-radius: 10px;
+  background: var(--cs-surface-3);
+}
+
+.cs-maker-report-proof-meta span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: var(--cs-text-2);
+  font-family: var(--cs-mono);
+  font-size: 13px;
+}
+
+.cs-maker-report-proof-meta span::before {
+  content: attr(data-label);
+  color: var(--cs-text-3);
+  font-family: var(--cs-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cs-maker-report-proof-meta .cs-proof-sep {
+  width: 1px;
+  align-self: stretch;
+  background: var(--cs-border);
+  flex-shrink: 0;
+}
+
+.cs-maker-report-proof-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.cs-maker-report-verify-btn {
+  height: 38px;
+  padding: 0 20px;
+  border: 1px solid var(--cs-border-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--cs-text-2);
+  font-family: var(--cs-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition:
+    border-color var(--cs-t),
+    color var(--cs-t);
+}
+
+.cs-maker-report-verify-btn:hover:not(:disabled) {
+  border-color: rgba(42, 130, 218, 0.45);
+  color: var(--cs-blue-hover);
+}
+
+.cs-maker-report-verify-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.cs-maker-report-verify-result {
+  font-family: var(--cs-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.cs-maker-report-verify-result.valid {
+  color: var(--cs-green);
+}
+
+.cs-maker-report-verify-result.invalid {
+  color: var(--cs-red);
+}
+
+.cs-maker-report-verify-result.error {
+  color: var(--cs-amber);
+}
+
+.cs-maker-report-proof-details {
+  border: 1px solid var(--cs-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.cs-maker-report-proof-details summary {
+  padding: 10px 16px;
+  color: var(--cs-text-3);
+  font-family: var(--cs-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  user-select: none;
+}
+
+.cs-maker-report-proof-details summary:hover {
+  color: var(--cs-text-2);
+}
+
+.cs-maker-report-proof-details pre {
+  margin: 0;
+  padding: 14px 16px;
+  border-top: 1px solid var(--cs-border);
+  background: var(--cs-surface-3);
+  color: var(--cs-text-2);
+  font-family: var(--cs-mono);
+  font-size: 11px;
+  line-height: 1.7;
+  overflow-x: auto;
+}
+
+.cs-maker-report-proof-none {
+  margin: 0;
+  color: var(--cs-text-3);
+  font-family: var(--cs-mono);
+  font-size: 13px;
+}
+
 .cs-maker-report-export {
   margin: 0 -18px;
   padding: 18px 18px 24px;
@@ -1529,23 +1675,21 @@ a.cs-maker-report-artifact:focus-visible {
 }
 
 .cs-maker-report-total {
+  display: grid;
+  grid-template-columns: 1fr max-content;
+  align-items: center;
+  gap: 12px;
   margin-top: 26px;
   padding-top: 24px;
   border-top: 1px solid var(--cs-border-strong);
-  text-align: right;
-}
-
-.cs-maker-report-total span {
-  float: left;
-  color: var(--cs-text);
-  font-weight: 800;
 }
 
 .cs-maker-report-total strong {
-  display: block;
   color: var(--cs-orange-hover);
   font-family: var(--cs-mono);
-  font-size: 22px;
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .cs-maker-report-total strong.positive {

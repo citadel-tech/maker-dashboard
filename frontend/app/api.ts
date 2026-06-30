@@ -119,6 +119,15 @@ export interface MakerFeeInfo {
   total_fee: number;
 }
 
+export interface DeniabilityProofDto {
+  swap_id: string;
+  role: string;
+  protocol: string;
+  outgoing_swapcoin?: string | null;
+  proof: unknown;
+  created_at: number;
+}
+
 export interface CombinedLogLine {
   maker_id: string;
   line: string;
@@ -153,6 +162,7 @@ export interface SwapReportDto {
   output_swap_amounts: number[];
   output_change_utxos: [number, string][];
   output_swap_utxos: [number, string][];
+  deniability_proof?: DeniabilityProofDto | null;
 }
 
 // ─── Request bodies ───────────────────────────────────────────────────────────
@@ -385,6 +395,10 @@ export const monitoring = {
   combinedLogs: (lines?: number): Promise<CombinedLogLine[]> =>
     get(`/logs/combined${lines !== undefined ? `?lines=${lines}` : ""}`),
   getTorStatus: (): Promise<TorStatusInfo> => get<TorStatusInfo>("/tor/status"),
+  verifyDeniability: (id: string, swapId: string): Promise<boolean> =>
+    post<{ valid: boolean }>(`/makers/${id}/verify-deniability`, {
+      swap_id: swapId,
+    }).then((r) => r.valid),
 };
 
 // ─── Bitcoind ─────────────────────────────────────────────────────────────────
