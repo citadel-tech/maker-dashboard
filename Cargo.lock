@@ -547,7 +547,7 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 [[package]]
 name = "coinswap"
 version = "0.2.1"
-source = "git+https://github.com/citadel-tech/coinswap?rev=654bb79#654bb7986c215d22ad2f5c2621259f41598f447c"
+source = "git+https://github.com/citadel-tech/coinswap?rev=fee15f1#fee15f1c16c1d674ccc9ab8bc2fcbdd69263ece9"
 dependencies = [
  "aes-gcm",
  "bip39",
@@ -2179,12 +2179,9 @@ dependencies = [
 
 [[package]]
 name = "rust-coinselect"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74e0a587a43bee0b27acd75833dc2d436deff8704b0d24a2a3e02b76dc79fb35"
-dependencies = [
- "rand 0.8.6",
-]
+checksum = "7a3ec89a5204b1492f300f2bbbb88d64ae189bef97b2b61f5d39f66276dd4346"
 
 [[package]]
 name = "rust-embed"
