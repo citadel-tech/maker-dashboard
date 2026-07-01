@@ -156,7 +156,7 @@ fn handle_request(
                 change_address_type: addr_type,
             };
             let coins_to_send = match maker.wallet().read() {
-                Ok(wallet) => match wallet.coin_select(amount, feerate, None, None) {
+                Ok(wallet) => match wallet.coin_select(amount, feerate, addr_type, None, None) {
                     Ok(coins) => coins,
                     Err(e) => {
                         return Ok(MessageResponse::ServerError(format!(
