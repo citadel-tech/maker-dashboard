@@ -340,6 +340,9 @@ pub struct SwapReportDto {
     pub output_change_utxos: Vec<(u64, String)>,
     #[serde(default)]
     pub output_swap_utxos: Vec<(u64, String)>,
+    #[serde(default)]
+    #[schema(value_type = Option<Object>)]
+    pub deniability_proof: Option<DeniabilityProofDto>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -431,4 +434,25 @@ pub struct TorStatusInfo {
     pub source: &'static str,
     /// Whether the dashboard started/manages the tor process
     pub managed: bool,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct VerifyDeniabilityRequest {
+    pub swap_id: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct VerifyDeniabilityResponse {
+    pub valid: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct DeniabilityProofDto {
+    pub swap_id: String,
+    pub role: String,
+    pub protocol: String,
+    pub outgoing_swapcoin: Option<String>,
+    #[schema(value_type = Object)]
+    pub proof: serde_json::Value,
+    pub created_at: u64,
 }

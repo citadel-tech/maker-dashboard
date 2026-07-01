@@ -659,6 +659,18 @@ impl MakerManager {
         self.request(id, MessageRequest::SyncWallet).await
     }
 
+    /// Verifies the deniability proof for a specific swap
+    pub async fn verify_deniability(&self, id: &MakerId, swap_id: &str) -> Result<MessageResponse> {
+        self.pool
+            .request(
+                id,
+                MessageRequest::VerifyDeniability {
+                    swap_id: swap_id.to_string(),
+                },
+            )
+            .await
+    }
+
     /// Sends a raw request to a maker
     pub async fn request(&self, id: &MakerId, req: MessageRequest) -> Result<MessageResponse> {
         self.pool.request(id, req).await
