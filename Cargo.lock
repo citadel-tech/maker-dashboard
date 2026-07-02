@@ -546,8 +546,8 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
 name = "coinswap"
-version = "0.2.1"
-source = "git+https://github.com/citadel-tech/coinswap?rev=fee15f1#fee15f1c16c1d674ccc9ab8bc2fcbdd69263ece9"
+version = "0.2.2"
+source = "git+https://github.com/citadel-tech/coinswap?rev=5695fc8#5695fc8dc8d50908625abfa64969e1eede57666d"
 dependencies = [
  "aes-gcm",
  "bip39",
