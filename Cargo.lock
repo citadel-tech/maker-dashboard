@@ -547,7 +547,7 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 [[package]]
 name = "coinswap"
 version = "0.2.2"
-source = "git+https://github.com/citadel-tech/coinswap?rev=a145cab#a145cab0bb7ada65b60a42d3943f32f8eeb92212"
+source = "git+https://github.com/citadel-tech/coinswap?rev=12bfb5c#12bfb5c2bb2bd600bf764ded94f9691d2f0faffe"
 dependencies = [
  "aes-gcm",
  "bip39",
@@ -557,7 +557,6 @@ dependencies = [
  "crossbeam-channel",
  "crossterm",
  "dirs 3.0.2",
- "hotpath",
  "log",
  "log4rs",
  "minreq",
@@ -1167,21 +1166,6 @@ checksum = "cc627f471c528ff0c4a49e1d5e60450c8f6461dd6d10ba9dcd3a61d3dff7728d"
 dependencies = [
  "windows-sys 0.61.2",
 ]
-
-[[package]]
-name = "hotpath"
-version = "0.15.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fdb7d0713302f121f02d93290b6303b320e886f462d2cde84146ce9f9e28f1f0"
-dependencies = [
- "hotpath-macros",
-]
-
-[[package]]
-name = "hotpath-macros"
-version = "0.15.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51066092dc750f8cbcac4afa04592377bf7463a911d1beca430ddd788deb0757"
 
 [[package]]
 name = "http"
