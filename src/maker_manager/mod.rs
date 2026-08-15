@@ -790,16 +790,29 @@ impl MakerManager {
         removed
     }
 
-    /// Restarts a maker (stop server + start server)
+    /// Restarts a maker by stopping and re-initializing its server.
+    ///
+    /// `MakerServer::start_server` owns background services such as the
+    /// watchtower. Stopping the server shuts those services down permanently,
+    /// so starting the same `MakerServer` instance again would leave it in
+    /// recovery-only mode. Re-create the instance from the persisted config to
+    /// give the restarted server fresh background services.
     pub fn restart_maker(&mut self, id: &MakerId) -> Result<(), MakerManagerError> {
-        if !self.configs.contains_key(id) {
-            return Err(MakerManagerError::NotFound(id.clone()));
-        }
+        let config = self
+            .configs
+            .get(id)
+            .cloned()
+            .ok_or_else(|| MakerManagerError::NotFound(id.clone()))?;
+
         if self.pool.is_server_running(id) {
             self.pool
                 .stop_server(id)
                 .map_err(MakerManagerError::Other)?;
         }
+
+        self.pool.remove_maker(id);
+        self.create_maker_internal(id.clone(), config, false)
+            .map_err(MakerManagerError::Other)?;
         self.pool.start_server(id).map_err(MakerManagerError::Other)
     }
 

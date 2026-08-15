@@ -7,6 +7,7 @@ authors = ["Citadel FOSS Team"]
 [features]
 # Enable with: cargo test --features integration-test
 integration-test = ["openswap/integration-test"]
+integration-test = ["openswap/integration-test"]
 # Compile the built frontend (frontend/build/client) into the binary so the
 # release artifact is self-contained. Requires the frontend to be built first.
 # Used by the release workflow; default builds keep serving from disk.
