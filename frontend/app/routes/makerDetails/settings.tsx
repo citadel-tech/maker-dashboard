@@ -603,7 +603,9 @@ export default function Settings({ id, onSaved }: Props) {
               </div>
 
               <div className="cs-field cs-span-2">
-                <label htmlFor="timeRelativeFeePct">Time Relative Fee (%)</label>
+                <label htmlFor="timeRelativeFeePct">
+                  Time Relative Fee (%)
+                </label>
                 <input
                   id="timeRelativeFeePct"
                   type="number"

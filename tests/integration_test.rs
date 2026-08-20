@@ -141,6 +141,7 @@ impl DashboardGuard {
                         localhost_only: true,
                         secure_cookies: true,
                         config_dir,
+                        quiet_tor: true,
                     };
                     let server = Server::new(cfg).expect("Server::new");
                     let addr = server.addr();
@@ -200,9 +201,6 @@ struct ApiClient {
 
 struct CreateMakerRequest<'a> {
     id: &'a str,
-    rpc_url: &'a str,
-    zmq_url: &'a str,
-    data_dir: &'a Path,
     network_port: u16,
     wallet_name: &'a str,
     rpc_port: u16,
@@ -297,17 +295,28 @@ impl ApiClient {
 
     // - domain helpers
 
+    fn set_bitcoind_backend(&self, rpc_url: &str, zmq_url: &str) {
+        let resp: Value = self.post_json(
+            "/backend",
+            &serde_json::json!({
+                "kind": "bitcoind",
+                "rpc": rpc_url,
+                "zmq": zmq_url,
+                "rpc_user": self.creds.user,
+                "rpc_password": self.creds.pass,
+            }),
+        );
+        assert!(
+            resp["success"].as_bool().unwrap_or(false),
+            "set_bitcoind_backend failed: {resp}"
+        );
+    }
+
     fn create_maker(&self, req: CreateMakerRequest<'_>) {
         let resp: Value = self.post_json(
             "/makers",
             &serde_json::json!({
                 "id": req.id,
-                "backend": "bitcoind",
-                "rpc": req.rpc_url,
-                "zmq": req.zmq_url,
-                "rpc_user": self.creds.user,
-                "rpc_password": self.creds.pass,
-                "data_directory": req.data_dir.to_string_lossy(),
                 "network_port": req.network_port,
                 "wallet_name": req.wallet_name,
                 "rpc_port": req.rpc_port,
@@ -538,15 +547,10 @@ fn test_maker_manager_integration() {
         fs::remove_dir_all(&tmp).unwrap();
     }
     let dash_config_dir = tmp.join("dashboard");
-    let maker_alpha_dir = tmp.join("maker-alpha");
-    let maker_beta_dir = tmp.join("maker-beta");
+    let maker_alpha_dir = dash_config_dir.join(MAKER_ALPHA_ID);
+    let maker_beta_dir = dash_config_dir.join(MAKER_BETA_ID);
     let taker_dir = tmp.join("taker");
-    for d in [
-        &dash_config_dir,
-        &maker_alpha_dir,
-        &maker_beta_dir,
-        &taker_dir,
-    ] {
+    for d in [&dash_config_dir, &taker_dir] {
         fs::create_dir_all(d).unwrap();
     }
 
@@ -564,22 +568,18 @@ fn test_maker_manager_integration() {
     let health: Value = client.health();
     assert_eq!(health["data"]["status"].as_str(), Some("ok"));
 
+    client.set_bitcoind_backend(&rpc_url, &zmq_addr);
+
     // Create two makers
     println!("[INFO] Creating makers");
     client.create_maker(CreateMakerRequest {
         id: MAKER_ALPHA_ID,
-        rpc_url: &rpc_url,
-        zmq_url: &zmq_addr,
-        data_dir: &maker_alpha_dir,
         network_port: MAKER_ALPHA_PORT,
         wallet_name: "alpha-wallet",
         rpc_port: maker_alpha_rpc_port,
     });
     client.create_maker(CreateMakerRequest {
         id: MAKER_BETA_ID,
-        rpc_url: &rpc_url,
-        zmq_url: &zmq_addr,
-        data_dir: &maker_beta_dir,
         network_port: MAKER_BETA_PORT,
         wallet_name: "beta-wallet",
         rpc_port: maker_beta_rpc_port,

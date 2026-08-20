@@ -52,12 +52,20 @@ export default function AddMaker({ firstRun = false }: { firstRun?: boolean }) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [fidelityAmount, setFidelityAmount] = useState(CORE_DEFAULTS.fidelityAmount);
-  const [fidelityTimelock, setFidelityTimelock] = useState(CORE_DEFAULTS.fidelityTimelock);
+  const [fidelityAmount, setFidelityAmount] = useState(
+    CORE_DEFAULTS.fidelityAmount,
+  );
+  const [fidelityTimelock, setFidelityTimelock] = useState(
+    CORE_DEFAULTS.fidelityTimelock,
+  );
   const [feeRate, setFeeRate] = useState(CORE_DEFAULTS.feeRate);
   const [baseFee, setBaseFee] = useState(CORE_DEFAULTS.baseFee);
-  const [amountRelativeFeePct, setAmountRelativeFeePct] = useState(CORE_DEFAULTS.amountRelativeFeePct);
-  const [timeRelativeFeePct, setTimeRelativeFeePct] = useState(CORE_DEFAULTS.timeRelativeFeePct);
+  const [amountRelativeFeePct, setAmountRelativeFeePct] = useState(
+    CORE_DEFAULTS.amountRelativeFeePct,
+  );
+  const [timeRelativeFeePct, setTimeRelativeFeePct] = useState(
+    CORE_DEFAULTS.timeRelativeFeePct,
+  );
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -84,7 +92,10 @@ export default function AddMaker({ firstRun = false }: { firstRun?: boolean }) {
       amountRelativeFeePct: Number(amountRelativeFeePct),
       timeRelativeFeePct: Number(timeRelativeFeePct),
     };
-    if (!Number.isInteger(parsed.fidelityAmount) || parsed.fidelityAmount <= 0) {
+    if (
+      !Number.isInteger(parsed.fidelityAmount) ||
+      parsed.fidelityAmount <= 0
+    ) {
       setError("Fidelity amount must be a positive whole number of sats.");
       return;
     }
